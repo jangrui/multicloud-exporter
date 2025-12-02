@@ -11,6 +11,15 @@ service:
   type: ClusterIP
   nodePort:
 
+serviceMonitor:
+  enabled: false
+  labels: {}
+  scheme: http
+  interval: "60s"
+  scrapeTimeout: "30s"
+  metricRelabelings: []
+  relabelings: []
+
 env:
   scrapeInterval: "60"
 
