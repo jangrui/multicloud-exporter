@@ -9,7 +9,7 @@ image:
 service:
   port: 9101
   type: ClusterIP
-  nodePort: 30910
+  nodePort:
 
 env:
   scrapeInterval: "60"
