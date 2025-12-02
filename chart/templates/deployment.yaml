@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "multicloud-exporter.fullname" . }}
+  labels: {{- include "multicloud-exporter.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {{- include "multicloud-exporter.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "multicloud-exporter.selectorLabels" . | nindent 8 }}
+    spec:
+      containers:
+        - name: exporter
+          image: "{{ .Values.image.registry | default "ghcr.io/jangrui" }}/{{ default .Chart.Name .Values.image.repository }}:{{ default .Chart.AppVersion .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.port }}
+          env:
+            - name: SCRAPE_INTERVAL
+              value: {{ .Values.env.scrapeInterval | quote }}
+            - name: EXPORTER_PORT
+              value: {{ .Values.service.port | quote }}
+            - name: SERVER_PATH
+              value: "/app/configs/server.yaml"
+            - name: PRODUCTS_PATH
+              value: "/app/configs/products.yaml"
+{{- if and .Values.accounts (.Values.accounts.secrets) }}
+            - name: ACCOUNTS_PATH
+              value: "/app/configs/accounts.yaml"
+{{- end }}
+{{- if and .Values.accounts (.Values.accounts.secrets) }}
+{{- range $i, $a := .Values.accounts.secrets }}
+            - name: ACC_{{ $i }}_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $a.name }}
+                  key: account_id
+            - name: ACC_{{ $i }}_AK
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $a.name }}
+                  key: access_key_id
+            - name: ACC_{{ $i }}_SK
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $a.name }}
+                  key: access_key_secret
+{{- end }}
+{{- end }}
+          volumeMounts:
+            - name: server
+              mountPath: "/app/configs/server.yaml"
+              subPath: server.yaml
+            - name: products
+              mountPath: "/app/configs/products.yaml"
+              subPath: products.yaml
+{{- if and .Values.accounts (.Values.accounts.secrets) }}
+            - name: accounts
+              mountPath: "/app/configs/accounts.yaml"
+              subPath: accounts.yaml
+{{- end }}
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: server
+          configMap:
+            name: {{ include "multicloud-exporter.fullname" . }}-config
+        - name: products
+          configMap:
+            name: {{ include "multicloud-exporter.fullname" . }}-products
+{{- if and .Values.accounts (.Values.accounts.secrets) }}
+        - name: accounts
+          configMap:
+            name: {{ include "multicloud-exporter.fullname" . }}-accounts
+{{- end }}
+      nodeSelector: {{- toYaml .Values.nodeSelector | nindent 8 }}
+      tolerations: {{- toYaml .Values.tolerations | nindent 8 }}
+      affinity: {{- toYaml .Values.affinity | nindent 8 }}

@@ -1,0 +1,21 @@
+{{- if and .Values.accounts (.Values.accounts.secrets) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "multicloud-exporter.fullname" . }}-accounts
+data:
+  accounts.yaml: |
+    accounts_list:
+{{- range $i, $a := .Values.accounts.secrets }}
+      - provider: {{ $a.provider | default "aliyun" }}
+        account_id: ${ACC_{{ $i }}_ID}
+        access_key_id: ${ACC_{{ $i }}_AK}
+        access_key_secret: ${ACC_{{ $i }}_SK}
+{{- if $a.regions }}
+        regions: {{ toYaml $a.regions | nindent 10 -}}
+{{- end }}
+{{- if $a.resources }}
+        resources: {{ toYaml $a.resources | nindent 10 -}}
+{{- end }}
+{{- end }}
+{{- end }}

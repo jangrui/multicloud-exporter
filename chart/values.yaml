@@ -1,0 +1,38 @@
+image:
+  registry: 
+  repository: 
+  tag: 
+  pullPolicy: IfNotPresent
+
+service:
+  port: 9101
+  type: ClusterIP
+  nodePort: 30910
+
+env:
+  scrapeInterval: "60"
+
+server:
+  port: 9101
+  page_size: 1000
+  discovery_ttl: "24h"
+  discovery_refresh: ""
+
+accounts:
+  secrets: []
+  #   - name: accounts-1
+  #     provider: aliyun
+  #     regions: ["*"]
+  #     resources: ["cbwp"]
+  #   - name: accounts-2
+  #     provider: aliyun
+  #     regions: ["*"]
+  #     resources: ["cbwp"]
+
+resources: {}
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
