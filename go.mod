@@ -1,6 +1,6 @@
 module multicloud-exporter
 
-go 1.21
+go 1.24.0
 
 require (
 	github.com/aliyun/alibaba-cloud-sdk-go v1.62.710
@@ -24,8 +24,8 @@ require (
 	github.com/prometheus/common v0.45.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
 	go.mongodb.org/mongo-driver v1.12.0 // indirect
-	golang.org/x/crypto v0.10.0 // indirect
-	golang.org/x/sys v0.15.0 // indirect
+	golang.org/x/crypto v0.45.0 // indirect
+	golang.org/x/sys v0.38.0 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 )
