@@ -1,0 +1,25 @@
+# OS/editor
+.DS_Store
+.vscode/
+.idea/
+.trae/
+
+# Binaries & build outputs
+bin/
+build/
+dist/
+
+# Tests & coverage
+*.test
+*.out
+*.cov
+coverage/
+
+# Logs
+*.log
+
+# Env & secrets
+.env
+.env.*
+*.pem
+*.key
