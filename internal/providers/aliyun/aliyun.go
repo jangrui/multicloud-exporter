@@ -157,6 +157,7 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 				period = ""
 			}
 			for _, metricName := range group.MetricList {
+				_ = metrics.NamespaceGauge(prod.Namespace, metricName)
 				meta := a.getMetricMeta(client, prod.Namespace, metricName)
 				if period == "" && meta.MinPeriod != "" {
 					period = meta.MinPeriod
@@ -236,6 +237,8 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 									region,
 									rtype,
 									id,
+									prod.Namespace,
+									metricName,
 								).Set(val)
 						}
 						if resp.NextToken == "" {
@@ -425,7 +428,7 @@ func resourceTypeForDim(dimKey string) string {
 	case "instanceId":
 		return "ecs"
 	case "sharebandwidthpackages", "bandwidthPackageId":
-		return "cbwp"
+		return "bwp"
 	default:
 		return dimKey
 	}
@@ -436,7 +439,7 @@ func resourceTypeForNamespace(namespace string) string {
 	case "acs_ecs_dashboard":
 		return "ecs"
 	case "acs_bandwidth_package":
-		return "cbwp"
+		return "bwp"
 	default:
 		return ""
 	}
@@ -447,7 +450,7 @@ func (a *Collector) resourceIDsForNamespace(account config.CloudAccount, region 
 	case "acs_ecs_dashboard":
 		return a.listECSInstanceIDs(account, region), "ecs"
 	case "acs_bandwidth_package":
-		return a.listCBWPIDs(account, region), "cbwp"
+		return a.listCBWPIDs(account, region), "bwp"
 	default:
 		return []string{}, ""
 	}

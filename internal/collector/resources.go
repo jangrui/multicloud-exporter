@@ -8,7 +8,7 @@ var SupportedResources = map[string][]string{
         "redis",
         "slb",
         "eip",
-        "cbwp",
+        "bwp",
         "nat",
         "oss",
         "cdn",

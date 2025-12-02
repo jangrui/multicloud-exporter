@@ -20,7 +20,7 @@
 - [ ] redis - Redis缓存
 - [ ] slb - 负载均衡
 - [ ] eip - 弹性公网IP
-- [x] cbwp - 共享带宽包
+- [x] bwp - 共享带宽包
 - [ ] nat - NAT网关
 - [ ] oss - 对象存储
 - [ ] cdn - CDN
@@ -97,7 +97,7 @@ accounts:
       access_key_secret: "${ALIYUN_SK}"
       regions: ["*"]
       resources:
-        - cbwp
+        - bwp
   huawei: []
   tencent: []
 ```
@@ -108,7 +108,7 @@ accounts:
 
 > resources 配置：
 > - `resources: []` 或 `resources: ["*"]` 采集所有资源类型
-> - 指定如 `resources: ["ecs", "cbwp"]` 仅采集列出的资源类型
+> - 指定如 `resources: ["ecs", "bwp"]` 仅采集列出的资源类型
 
 ## 使用方法
 
@@ -149,17 +149,19 @@ multicloud_resource_metric{
 } 4
 ```
 
-动态命名空间指标（阿里云CMS按配置采集）：
+动态命名空间指标（已统一命名为 bwp_*，跨云一致）：
 
 ```
-acs_bandwidth_package_in_bandwidth_utilization{
+bwp_in_utilization_pct{
   cloud_provider="aliyun",
   account_id="diangao-ym",
   region="ap-southeast-1",
-  resource_type="cbwp",
+  resource_type="bwp",
   resource_id="cbwp-t4n7bhjb4plfo8to7fmfb"
 } 0.23
 ```
+
+更多共享带宽指标命名与映射说明，参见 `docs/bwp-metrics.md`。
 
 ## Prometheus配置
 

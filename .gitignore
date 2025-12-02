@@ -23,3 +23,4 @@ coverage/
 .env.*
 *.pem
 *.key
+accounts.local.yaml
