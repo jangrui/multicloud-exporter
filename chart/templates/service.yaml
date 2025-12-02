@@ -10,5 +10,7 @@ spec:
       targetPort: http
       protocol: TCP
       name: http
-      nodePort: {{ and (eq .Values.service.type "NodePort") .Values.service.nodePort }}
+      {{- if and (eq .Values.service.type "NodePort") .Values.service.nodePort }}
+      nodePort: {{ .Values.service.nodePort }}
+      {{- end }}
   selector: {{- include "multicloud-exporter.selectorLabels" . | nindent 4 }}
