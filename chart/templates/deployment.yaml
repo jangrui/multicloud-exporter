@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "multicloud-exporter.fullname" . }}
+  name: {{ default "multicloud-exporter" .Values.fullname }}
   labels: {{- include "multicloud-exporter.labels" . | nindent 4 }}
 spec:
   replicas: 1
@@ -66,14 +66,14 @@ spec:
       volumes:
         - name: server
           configMap:
-            name: {{ include "multicloud-exporter.fullname" . }}-config
+            name: {{ default "multicloud-exporter" .Values.fullname }}-config
         - name: products
           configMap:
-            name: {{ include "multicloud-exporter.fullname" . }}-products
+            name: {{ default "multicloud-exporter" .Values.fullname }}-products
 {{- if and .Values.accounts (.Values.accounts.secrets) }}
         - name: accounts
           configMap:
-            name: {{ include "multicloud-exporter.fullname" . }}-accounts
+            name: {{ default "multicloud-exporter" .Values.fullname }}-accounts
 {{- end }}
       nodeSelector: {{- toYaml .Values.nodeSelector | nindent 8 }}
       tolerations: {{- toYaml .Values.tolerations | nindent 8 }}

@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "multicloud-exporter.fullname" . }}-products
+  name: {{ default "multicloud-exporter" .Values.fullname }}-products
 data:
   products.yaml: |
     products:

@@ -1,3 +1,5 @@
+fullname: multicloud-exporter
+
 image:
   registry: 
   repository: 
