@@ -1,0 +1,5 @@
+server:
+  port: 9101
+  page_size: 1000
+  discovery_ttl: "1h"
+  discovery_refresh: ""

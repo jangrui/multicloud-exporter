@@ -1,0 +1,16 @@
+products:
+  aliyun:
+    - namespace: acs_bandwidth_package
+      period: 60
+      metric_info:
+        - metric_list:
+          - in_bandwidth_utilization
+          - out_bandwidth_utilization
+          - net_rx.rate
+          - net_tx.rate
+          - net_rx.Pkgs
+          - net_tx.Pkgs
+          - in_ratelimit_drop_pps
+          - out_ratelimit_drop_pps
+  huawei: []
+  tencent: []
