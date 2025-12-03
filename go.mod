@@ -3,6 +3,7 @@ module multicloud-exporter
 go 1.21
 
 require (
+	github.com/stretchr/testify v1.8.4 // indirect
 	github.com/aliyun/alibaba-cloud-sdk-go v1.62.710
 	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.1.56
 	github.com/prometheus/client_golang v1.18.0
