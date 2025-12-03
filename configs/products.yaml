@@ -1,5 +1,11 @@
 products:
   aliyun:
+    # - namespace: acs_ecs_dashboard
+    #   period: 60
+    #   metric_info:
+    #     - metric_list:
+    #       - AdvanceCredit
+    #       - BurstCredit
     - namespace: acs_bandwidth_package
       period: 60
       metric_info:

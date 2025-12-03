@@ -2,49 +2,17 @@
 package collector
 
 var SupportedResources = map[string][]string{
-    "aliyun": {
-        "ecs",
-        "rds",
-        "redis",
-        "slb",
-        "eip",
-        "bwp",
-        "nat",
-        "oss",
-        "cdn",
-        "vpc",
-        "disk",
-    },
-    "huawei": {
-        "ecs",
-        "rds",
-        "redis",
-        "elb",
-        "eip",
-        "nat",
-        "obs",
-        "cdn",
-        "vpc",
-        "evs",
-    },
-    "tencent": {
-        "cvm",
-        "cdb",
-        "redis",
-        "clb",
-        "eip",
-        "nat",
-        "cos",
-        "cdn",
-        "vpc",
-        "cbs",
-    },
+	"aliyun": {
+		"bwp",
+	},
+	"huawei":  {},
+	"tencent": {},
 }
 
 // GetAllResources 返回指定云平台的全部资源类型
 func GetAllResources(provider string) []string {
-    if resources, ok := SupportedResources[provider]; ok {
-        return resources
-    }
-    return []string{}
+	if resources, ok := SupportedResources[provider]; ok {
+		return resources
+	}
+	return []string{}
 }

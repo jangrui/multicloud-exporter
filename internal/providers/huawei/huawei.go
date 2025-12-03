@@ -2,16 +2,9 @@
 package huawei
 
 import (
-	"log"
+    "log"
 
-	"multicloud-exporter/internal/config"
-	"multicloud-exporter/internal/metrics"
-
-	"github.com/huaweicloud/huaweicloud-sdk-go-v3/core/auth/basic"
-	hwconfig "github.com/huaweicloud/huaweicloud-sdk-go-v3/core/config"
-	ecs "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/ecs/v2"
-	ecsmodel "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/ecs/v2/model"
-	ecsregion "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/ecs/v2/region"
+    "multicloud-exporter/internal/config"
 )
 
 // Collector 封装华为云资源采集逻辑
@@ -28,62 +21,25 @@ func (h *Collector) Collect(account config.CloudAccount) {
 	}
 
 	for _, region := range regions {
-		for _, resource := range account.Resources {
-			switch resource {
-			case "ecs":
-				h.collectECS(account, region)
-			case "rds":
-				h.collectRDS(account, region)
-			case "redis":
-				h.collectRedis(account, region)
-			case "elb":
-				h.collectELB(account, region)
-			case "eip":
-				h.collectEIP(account, region)
-			default:
-				log.Printf("Huawei resource type %s not implemented yet", resource)
-			}
-		}
-	}
-}
-
-// collectECS 采集 ECS 的基础状态示例
-func (h *Collector) collectECS(account config.CloudAccount, region string) {
-	auth := basic.NewCredentialsBuilder().
-		WithAk(account.AccessKeyID).
-		WithSk(account.AccessKeySecret).
-		Build()
-
-	client := ecs.NewEcsClient(
-		ecs.EcsClientBuilder().
-			WithRegion(ecsregion.ValueOf(region)).
-			WithCredential(auth).
-			WithHttpConfig(hwconfig.DefaultHttpConfig()).
-			Build())
-
-	request := &ecsmodel.ListServersDetailsRequest{}
-	response, err := client.ListServersDetails(request)
-	if err != nil {
-		log.Printf("Huawei ECS describe error: %v", err)
-		return
-	}
-
-	if response.Servers != nil {
-		for _, server := range *response.Servers {
-			metrics.ResourceMetric.WithLabelValues(
-				"huawei",
-				account.AccountID,
-				region,
-				"ecs",
-				server.Id,
-				"status",
-			).Set(1)
-		}
-	}
+        for _, resource := range account.Resources {
+            switch resource {
+            case "rds":
+                h.collectRDS(account, region)
+            case "redis":
+                h.collectRedis(account, region)
+            case "elb":
+                h.collectELB(account, region)
+            case "eip":
+                h.collectEIP(account, region)
+            default:
+                log.Printf("Huawei resource type %s not implemented yet", resource)
+            }
+        }
+    }
 }
 
 func (h *Collector) collectRDS(account config.CloudAccount, region string) {
-	log.Printf("Collecting Huawei RDS in region %s (not implemented)", region)
+    log.Printf("Collecting Huawei RDS in region %s (not implemented)", region)
 }
 
 func (h *Collector) collectRedis(account config.CloudAccount, region string) {
