@@ -154,10 +154,10 @@ multicloud_resource_metric{
 ```
 bwp_in_utilization_pct{
   cloud_provider="aliyun",
-  account_id="diangao-ym",
-  region="ap-southeast-1",
+  account_id="xxx",
+  region="cn-hangzhou",
   resource_type="bwp",
-  resource_id="cbwp-t4n7bhjb4plfo8to7fmfb"
+  resource_id="cbwp-xxx"
 } 0.23
 ```
 

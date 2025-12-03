@@ -1,0 +1,1462 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "grafana"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 1,
+  "graphTooltip": 0,
+  "links": [],
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue"
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "综合入向使用率"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green"
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 60
+                    },
+                    {
+                      "color": "red",
+                      "value": 80
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "综合出向使用率"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green"
+                    },
+                    {
+                      "color": "yellow",
+                      "value": 60
+                    },
+                    {
+                      "color": "red",
+                      "value": 80
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "综合入向流量"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "Mbps"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "综合出向流量"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "Mbps"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 3,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "maxPerRow": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "same_as_value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.1",
+      "targets": [
+        {
+          "expr": "count(count by (account_id) (bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}))",
+          "instant": true,
+          "legendFormat": "账号总数",
+          "refId": "F"
+        },
+        {
+          "expr": "count(count by (resource_id) (bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}))",
+          "instant": true,
+          "legendFormat": "共享带宽总数",
+          "refId": "A"
+        },
+        {
+          "expr": "avg(bwp_in_utilization_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"})",
+          "hide": true,
+          "instant": true,
+          "legendFormat": "综合入向使用率",
+          "refId": "B"
+        },
+        {
+          "expr": "avg(bwp_out_utilization_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"})",
+          "hide": true,
+          "instant": true,
+          "legendFormat": "综合出向使用率",
+          "refId": "C"
+        },
+        {
+          "expr": "sum(bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}) / 1000000",
+          "hide": true,
+          "instant": true,
+          "legendFormat": "综合入向流量",
+          "refId": "D"
+        },
+        {
+          "expr": "sum(bwp_out_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}) / 1000000",
+          "hide": true,
+          "instant": true,
+          "legendFormat": "综合出向流量",
+          "refId": "E"
+        }
+      ],
+      "title": "📊 全局总览",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue"
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green"
+                    },
+                    {
+                      "color": "red",
+                      "value": 80
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "Mbps"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "C"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "pps"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 21,
+        "x": 3,
+        "y": 0
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "text": {},
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.1",
+      "targets": [
+        {
+          "expr": "avg(bwp_in_utilization_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"})",
+          "instant": true,
+          "legendFormat": "平均流入使用率",
+          "refId": "B"
+        },
+        {
+          "expr": "sum(bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}) / 1000000",
+          "instant": true,
+          "legendFormat": "总流入带宽",
+          "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "sum(bwp_in_pps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"})",
+          "instant": true,
+          "legendFormat": "总流入包速率",
+          "refId": "C"
+        },
+        {
+          "editorMode": "code",
+          "expr": "sum(bwp_in_drop_pps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"})",
+          "instant": true,
+          "legendFormat": "入方向丢包",
+          "refId": "D"
+        }
+      ],
+      "title": "入方向关键指标",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "fieldMinMax": false,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue"
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "Mbps"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green"
+                    },
+                    {
+                      "color": "red",
+                      "value": 80
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "C"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "pps"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 21,
+        "x": 3,
+        "y": 3
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.1",
+      "targets": [
+        {
+          "expr": "avg(bwp_out_utilization_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"})",
+          "instant": true,
+          "legendFormat": "平均流出使用率",
+          "refId": "B"
+        },
+        {
+          "editorMode": "code",
+          "expr": "sum(bwp_out_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}) / 1000000",
+          "instant": true,
+          "legendFormat": "总流出带宽",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(bwp_out_pps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"})",
+          "instant": true,
+          "legendFormat": "总流出包速率",
+          "refId": "C"
+        },
+        {
+          "expr": "sum(bwp_out_drop_pps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"})",
+          "instant": true,
+          "legendFormat": "出方向丢包",
+          "refId": "D"
+        }
+      ],
+      "title": "出方向关键指标",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "filterable": false,
+            "inspect": false
+          },
+          "decimals": 2,
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "入方向使用率"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "gauge",
+                  "valueDisplayMode": "color"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green"
+                    },
+                    {
+                      "color": "red",
+                      "value": 80
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "入方向流量"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "Mbps"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "云厂商"
+            },
+            "properties": [
+              {
+                "id": "custom.minWidth",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "出方向使用率"
+            },
+            "properties": [
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "mode": "gradient",
+                  "type": "gauge",
+                  "valueDisplayMode": "color"
+                }
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green"
+                    },
+                    {
+                      "color": "red",
+                      "value": 80
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "unit",
+                "value": "percent"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "出方向流量"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "Mbps"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "区域"
+            },
+            "properties": [
+              {
+                "id": "custom.minWidth",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "账号 ID"
+            },
+            "properties": [
+              {
+                "id": "custom.minWidth",
+                "value": 100
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "实例"
+            },
+            "properties": [
+              {
+                "id": "custom.minWidth",
+                "value": 240
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 11,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "id": 2,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "11.6.1",
+      "targets": [
+        {
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "bwp_in_utilization_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "入方向使用率",
+          "range": false,
+          "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"} / 1000000",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "入方向流量",
+          "range": false,
+          "refId": "B"
+        },
+        {
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "bwp_out_utilization_pct{ account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "出方向使用率",
+          "range": false,
+          "refId": "C"
+        },
+        {
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "bwp_out_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"} / 1000000",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "出方向流量",
+          "range": false,
+          "refId": "D"
+        }
+      ],
+      "title": "Panel Title",
+      "transformations": [
+        {
+          "id": "groupBy",
+          "options": {
+            "fields": {
+              "Value #A": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "Value #B": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "Value #C": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "Value #D": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "account_id": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "cloud_provider": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "region": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "resource_id": {
+                "aggregations": [],
+                "operation": "groupby"
+              }
+            }
+          }
+        },
+        {
+          "id": "merge",
+          "options": {}
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "__name__": true,
+              "instance": true,
+              "job": true,
+              "metric_name": true,
+              "namespace": true,
+              "resource_type": true
+            },
+            "includeByName": {},
+            "indexByName": {
+              "Time": 0,
+              "Value #A": 7,
+              "Value #B": 9,
+              "Value #C": 8,
+              "Value #D": 10,
+              "__name__": 1,
+              "account_id": 12,
+              "cloud_provider": 13,
+              "instance": 2,
+              "job": 3,
+              "metric_name": 5,
+              "namespace": 4,
+              "region": 11,
+              "resource_id": 6,
+              "resource_type": 14
+            },
+            "renameByName": {
+              "Value #A": "入方向使用率",
+              "Value #B": "入方向流量",
+              "Value #C": "出方向使用率",
+              "Value #D": "出方向流量",
+              "account_id": "账号 ID",
+              "cloud_provider": "云厂商",
+              "region": "区域",
+              "resource_id": "实例"
+            }
+          }
+        }
+      ],
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "Mbps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 0,
+        "y": 17
+      },
+      "id": 10,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.1",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"} / 1000000",
+          "legendFormat": "{{resource_id}} - 流入带宽(Mbps)",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "入方向带宽趋势",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "pps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 4,
+        "y": 17
+      },
+      "id": 5,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.1",
+      "targets": [
+        {
+          "expr": "bwp_in_drop_pps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}",
+          "legendFormat": "{{resource_id}} - 入方向丢包",
+          "refId": "B"
+        }
+      ],
+      "title": "入方向丢包",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "pps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 8,
+        "y": 17
+      },
+      "id": 6,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.1",
+      "targets": [
+        {
+          "expr": "bwp_in_pps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}",
+          "legendFormat": "{{resource_id}} - 流入包速率",
+          "refId": "A"
+        }
+      ],
+      "title": "入方向包速率",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "Mbps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 12,
+        "y": 17
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.1",
+      "targets": [
+        {
+          "expr": "bwp_out_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"} / 1000000",
+          "legendFormat": "{{resource_id}} - 流出带宽(Mbps)",
+          "refId": "A"
+        }
+      ],
+      "title": "出方向带宽趋势",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "pps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 16,
+        "y": 17
+      },
+      "id": 8,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.1",
+      "targets": [
+        {
+          "expr": "bwp_out_drop_pps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}",
+          "legendFormat": "{{resource_id}} - 出方向丢包",
+          "refId": "B"
+        }
+      ],
+      "title": "出方向丢包",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "pps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 7,
+        "w": 4,
+        "x": 20,
+        "y": 17
+      },
+      "id": 9,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.1",
+      "targets": [
+        {
+          "expr": "bwp_out_pps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}",
+          "legendFormat": "{{resource_id}} - 流出包速率",
+          "refId": "A"
+        }
+      ],
+      "title": "出方向包速率",
+      "type": "timeseries"
+    }
+  ],
+  "preload": false,
+  "refresh": "30s",
+  "schemaVersion": 41,
+  "tags": [
+    "network",
+    "bwp",
+    "mce"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": "vm-cluster",
+          "value": "PBF65911BEAADD538"
+        },
+        "label": "数据源",
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
+        },
+        "definition": "label_values(bwp_in_bps,cloud_provider)",
+        "includeAll": true,
+        "label": "云厂商",
+        "name": "cloud_provider",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(bwp_in_bps,cloud_provider)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
+        },
+        "includeAll": true,
+        "label": "账号",
+        "name": "account_id",
+        "options": [],
+        "query": "label_values(bwp_in_bps{cloud_provider=~\"$cloud_provider\"}, account_id)",
+        "refresh": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
+        },
+        "includeAll": true,
+        "label": "区域",
+        "name": "region",
+        "options": [],
+        "query": "label_values(bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\"}, region)",
+        "refresh": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
+        },
+        "includeAll": true,
+        "label": "共享带宽ID",
+        "name": "resource_id",
+        "options": [],
+        "query": "label_values(bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"}, resource_id)",
+        "refresh": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "共享带宽 (BWP)",
+  "uid": "bwp",
+  "version": ""
+}

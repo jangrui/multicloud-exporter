@@ -87,7 +87,7 @@ func NamespaceGauge(namespace, metric string) *prometheus.GaugeVec {
 			Name: name,
 			Help: help,
 		},
-		[]string{"cloud_provider", "account_id", "region", "resource_type", "resource_id", "namespace", "metric_name"},
+		[]string{"cloud_provider", "account_id", "region", "resource_type", "resource_id", "namespace", "metric_name", "tags"},
 	)
 	prometheus.MustRegister(g)
 	nsGauges[key] = g

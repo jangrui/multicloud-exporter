@@ -8,6 +8,7 @@
 bin/
 build/
 dist/
+script/
 
 # Tests & coverage
 *.test
