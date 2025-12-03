@@ -159,21 +159,21 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "count(count by (account_id) (bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", tags=~\"$tags\"}))",
+          "expr": "count(count by (account_id) (bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}))",
           "instant": true,
           "legendFormat": "账号总数",
           "refId": "F"
         },
         {
           "editorMode": "code",
-          "expr": "count(count by (resource_id) (bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", tags=~\"$tags\"}))",
+          "expr": "count(count by (resource_id) (bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}))",
           "instant": true,
           "legendFormat": "共享带宽总数",
           "refId": "A"
         },
         {
           "editorMode": "code",
-          "expr": "avg(bwp_in_utilization_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", tags=~\"$tags\"})",
+          "expr": "avg(bwp_in_utilization_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"})",
           "hide": true,
           "instant": true,
           "legendFormat": "综合入向使用率",
@@ -181,7 +181,7 @@
         },
         {
           "editorMode": "code",
-          "expr": "avg(bwp_out_utilization_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", tags=~\"$tags\"})",
+          "expr": "avg(bwp_out_utilization_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"})",
           "hide": true,
           "instant": true,
           "legendFormat": "综合出向使用率",
@@ -189,7 +189,7 @@
         },
         {
           "editorMode": "code",
-          "expr": "sum(bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", tags=~\"$tags\"}) / 1000000",
+          "expr": "sum(bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}) / 1000000",
           "hide": true,
           "instant": true,
           "legendFormat": "综合入向流量",
@@ -197,7 +197,7 @@
         },
         {
           "editorMode": "code",
-          "expr": "sum(bwp_out_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", tags=~\"$tags\"}) / 1000000",
+          "expr": "sum(bwp_out_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}) / 1000000",
           "hide": true,
           "instant": true,
           "legendFormat": "综合出向流量",
@@ -310,27 +310,27 @@
       "pluginVersion": "11.6.1",
       "targets": [
         {
-          "expr": "avg(bwp_in_utilization_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", tags=~\"$tags\"})",
+          "expr": "avg(bwp_in_utilization_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"})",
           "instant": true,
           "legendFormat": "平均流入使用率",
           "refId": "B"
         },
         {
-          "expr": "sum(bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", tags=~\"$tags\"}) / 1000000",
+          "expr": "sum(bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}) / 1000000",
           "instant": true,
           "legendFormat": "总流入带宽",
           "refId": "A"
         },
         {
           "editorMode": "code",
-          "expr": "sum(bwp_in_pps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", tags=~\"$tags\"})",
+          "expr": "sum(bwp_in_pps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"})",
           "instant": true,
           "legendFormat": "总流入包速率",
           "refId": "C"
         },
         {
           "editorMode": "code",
-          "expr": "sum(bwp_in_drop_pps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", tags=~\"$tags\"})",
+          "expr": "sum(bwp_in_drop_pps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"})",
           "instant": true,
           "legendFormat": "入方向丢包",
           "refId": "D"
@@ -442,26 +442,26 @@
       "pluginVersion": "11.6.1",
       "targets": [
         {
-          "expr": "avg(bwp_out_utilization_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", tags=~\"$tags\"})",
+          "expr": "avg(bwp_out_utilization_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"})",
           "instant": true,
           "legendFormat": "平均流出使用率",
           "refId": "B"
         },
         {
           "editorMode": "code",
-          "expr": "sum(bwp_out_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", tags=~\"$tags\"}) / 1000000",
+          "expr": "sum(bwp_out_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}) / 1000000",
           "instant": true,
           "legendFormat": "总流出带宽",
           "refId": "A"
         },
         {
-          "expr": "sum(bwp_out_pps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", tags=~\"$tags\"})",
+          "expr": "sum(bwp_out_pps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"})",
           "instant": true,
           "legendFormat": "总流出包速率",
           "refId": "C"
         },
         {
-          "expr": "sum(bwp_out_drop_pps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", tags=~\"$tags\"})",
+          "expr": "sum(bwp_out_drop_pps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"})",
           "instant": true,
           "legendFormat": "出方向丢包",
           "refId": "D"
@@ -646,6 +646,18 @@
                 "value": 240
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "code_name"
+            },
+            "properties": [
+              {
+                "id": "custom.minWidth",
+                "value": 200
+              }
+            ]
           }
         ]
       },
@@ -679,7 +691,7 @@
         {
           "editorMode": "code",
           "exemplar": false,
-          "expr": "bwp_in_utilization_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", tags=~\"$tags\"}",
+          "expr": "bwp_in_utilization_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -690,7 +702,7 @@
         {
           "editorMode": "code",
           "exemplar": false,
-          "expr": "bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", tags=~\"$tags\"} / 1000000",
+          "expr": "bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"} / 1000000",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -701,7 +713,7 @@
         {
           "editorMode": "code",
           "exemplar": false,
-          "expr": "bwp_out_utilization_pct{ account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", tags=~\"$tags\"}",
+          "expr": "bwp_out_utilization_pct{ account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -712,7 +724,7 @@
         {
           "editorMode": "code",
           "exemplar": false,
-          "expr": "bwp_out_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", tags=~\"$tags\"} / 1000000",
+          "expr": "bwp_out_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"} / 1000000",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -727,7 +739,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "bwp_in_pps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", tags=~\"$tags\"}",
+          "expr": "bwp_in_pps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -742,7 +754,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "bwp_out_pps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", tags=~\"$tags\"}",
+          "expr": "bwp_out_pps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -792,6 +804,10 @@
                 "aggregations": [],
                 "operation": "groupby"
               },
+              "code_name": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
               "region": {
                 "aggregations": [],
                 "operation": "groupby"
@@ -808,6 +824,7 @@
           }
         },
         {
+          "disabled": true,
           "id": "extractFields",
           "options": {
             "delimiter": ",",
@@ -837,17 +854,17 @@
             },
             "includeByName": {},
             "indexByName": {
-              "Value #A": 1,
-              "Value #B": 2,
-              "Value #C": 4,
-              "Value #D": 5,
-              "Value #E": 3,
-              "Value #F": 6,
-              "account_id": 8,
-              "cloud_provider": 9,
-              "region": 7,
-              "resource_id": 0,
-              "tags": 10
+              "Value #A": 2,
+              "Value #B": 3,
+              "Value #C": 5,
+              "Value #D": 6,
+              "Value #E": 4,
+              "Value #F": 7,
+              "account_id": 9,
+              "cloud_provider": 10,
+              "code_name": 0,
+              "region": 8,
+              "resource_id": 1
             },
             "renameByName": {
               "Value #A": "入方向使用率",
@@ -858,6 +875,7 @@
               "Value #F": "出方向丢包",
               "account_id": "账号 ID",
               "cloud_provider": "云厂商",
+              "code_name": "CodeName",
               "region": "区域",
               "resource_id": "实例",
               "tags": "计费"
@@ -951,7 +969,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", tags=~\"$tags\"} / 1000000",
+          "expr": "bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"} / 1000000",
           "legendFormat": "{{resource_id}} - 流入带宽(Mbps)",
           "range": true,
           "refId": "A"
@@ -1026,7 +1044,7 @@
         "x": 4,
         "y": 19
       },
-      "id": 5,
+      "id": 6,
       "options": {
         "legend": {
           "calcs": [],
@@ -1043,12 +1061,14 @@
       "pluginVersion": "11.6.1",
       "targets": [
         {
-          "expr": "bwp_in_drop_pps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", tags=~\"$tags\"}",
-          "legendFormat": "{{resource_id}} - 入方向丢包",
-          "refId": "B"
+          "editorMode": "code",
+          "expr": "bwp_in_pps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
+          "legendFormat": "{{resource_id}} - 流入包速率",
+          "range": true,
+          "refId": "A"
         }
       ],
-      "title": "入方向丢包",
+      "title": "入方向包速率",
       "type": "timeseries"
     },
     {
@@ -1117,7 +1137,7 @@
         "x": 8,
         "y": 19
       },
-      "id": 6,
+      "id": 5,
       "options": {
         "legend": {
           "calcs": [],
@@ -1134,14 +1154,12 @@
       "pluginVersion": "11.6.1",
       "targets": [
         {
-          "editorMode": "code",
-          "expr": "bwp_in_pps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", tags=~\"$tags\"}",
-          "legendFormat": "{{resource_id}} - 流入包速率",
-          "range": true,
-          "refId": "A"
+          "expr": "bwp_in_drop_pps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
+          "legendFormat": "{{resource_id}} - 入方向丢包",
+          "refId": "B"
         }
       ],
-      "title": "入方向包速率",
+      "title": "入方向丢包",
       "type": "timeseries"
     },
     {
@@ -1227,7 +1245,7 @@
       "pluginVersion": "11.6.1",
       "targets": [
         {
-          "expr": "bwp_out_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", tags=~\"$tags\"} / 1000000",
+          "expr": "bwp_out_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"} / 1000000",
           "legendFormat": "{{resource_id}} - 流出带宽(Mbps)",
           "refId": "A"
         }
@@ -1301,7 +1319,7 @@
         "x": 16,
         "y": 19
       },
-      "id": 8,
+      "id": 9,
       "options": {
         "legend": {
           "calcs": [],
@@ -1318,12 +1336,12 @@
       "pluginVersion": "11.6.1",
       "targets": [
         {
-          "expr": "bwp_out_drop_pps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", tags=~\"$tags\"}",
-          "legendFormat": "{{resource_id}} - 出方向丢包",
-          "refId": "B"
+          "expr": "bwp_out_pps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
+          "legendFormat": "{{resource_id}} - 流出包速率",
+          "refId": "A"
         }
       ],
-      "title": "出方向丢包",
+      "title": "出方向包速率",
       "type": "timeseries"
     },
     {
@@ -1392,7 +1410,7 @@
         "x": 20,
         "y": 19
       },
-      "id": 9,
+      "id": 8,
       "options": {
         "legend": {
           "calcs": [],
@@ -1409,12 +1427,12 @@
       "pluginVersion": "11.6.1",
       "targets": [
         {
-          "expr": "bwp_out_pps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", tags=~\"$tags\"}",
-          "legendFormat": "{{resource_id}} - 流出包速率",
-          "refId": "A"
+          "expr": "bwp_out_drop_pps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
+          "legendFormat": "{{resource_id}} - 出方向丢包",
+          "refId": "B"
         }
       ],
-      "title": "出方向包速率",
+      "title": "出方向丢包",
       "type": "timeseries"
     }
   ],
@@ -1526,14 +1544,14 @@
           "type": "prometheus",
           "uid": "${datasource}"
         },
-        "definition": "label_values(bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"},tags)",
+        "definition": "label_values(bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"},code_name)",
         "includeAll": true,
-        "label": "计费",
-        "name": "tags",
+        "label": "CodeName",
+        "name": "code_name",
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values(bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"},tags)",
+          "query": "label_values(bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"},code_name)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,
