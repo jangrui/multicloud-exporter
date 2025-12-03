@@ -3,7 +3,7 @@ WORKDIR /app
 COPY go.mod go.sum* ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o multicloud-exporter ./cmd/exporter
+RUN CGO_ENABLED=0 GOOS=linux go build -o multicloud-exporter ./cmd/multicloud-exporter
 
 FROM alpine:latest
 WORKDIR /app
