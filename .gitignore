@@ -24,4 +24,9 @@ coverage/
 .env.*
 *.pem
 *.key
+
+# Local Resources
 accounts.local.yaml
+PRODUCT_PLAN.md
+CHANGELOG.md
+TODO.md

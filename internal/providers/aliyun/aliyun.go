@@ -40,11 +40,29 @@ func (a *Collector) Collect(account config.CloudAccount) {
 	}
 
 	log.Printf("Aliyun 开始账号采集 account_id=%s 区域数=%d", account.AccountID, len(regions))
-	for _, region := range regions {
-		log.Printf("Aliyun 开始区域采集 account_id=%s region=%s", account.AccountID, region)
-		a.collectCMSMetrics(account, region)
-		log.Printf("Aliyun 完成区域采集 account_id=%s region=%s", account.AccountID, region)
+	limit := 4
+	if a.cfg != nil && a.cfg.Server != nil && a.cfg.Server.RegionConcurrency > 0 {
+		limit = a.cfg.Server.RegionConcurrency
+	} else if a.cfg != nil && a.cfg.ServerConf != nil && a.cfg.ServerConf.RegionConcurrency > 0 {
+		limit = a.cfg.ServerConf.RegionConcurrency
 	}
+	if limit < 1 {
+		limit = 1
+	}
+	sem := make(chan struct{}, limit)
+	var wg sync.WaitGroup
+	for _, region := range regions {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(r string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			log.Printf("Aliyun 开始区域采集 account_id=%s region=%s", account.AccountID, r)
+			a.collectCMSMetrics(account, r)
+			log.Printf("Aliyun 完成区域采集 account_id=%s region=%s", account.AccountID, r)
+		}(region)
+	}
+	wg.Wait()
 }
 
 // getAllRegions 通过 DescribeRegions 自动发现全部区域
@@ -139,127 +157,197 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 	// Endpoint 使用地域默认配置，如需自定义可在此处扩展
 
 	// 不预先限定 ECS 维度，按具体指标的维度键枚举对应资源
+	// 并发层级说明：
+	// 1) 区域级并发：在 Collect 中控制（同账号多 region 并行）
+	// 2) 产品级并发：在本函数内控制（同 region 下多个命名空间并行）
+	// 3) 指标级并发：在每个产品 goroutine 内控制（同命名空间下多个指标批次并行）
+	// 其中 mlimit 控制第 3 层并发，plimit 控制第 2 层并发。
+
+	// 指标并发控制（命名空间/指标级）
+	mlimit := 5
+	if a.cfg != nil && a.cfg.Server != nil && a.cfg.Server.MetricConcurrency > 0 {
+		mlimit = a.cfg.Server.MetricConcurrency
+	} else if a.cfg != nil && a.cfg.ServerConf != nil && a.cfg.ServerConf.MetricConcurrency > 0 {
+		mlimit = a.cfg.ServerConf.MetricConcurrency
+	}
+	if mlimit < 1 {
+		mlimit = 1
+	}
+	msem := make(chan struct{}, mlimit)
+	var mwg sync.WaitGroup
+
+	// 产品并发控制（命名空间级）：控制同一地域内不同命名空间（如 ECS/BWP）并行度，避免串行导致总时长过长。
+	plimit := 2
+	if a.cfg != nil && a.cfg.Server != nil && a.cfg.Server.ProductConcurrency > 0 {
+		plimit = a.cfg.Server.ProductConcurrency
+	} else if a.cfg != nil && a.cfg.ServerConf != nil && a.cfg.ServerConf.ProductConcurrency > 0 {
+		plimit = a.cfg.ServerConf.ProductConcurrency
+	}
+	if plimit < 1 {
+		plimit = 1
+	}
+	psem := make(chan struct{}, plimit)
+	var pwg sync.WaitGroup
 
 	for _, prod := range prods {
 		if prod.Namespace == "" {
 			continue
 		}
-		for _, group := range prod.MetricInfo {
-			var period string
-			switch {
-			case group.Period != nil:
-				period = strconv.Itoa(*group.Period)
-			case prod.Period != nil:
-				period = strconv.Itoa(*prod.Period)
-			default:
-				period = ""
-			}
-			for _, metricName := range group.MetricList {
-				_ = metrics.NamespaceGauge(prod.Namespace, metricName)
-				meta := a.getMetricMeta(client, prod.Namespace, metricName)
-				if period == "" && meta.MinPeriod != "" {
-					period = meta.MinPeriod
+		rfilter := resourceTypeForNamespace(prod.Namespace)
+		if rfilter == "" || !containsResource(account.Resources, rfilter) {
+			continue
+		}
+		pwg.Add(1)
+		psem <- struct{}{}
+		go func(prod config.Product) {
+			defer pwg.Done()
+			defer func() { <-psem }()
+			for _, group := range prod.MetricInfo {
+				var period string
+				switch {
+				case group.Period != nil:
+					period = strconv.Itoa(*group.Period)
+				case prod.Period != nil:
+					period = strconv.Itoa(*prod.Period)
+				default:
+					period = ""
 				}
-				if len(meta.Dimensions) == 0 {
-					continue
-				}
-				dimKey := meta.Dimensions[0]
-				rtype := resourceTypeForNamespace(prod.Namespace)
-				cachedIDs, hit := a.getCachedIDs(account, region, prod.Namespace, rtype)
-				var resIDs []string
-				if hit {
-					resIDs = cachedIDs
-					log.Printf("Aliyun 资源缓存命中 account_id=%s region=%s namespace=%s resource_type=%s 数量=%d", account.AccountID, region, prod.Namespace, rtype, len(resIDs))
-				} else {
-					resIDs, rtype = a.resourceIDsForNamespace(account, region, prod.Namespace)
-					if len(resIDs) == 0 {
+				// 对每个指标使用指标级并发进行批次拉取。每批最多 50 个维度（实例）。
+				for _, metricName := range group.MetricList {
+					_ = metrics.NamespaceGauge(prod.Namespace, metricName)
+					meta := a.getMetricMeta(client, prod.Namespace, metricName)
+					localPeriod := period
+					if localPeriod == "" && meta.MinPeriod != "" {
+						localPeriod = meta.MinPeriod
+					}
+					if len(meta.Dimensions) == 0 {
 						continue
 					}
-					a.setCachedIDs(account, region, prod.Namespace, rtype, resIDs)
-					log.Printf("Aliyun 资源枚举完成 account_id=%s region=%s namespace=%s resource_type=%s 数量=%d", account.AccountID, region, prod.Namespace, rtype, len(resIDs))
-				}
-				var tagLabels map[string]string
-				if rtype == "bwp" {
-					tagLabels = a.fetchCBWPTags(account, region, resIDs)
-				}
+					dimKey := meta.Dimensions[0]
+					rtype := resourceTypeForNamespace(prod.Namespace)
+					cachedIDs, hit := a.getCachedIDs(account, region, prod.Namespace, rtype)
+					var resIDs []string
+					if hit {
+						resIDs = cachedIDs
+						log.Printf("Aliyun 资源缓存命中 account_id=%s region=%s namespace=%s resource_type=%s 数量=%d", account.AccountID, region, prod.Namespace, rtype, len(resIDs))
+					} else {
+						resIDs, rtype = a.resourceIDsForNamespace(account, region, prod.Namespace)
+						if len(resIDs) == 0 {
+							continue
+						}
+						a.setCachedIDs(account, region, prod.Namespace, rtype, resIDs)
+						log.Printf("Aliyun 资源枚举完成 account_id=%s region=%s namespace=%s resource_type=%s 数量=%d", account.AccountID, region, prod.Namespace, rtype, len(resIDs))
+					}
+					var tagLabels map[string]string
+					// code_name 标签来源：
+					// - ECS：使用 ListTagResources 过滤 TagKey=="CodeName"，得到实例的业务名称
+					// - BWP：使用 ListTagResources 过滤 TagKey=="CodeName"，得到带宽包的业务名称
+					// 其他命名空间当前不提供 code_name，保持为空字符串
+					if rtype == "bwp" {
+						tagLabels = a.fetchCBWPTags(account, region, resIDs)
+					} else if rtype == "ecs" {
+						tagLabels = a.fetchECSTags(account, region, resIDs)
+					}
 
-				for start := 0; start < len(resIDs); start += 50 {
-					end := start + 50
-					if end > len(resIDs) {
-						end = len(resIDs)
-					}
-					dims := make([]map[string]string, 0, end-start)
-					for _, id := range resIDs[start:end] {
-						dims = append(dims, map[string]string{dimKey: id})
-					}
-					dimsJSON, _ := json.Marshal(dims)
-
-					req := cms.CreateDescribeMetricLastRequest()
-					req.Namespace = prod.Namespace
-					req.MetricName = metricName
-					if period != "" {
-						req.Period = period
-					}
-					if a.cfg.Server != nil && a.cfg.Server.PageSize > 0 {
-						req.Length = strconv.Itoa(a.cfg.Server.PageSize)
-					} else if a.cfg.ServerConf != nil && a.cfg.ServerConf.PageSize > 0 {
-						req.Length = strconv.Itoa(a.cfg.ServerConf.PageSize)
-					}
-					req.Dimensions = string(dimsJSON)
-					nextToken := ""
-					log.Printf("Aliyun 拉取指标开始 account_id=%s region=%s namespace=%s metric=%s period=%s 维度数=%d", account.AccountID, region, prod.Namespace, metricName, period, len(dims))
-					for {
-						if nextToken != "" {
-							req.NextToken = nextToken
-						}
-						startReq := time.Now()
-						resp, err := client.DescribeMetricLast(req)
-						if err != nil {
-							log.Printf("CMS DescribeMetricLast error: %v", err)
-							metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricLast", "error").Inc()
-							break
-						}
-						metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricLast", "success").Inc()
-						metrics.RequestDuration.WithLabelValues("aliyun", "DescribeMetricLast").Observe(time.Since(startReq).Seconds())
-						var points []map[string]interface{}
-						if err := json.Unmarshal([]byte(resp.Datapoints), &points); err != nil {
-							break
-						}
-						log.Printf("Aliyun 拉取指标成功 account_id=%s region=%s namespace=%s metric=%s 返回点数=%d", account.AccountID, region, prod.Namespace, metricName, len(points))
-						for _, p := range points {
-							idAny, ok := p[dimKey]
-							if !ok {
-								continue
+					// 并发执行该指标的各批次查询：由 msem 控制并发槽，避免超过云监控 API 限流。
+					mwg.Add(1)
+					msem <- struct{}{}
+					go func(ns, m string, dkey string, rtype string, ids []string, tags map[string]string, p string, stats []string) {
+						defer mwg.Done()
+						defer func() { <-msem }()
+						for start := 0; start < len(ids); start += 50 {
+							end := start + 50
+							if end > len(ids) {
+								end = len(ids)
 							}
-							id, _ := idAny.(string)
-							val := pickStatisticValue(p, chooseStatistics(meta.Statistics, group.Statistics))
-							var tagsVal string
-							if tagLabels != nil {
-								tagsVal = tagLabels[id]
+							dims := make([]map[string]string, 0, end-start)
+							for _, id := range ids[start:end] {
+								dims = append(dims, map[string]string{dkey: id})
 							}
-							metrics.NamespaceGauge(prod.Namespace, metricName).
-								WithLabelValues(
-									"aliyun",
-									account.AccountID,
-									region,
-									rtype,
-									id,
-									prod.Namespace,
-									metricName,
-									tagsVal,
-								).Set(val)
+							dimsJSON, _ := json.Marshal(dims)
+							req := cms.CreateDescribeMetricLastRequest()
+							req.Namespace = ns
+							req.MetricName = m
+							if p != "" {
+								req.Period = p
+							}
+							if a.cfg.Server != nil && a.cfg.Server.PageSize > 0 {
+								req.Length = strconv.Itoa(a.cfg.Server.PageSize)
+							} else if a.cfg.ServerConf != nil && a.cfg.ServerConf.PageSize > 0 {
+								req.Length = strconv.Itoa(a.cfg.ServerConf.PageSize)
+							}
+							req.Dimensions = string(dimsJSON)
+							nextToken := ""
+							log.Printf("Aliyun 拉取指标开始 account_id=%s region=%s namespace=%s metric=%s period=%s 维度数=%d", account.AccountID, region, ns, m, p, len(dims))
+							for {
+								if nextToken != "" {
+									req.NextToken = nextToken
+								}
+								var resp *cms.DescribeMetricLastResponse
+								var callErr error
+								// 带指数退避的重试以抵御暂时性错误与限流
+								for attempt := 0; attempt < 3; attempt++ {
+									startReq := time.Now()
+									resp, callErr = client.DescribeMetricLast(req)
+									if callErr == nil {
+										metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricLast", "success").Inc()
+										metrics.RequestDuration.WithLabelValues("aliyun", "DescribeMetricLast").Observe(time.Since(startReq).Seconds())
+										break
+									}
+									status := classifyAliyunError(callErr)
+									metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricLast", status).Inc()
+									if status == "auth_error" || status == "region_skip" {
+										log.Printf("CMS DescribeMetricLast error status=%s: %v", status, callErr)
+										break
+									}
+									time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
+								}
+								if callErr != nil {
+									break
+								}
+								var points []map[string]interface{}
+								if err := json.Unmarshal([]byte(resp.Datapoints), &points); err != nil {
+									break
+								}
+								log.Printf("Aliyun 拉取指标成功 account_id=%s region=%s namespace=%s metric=%s 返回点数=%d", account.AccountID, region, ns, m, len(points))
+								for _, pnt := range points {
+									idAny, ok := pnt[dkey]
+									if !ok {
+										continue
+									}
+									rid, _ := idAny.(string)
+									val := pickStatisticValue(pnt, chooseStatistics(stats, group.Statistics))
+									var codeNameVal string
+									if tags != nil {
+										codeNameVal = tags[rid]
+									}
+									// NamespaceGauge 的最后一个标签为 code_name，用于展示资源的业务标识
+									metrics.NamespaceGauge(ns, m).WithLabelValues(
+										"aliyun",
+										account.AccountID,
+										region,
+										rtype,
+										rid,
+										ns,
+										m,
+										codeNameVal,
+									).Set(val)
+								}
+								if resp.NextToken == "" {
+									break
+								}
+								nextToken = resp.NextToken
+								time.Sleep(25 * time.Millisecond)
+							}
+							log.Printf("Aliyun 拉取指标完成 account_id=%s region=%s namespace=%s metric=%s", account.AccountID, region, ns, m)
 						}
-						if resp.NextToken == "" {
-							break
-						}
-						nextToken = resp.NextToken
-						time.Sleep(25 * time.Millisecond)
-					}
-					log.Printf("Aliyun 拉取指标完成 account_id=%s region=%s namespace=%s metric=%s", account.AccountID, region, prod.Namespace, metricName)
+					}(prod.Namespace, metricName, dimKey, rtype, resIDs, tagLabels, localPeriod, meta.Statistics)
 				}
 			}
-		}
+		}(prod)
 	}
+	pwg.Wait()
+	mwg.Wait()
 }
 
 func pickStatisticValue(p map[string]interface{}, stats []string) float64 {
@@ -358,31 +446,44 @@ func chooseStatistics(available []string, desired []string) []string {
 	return res
 }
 
+func containsResource(list []string, r string) bool {
+	for _, x := range list {
+		if x == r || x == "*" {
+			return true
+		}
+	}
+	return false
+}
+
 func resourceTypeForDim(dimKey string) string {
-    switch dimKey {
-    case "sharebandwidthpackages", "bandwidthPackageId":
-        return "bwp"
-    default:
-        return dimKey
-    }
+	switch dimKey {
+	case "sharebandwidthpackages", "bandwidthPackageId":
+		return "bwp"
+	default:
+		return dimKey
+	}
 }
 
 func resourceTypeForNamespace(namespace string) string {
-    switch namespace {
-    case "acs_bandwidth_package":
-        return "bwp"
-    default:
-        return ""
-    }
+	switch namespace {
+	case "acs_bandwidth_package":
+		return "bwp"
+	case "acs_ecs_dashboard":
+		return "ecs"
+	default:
+		return ""
+	}
 }
 
 func (a *Collector) resourceIDsForNamespace(account config.CloudAccount, region string, namespace string) ([]string, string) {
-    switch namespace {
-    case "acs_bandwidth_package":
-        return a.listCBWPIDs(account, region), "bwp"
-    default:
-        return []string{}, ""
-    }
+	switch namespace {
+	case "acs_bandwidth_package":
+		return a.listCBWPIDs(account, region), "bwp"
+	case "acs_ecs_dashboard":
+		return a.listECSInstanceIDs(account, region), "ecs"
+	default:
+		return []string{}, ""
+	}
 }
 
 type resCacheEntry struct {
@@ -425,4 +526,20 @@ func (a *Collector) setCachedIDs(account config.CloudAccount, region, namespace,
 	a.cacheMu.Lock()
 	a.resCache[a.cacheKey(account, region, namespace, rtype)] = resCacheEntry{IDs: ids, UpdatedAt: time.Now()}
 	a.cacheMu.Unlock()
+}
+func classifyAliyunError(err error) string {
+	msg := err.Error()
+	if strings.Contains(msg, "InvalidAccessKeyId") || strings.Contains(msg, "Forbidden") || strings.Contains(msg, "SignatureDoesNotMatch") {
+		return "auth_error"
+	}
+	if strings.Contains(msg, "Throttling") || strings.Contains(msg, "flow control") {
+		return "limit_error"
+	}
+	if strings.Contains(msg, "InvalidRegionId") || strings.Contains(msg, "Unsupported") {
+		return "region_skip"
+	}
+	if strings.Contains(msg, "timeout") || strings.Contains(msg, "unreachable") || strings.Contains(msg, "Temporary network") {
+		return "network_error"
+	}
+	return "error"
 }

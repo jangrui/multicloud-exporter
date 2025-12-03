@@ -2,18 +2,19 @@
 package main
 
 import (
-	"log"
-	"net/http"
-	"os"
-	"strconv"
-	"time"
+    "log"
+    "net/http"
+    "os"
+    "strconv"
+    "time"
 
-	"multicloud-exporter/internal/collector"
-	"multicloud-exporter/internal/config"
-	"multicloud-exporter/internal/metrics"
+    "multicloud-exporter/internal/collector"
+    "multicloud-exporter/internal/config"
+    "multicloud-exporter/internal/metrics"
+    _ "multicloud-exporter/internal/metrics/aliyun"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+    "github.com/prometheus/client_golang/prometheus"
+    "github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // main 启动 HTTP 服务并周期性采集各云资源指标

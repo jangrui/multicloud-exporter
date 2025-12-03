@@ -46,13 +46,34 @@ var (
 	nsGauges   = make(map[string]*prometheus.GaugeVec)
 )
 
+var (
+	prefixByNamespace = make(map[string]string)
+	aliasByNamespace  = make(map[string]map[string]string)
+	helpByNamespace   = make(map[string]func(string) string)
+	aliasFuncByNS     = make(map[string]func(string) string)
+)
+
+func RegisterNamespacePrefix(namespace, prefix string) {
+	prefixByNamespace[namespace] = prefix
+}
+
+func RegisterNamespaceMetricAlias(namespace string, aliases map[string]string) {
+	aliasByNamespace[namespace] = aliases
+}
+
+func RegisterNamespaceHelp(namespace string, help func(string) string) {
+	helpByNamespace[namespace] = help
+}
+
+func RegisterNamespaceAliasFunc(namespace string, fn func(string) string) {
+	aliasFuncByNS[namespace] = fn
+}
+
 func aliasPrefixForNamespace(namespace string) string {
-	switch namespace {
-	case "acs_bandwidth_package":
-		return "bwp"
-	default:
-		return ""
+	if p, ok := prefixByNamespace[namespace]; ok {
+		return p
 	}
+	return ""
 }
 
 func sanitizeName(name string) string {
@@ -63,12 +84,8 @@ func sanitizeName(name string) string {
 }
 
 func NamespaceGauge(namespace, metric string) *prometheus.GaugeVec {
-	key := namespace + "|" + metric
 	nsGaugesMu.Lock()
 	defer nsGaugesMu.Unlock()
-	if g, ok := nsGauges[key]; ok {
-		return g
-	}
 	alias := aliasPrefixForNamespace(namespace)
 	metricAlias := aliasMetricForNamespace(namespace, metric)
 	useMetric := metric
@@ -81,13 +98,22 @@ func NamespaceGauge(namespace, metric string) *prometheus.GaugeVec {
 	} else {
 		name = sanitizeName(namespace + "_" + useMetric)
 	}
+	key := name
+	if g, ok := nsGauges[key]; ok {
+		return g
+	}
 	help := metricHelpForNamespace(namespace, useMetric)
+	// 统一命名空间指标的标签集合：
+	// cloud_provider, account_id, region, resource_type, resource_id, namespace, metric_name, code_name
+	// 说明：
+	// - code_name 用于承载云资源的业务标识（如 ECS/BWP 的 CodeName 标签），替代此前的 tags 聚合字符串
+	// - 当某资源类型不存在 CodeName（或未配置）时，code_name 为空字符串，保持标签完整性
 	g := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: name,
 			Help: help,
 		},
-		[]string{"cloud_provider", "account_id", "region", "resource_type", "resource_id", "namespace", "metric_name", "tags"},
+		[]string{"cloud_provider", "account_id", "region", "resource_type", "resource_id", "namespace", "metric_name", "code_name"},
 	)
 	prometheus.MustRegister(g)
 	nsGauges[key] = g
@@ -95,51 +121,20 @@ func NamespaceGauge(namespace, metric string) *prometheus.GaugeVec {
 }
 
 func aliasMetricForNamespace(namespace, metric string) string {
-	switch namespace {
-	case "acs_bandwidth_package":
-		switch metric {
-		case "in_bandwidth_utilization":
-			return "in_utilization_pct"
-		case "out_bandwidth_utilization":
-			return "out_utilization_pct"
-		case "net_rx.rate":
-			return "in_bps"
-		case "net_tx.rate":
-			return "out_bps"
-		case "net_rx.Pkgs":
-			return "in_pps"
-		case "net_tx.Pkgs":
-			return "out_pps"
-		case "in_ratelimit_drop_pps":
-			return "in_drop_pps"
-		case "out_ratelimit_drop_pps":
-			return "out_drop_pps"
+	if fn, ok := aliasFuncByNS[namespace]; ok {
+		return fn(metric)
+	}
+	if m, ok := aliasByNamespace[namespace]; ok {
+		if a, ok2 := m[metric]; ok2 {
+			return a
 		}
 	}
 	return ""
 }
 
 func metricHelpForNamespace(namespace, metric string) string {
-	switch namespace {
-	case "acs_bandwidth_package":
-		switch metric {
-		case "in_utilization_pct":
-			return " - 共享带宽入方向带宽利用率（百分比）"
-		case "out_utilization_pct":
-			return " - 共享带宽出方向带宽利用率（百分比）"
-		case "in_bps":
-			return " - 共享带宽入方向带宽速率（bit/s）"
-		case "out_bps":
-			return " - 共享带宽出方向带宽速率（bit/s）"
-		case "in_pps":
-			return " - 共享带宽入方向包速率（包/秒）"
-		case "out_pps":
-			return " - 共享带宽出方向包速率（包/秒）"
-		case "in_drop_pps":
-			return " - 共享带宽入方向因限速丢弃包速率（包/秒）"
-		case "out_drop_pps":
-			return " - 共享带宽出方向因限速丢弃包速率（包/秒）"
-		}
+	if h, ok := helpByNamespace[namespace]; ok {
+		return h(metric)
 	}
 	return " - 云产品指标"
 }

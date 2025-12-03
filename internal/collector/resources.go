@@ -2,11 +2,12 @@
 package collector
 
 var SupportedResources = map[string][]string{
-	"aliyun": {
-		"bwp",
-	},
-	"huawei":  {},
-	"tencent": {},
+    "aliyun": {
+        "ecs",
+        "bwp",
+    },
+    "huawei":  {},
+    "tencent": {},
 }
 
 // GetAllResources 返回指定云平台的全部资源类型
