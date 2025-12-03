@@ -15,12 +15,12 @@
 ## 支持的资源类型
 
 ### 阿里云
-- [x] ecs - ECS实例
+- [x] bwp - 共享带宽包
+- [ ] ecs - ECS实例
 - [ ] rds - RDS数据库
 - [ ] redis - Redis缓存
 - [ ] slb - 负载均衡
 - [ ] eip - 弹性公网IP
-- [x] bwp - 共享带宽包
 - [ ] nat - NAT网关
 - [ ] oss - 对象存储
 - [ ] cdn - CDN
