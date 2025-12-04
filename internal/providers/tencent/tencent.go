@@ -11,11 +11,9 @@ import (
     "multicloud-exporter/internal/metrics"
 )
 
-// Collector 封装腾讯云资源采集逻辑
-type Collector struct{}
+type Collector struct{ cfg *config.Config }
 
-// NewCollector 创建腾讯云采集器实例
-func NewCollector() *Collector { return &Collector{} }
+func NewCollector(cfg *config.Config) *Collector { return &Collector{cfg: cfg} }
 
 // Collect 根据账号配置遍历区域与资源类型并采集
 func (t *Collector) Collect(account config.CloudAccount) {
@@ -37,6 +35,8 @@ func (t *Collector) Collect(account config.CloudAccount) {
                 t.collectCLB(account, region)
             case "eip":
                 t.collectEIP(account, region)
+            case "bwp":
+                t.collectBWP(account, region)
             default:
                 log.Printf("Tencent resource type %s not implemented yet", resource)
             }
@@ -98,4 +98,34 @@ func (t *Collector) collectCLB(account config.CloudAccount, region string) {
 
 func (t *Collector) collectEIP(account config.CloudAccount, region string) {
     log.Printf("Collecting Tencent EIP in region %s (not implemented)", region)
+}
+
+func (t *Collector) collectBWP(account config.CloudAccount, region string) {
+    if t.cfg == nil {
+        return
+    }
+    var prods []config.Product
+    if t.cfg.ProductsByProvider != nil {
+        if ps, ok := t.cfg.ProductsByProvider["tencent"]; ok && len(ps) > 0 {
+            prods = ps
+        }
+    }
+    if len(prods) == 0 && t.cfg.ProductsByProviderLegacy != nil {
+        if ps, ok := t.cfg.ProductsByProviderLegacy["tencent"]; ok && len(ps) > 0 {
+            prods = ps
+        }
+    }
+    if len(prods) == 0 {
+        prods = t.cfg.ProductsList
+    }
+    for _, p := range prods {
+        if p.Namespace != "QCE/BWP" {
+            continue
+        }
+        ids := t.listBWPIDs(account, region)
+        if len(ids) == 0 {
+            return
+        }
+        t.fetchBWPMonitor(account, region, p, ids)
+    }
 }

@@ -27,11 +27,63 @@ spec:
               value: "/app/configs/server.yaml"
             - name: PRODUCTS_PATH
               value: "/app/configs/products.yaml"
-{{- if and .Values.accounts (.Values.accounts.secrets) }}
+{{- if and .Values.accounts (or .Values.accounts.secrets .Values.accounts.grouped) }}
             - name: ACCOUNTS_PATH
               value: "/app/configs/accounts.yaml"
 {{- end }}
-{{- if and .Values.accounts (.Values.accounts.secrets) }}
+{{- if and .Values.accounts (.Values.accounts.grouped) }}
+{{- range $i, $a := .Values.accounts.grouped.aliyun }}
+            - name: ALY_ACC_{{ $i }}_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $a.name }}
+                  key: account_id
+            - name: ALY_ACC_{{ $i }}_AK
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $a.name }}
+                  key: access_key_id
+            - name: ALY_ACC_{{ $i }}_SK
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $a.name }}
+                  key: access_key_secret
+{{- end }}
+{{- range $i, $a := .Values.accounts.grouped.tencent }}
+            - name: TCE_ACC_{{ $i }}_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $a.name }}
+                  key: account_id
+            - name: TCE_ACC_{{ $i }}_AK
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $a.name }}
+                  key: access_key_id
+            - name: TCE_ACC_{{ $i }}_SK
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $a.name }}
+                  key: access_key_secret
+{{- end }}
+{{- range $i, $a := .Values.accounts.grouped.huawei }}
+            - name: HUA_ACC_{{ $i }}_ID
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $a.name }}
+                  key: account_id
+            - name: HUA_ACC_{{ $i }}_AK
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $a.name }}
+                  key: access_key_id
+            - name: HUA_ACC_{{ $i }}_SK
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $a.name }}
+                  key: access_key_secret
+{{- end }}
+{{- else if and .Values.accounts (.Values.accounts.secrets) }}
 {{- range $i, $a := .Values.accounts.secrets }}
             - name: ACC_{{ $i }}_ID
               valueFrom:
@@ -57,7 +109,7 @@ spec:
             - name: products
               mountPath: "/app/configs/products.yaml"
               subPath: products.yaml
-{{- if and .Values.accounts (.Values.accounts.secrets) }}
+{{- if and .Values.accounts (or .Values.accounts.secrets .Values.accounts.grouped) }}
             - name: accounts
               mountPath: "/app/configs/accounts.yaml"
               subPath: accounts.yaml
@@ -70,7 +122,7 @@ spec:
         - name: products
           configMap:
             name: {{ default "multicloud-exporter" .Values.fullname }}-products
-{{- if and .Values.accounts (.Values.accounts.secrets) }}
+{{- if and .Values.accounts (or .Values.accounts.secrets .Values.accounts.grouped) }}
         - name: accounts
           configMap:
             name: {{ default "multicloud-exporter" .Values.fullname }}-accounts

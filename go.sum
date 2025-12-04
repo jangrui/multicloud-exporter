@@ -68,6 +68,10 @@ github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.854 h1:pP6g
 github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.854/go.mod h1:r5r4xbfxSaeR04b166HGsBa/R4U3SueirEUpXGuw+Q0=
 github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/cvm v1.0.854 h1:TQrdZ3QsZh1RmsoQ3aSl0vU0cjvcPODcWgC9uyZ2Ltw=
 github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/cvm v1.0.854/go.mod h1:LHjee7YeGF+ZWUtXEzB4o3DuCqx/9TNdmlFftvTazV4=
+github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/monitor v1.0.854 h1:FUFpEvXBnxaPE8/N4vhrW6/9IF6rAnr0AEb3/U2AoK8=
+github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/monitor v1.0.854/go.mod h1:Vf0sV4RHbgcSieUUcH0XYOr4Ho0zqnlhRaXACZSpdpM=
+github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/vpc v1.0.854 h1:qCJITX6yJcZWTl84Gg6Ffh9nR0KUGcoinfdfUP+AYD4=
+github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/vpc v1.0.854/go.mod h1:3R1YMdP6y5af+QtPHiZfrknSwtff2NGhqKZuUx6OFnc=
 github.com/uber/jaeger-client-go v2.30.0+incompatible h1:D6wyKGCecFaSRUpo8lCVbaOOb6ThwMmTEbhRwtKR97o=
 github.com/uber/jaeger-client-go v2.30.0+incompatible/go.mod h1:WVhlPFC8FDjOFMMWRy2pZqQJSXxYSwNYOkTr/Z6d3Kk=
 github.com/uber/jaeger-lib v2.4.1+incompatible h1:td4jdvLcExb4cBISKIpHuGoVXh+dVKhn2Um6rjCsSsg=

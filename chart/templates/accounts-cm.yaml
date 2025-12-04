@@ -1,21 +1,95 @@
-{{- if and .Values.accounts (.Values.accounts.secrets) }}
+{{- if and .Values.accounts (.Values.accounts.grouped) }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ default "multicloud-exporter" .Values.fullname }}-accounts
 data:
   accounts.yaml: |
-    accounts_list:
-{{- range $i, $a := .Values.accounts.secrets }}
-      - provider: {{ $a.provider | default "aliyun" }}
-        account_id: ${ACC_{{ $i }}_ID}
-        access_key_id: ${ACC_{{ $i }}_AK}
-        access_key_secret: ${ACC_{{ $i }}_SK}
+    accounts:
+      aliyun:
+{{- range $i, $a := .Values.accounts.grouped.aliyun }}
+        - account_id: ${ALY_ACC_{{ $i }}_ID}
+          access_key_id: ${ALY_ACC_{{ $i }}_AK}
+          access_key_secret: ${ALY_ACC_{{ $i }}_SK}
 {{- if $a.regions }}
-        regions: {{ toYaml $a.regions | nindent 10 -}}
+          regions: {{ toYaml $a.regions | nindent 12 -}}
 {{- end }}
 {{- if $a.resources }}
-        resources: {{ toYaml $a.resources | nindent 10 -}}
+          resources: {{ toYaml $a.resources | nindent 12 -}}
+{{- end }}
+{{- end }}
+      tencent:
+{{- range $i, $a := .Values.accounts.grouped.tencent }}
+        - account_id: ${TCE_ACC_{{ $i }}_ID}
+          access_key_id: ${TCE_ACC_{{ $i }}_AK}
+          access_key_secret: ${TCE_ACC_{{ $i }}_SK}
+{{- if $a.regions }}
+          regions: {{ toYaml $a.regions | nindent 12 -}}
+{{- end }}
+{{- if $a.resources }}
+          resources: {{ toYaml $a.resources | nindent 12 -}}
+{{- end }}
+{{- end }}
+      huawei:
+{{- range $i, $a := .Values.accounts.grouped.huawei }}
+        - account_id: ${HUA_ACC_{{ $i }}_ID}
+          access_key_id: ${HUA_ACC_{{ $i }}_AK}
+          access_key_secret: ${HUA_ACC_{{ $i }}_SK}
+{{- if $a.regions }}
+          regions: {{ toYaml $a.regions | nindent 12 -}}
+{{- end }}
+{{- if $a.resources }}
+          resources: {{ toYaml $a.resources | nindent 12 -}}
+{{- end }}
+{{- end }}
+{{- else if and .Values.accounts (.Values.accounts.secrets) }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ default "multicloud-exporter" .Values.fullname }}-accounts
+data:
+  accounts.yaml: |
+    accounts:
+      aliyun:
+{{- range $i, $a := .Values.accounts.secrets }}
+{{- if eq ($a.provider | default "aliyun") "aliyun" }}
+        - account_id: ${ACC_{{ $i }}_ID}
+          access_key_id: ${ACC_{{ $i }}_AK}
+          access_key_secret: ${ACC_{{ $i }}_SK}
+{{- if $a.regions }}
+          regions: {{ toYaml $a.regions | nindent 12 -}}
+{{- end }}
+{{- if $a.resources }}
+          resources: {{ toYaml $a.resources | nindent 12 -}}
+{{- end }}
+{{- end }}
+{{- end }}
+      tencent:
+{{- range $i, $a := .Values.accounts.secrets }}
+{{- if eq ($a.provider | default "aliyun") "tencent" }}
+        - account_id: ${ACC_{{ $i }}_ID}
+          access_key_id: ${ACC_{{ $i }}_AK}
+          access_key_secret: ${ACC_{{ $i }}_SK}
+{{- if $a.regions }}
+          regions: {{ toYaml $a.regions | nindent 12 -}}
+{{- end }}
+{{- if $a.resources }}
+          resources: {{ toYaml $a.resources | nindent 12 -}}
+{{- end }}
+{{- end }}
+{{- end }}
+      huawei:
+{{- range $i, $a := .Values.accounts.secrets }}
+{{- if eq ($a.provider | default "aliyun") "huawei" }}
+        - account_id: ${ACC_{{ $i }}_ID}
+          access_key_id: ${ACC_{{ $i }}_AK}
+          access_key_secret: ${ACC_{{ $i }}_SK}
+{{- if $a.regions }}
+          regions: {{ toYaml $a.regions | nindent 12 -}}
+{{- end }}
+{{- if $a.resources }}
+          resources: {{ toYaml $a.resources | nindent 12 -}}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}

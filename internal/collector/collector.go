@@ -21,12 +21,12 @@ type Collector struct {
 
 // NewCollector 创建调度器并初始化各云采集器
 func NewCollector(cfg *config.Config) *Collector {
-	return &Collector{
-		cfg:     cfg,
-		aliyun:  aliyun.NewCollector(cfg),
-		huawei:  huawei.NewCollector(),
-		tencent: tencent.NewCollector(),
-	}
+    return &Collector{
+        cfg:     cfg,
+        aliyun:  aliyun.NewCollector(cfg),
+        huawei:  huawei.NewCollector(),
+        tencent: tencent.NewCollector(cfg),
+    }
 }
 
 // Collect 为每个账号并发执行采集任务
@@ -34,26 +34,22 @@ func (c *Collector) Collect() {
     log.Printf("开始采集，加载账号数量=%d", len(c.cfg.AccountsList)+len(c.cfg.AccountsByProvider)+len(c.cfg.AccountsByProviderLegacy))
 	var accounts []config.CloudAccount
 	accounts = append(accounts, c.cfg.AccountsList...)
-	if c.cfg.AccountsByProvider != nil {
-		for provider, list := range c.cfg.AccountsByProvider {
-			for _, acc := range list {
-				if acc.Provider == "" {
-					acc.Provider = provider
-				}
-				accounts = append(accounts, acc)
-			}
-		}
-	}
-	if c.cfg.AccountsByProviderLegacy != nil {
-		for provider, list := range c.cfg.AccountsByProviderLegacy {
-			for _, acc := range list {
-				if acc.Provider == "" {
-					acc.Provider = provider
-				}
-				accounts = append(accounts, acc)
-			}
-		}
-	}
+    if c.cfg.AccountsByProvider != nil {
+        for provider, list := range c.cfg.AccountsByProvider {
+            for _, acc := range list {
+                acc.Provider = provider
+                accounts = append(accounts, acc)
+            }
+        }
+    }
+    if c.cfg.AccountsByProviderLegacy != nil {
+        for provider, list := range c.cfg.AccountsByProviderLegacy {
+            for _, acc := range list {
+                acc.Provider = provider
+                accounts = append(accounts, acc)
+            }
+        }
+    }
 
 	var wg sync.WaitGroup
     for _, account := range accounts {

@@ -324,4 +324,14 @@ products:
           - in_ratelimit_drop_pps
           - out_ratelimit_drop_pps
   huawei: []
-  tencent: []
+  tencent:
+    - namespace: QCE/BWP
+      period: 60
+      metric_info:
+        - metric_list:
+          - InPkg # 共享带宽包入包量 count/s
+          - InTraffic # 共享带宽包入带宽 Mbps
+          - IntrafficBwpRatio # 带宽包入带宽利用率 %
+          - OutPkg # 共享带宽包出包量 count/s
+          - OutTraffic # 共享带宽包出带宽 Mbps
+          - OuttrafficBwpRatio # 带宽包出带宽利用率 %

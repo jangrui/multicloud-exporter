@@ -8,6 +8,8 @@ require (
 	github.com/stretchr/testify v1.8.4 // indirect
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.854
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/cvm v1.0.854
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/monitor v1.0.854
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/vpc v1.0.854
 	gopkg.in/yaml.v3 v3.0.1
 )
 

@@ -1,14 +1,12 @@
 accounts:
   aliyun:
-    - provider: aliyun
-      account_id: ""
+    - account_id: ""
       access_key_id: ""
       access_key_secret: ""
       regions: ["*"] # 采集所有区域
       resources:
         - bwp
-    - provider: aliyun
-      account_id: ""
+    - account_id: ""
       access_key_id: ""
       access_key_secret: ""
       regions: ["*"]

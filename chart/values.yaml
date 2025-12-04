@@ -36,6 +36,21 @@ server:
   product_concurrency: 2
 
 accounts:
+  # 分组式账号（推荐）：按云平台拆分，模板将生成 grouped 结构的 accounts.yaml
+  grouped:
+    aliyun: []
+    #   - name: aliyun-acc-0
+    #     regions: ["*"]
+    #     resources: ["bwp"]
+    tencent: []
+    #   - name: tencent-acc-0
+    #     regions: ["*"]
+    #     resources: ["bwp"]
+    huawei: []
+    #   - name: huawei-acc-0
+    #     regions: ["*"]
+    #     resources: ["bwp"]
+  # 兼容旧式 secrets 列表：按条目指定 provider，模板也能分组输出
   secrets: []
   #   - name: accounts-1
   #     provider: aliyun
