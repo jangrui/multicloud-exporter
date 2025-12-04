@@ -1,14 +1,16 @@
 package aliyun
 
 import (
-	"fmt"
+	"encoding/json"
 	"log"
+	"strings"
 	"time"
 
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/metrics"
 
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
+	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/responses"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/slb"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/tag"
 )
@@ -80,50 +82,187 @@ func (a *Collector) fetchSLBTags(account config.CloudAccount, region string, ids
 	if len(ids) == 0 {
 		return map[string]string{}
 	}
-	client, err := tag.NewClientWithAccessKey(region, account.AccessKeyID, account.AccessKeySecret)
-	if err != nil {
+	slbClient, slbErr := slb.NewClientWithAccessKey(region, account.AccessKeyID, account.AccessKeySecret)
+	if slbErr != nil {
 		return map[string]string{}
+	}
+	tagClient, tagErr := tag.NewClientWithAccessKey(region, account.AccessKeyID, account.AccessKeySecret)
+	if tagErr != nil {
+		tagClient = nil
 	}
 	out := make(map[string]string, len(ids))
 	for _, lbID := range ids {
-		req := tag.CreateListTagResourcesRequest()
-		req.RegionId = region
-		arns := []string{fmt.Sprintf("arn:acs:slb:%s:%s:loadbalancer/%s", region, account.AccountID, lbID)}
-		req.ResourceARN = &arns
-		var resp *tag.ListTagResourcesResponse
-		var callErr error
+		reqAttr := slb.CreateDescribeLoadBalancerAttributeRequest()
+		reqAttr.RegionId = region
+		reqAttr.LoadBalancerId = lbID
+		var attrResp *slb.DescribeLoadBalancerAttributeResponse
+		var attrErr error
 		for attempt := 0; attempt < 3; attempt++ {
-			startReq := time.Now()
-			resp, callErr = client.ListTagResources(req)
-			if callErr == nil {
-				metrics.RequestTotal.WithLabelValues("aliyun", "ListTagResources", "success").Inc()
-				metrics.RequestDuration.WithLabelValues("aliyun", "ListTagResources").Observe(time.Since(startReq).Seconds())
+			start := time.Now()
+			attrResp, attrErr = slbClient.DescribeLoadBalancerAttribute(reqAttr)
+			if attrErr == nil {
+				metrics.RequestTotal.WithLabelValues("aliyun", "DescribeLoadBalancerAttribute", "success").Inc()
+				metrics.RequestDuration.WithLabelValues("aliyun", "DescribeLoadBalancerAttribute").Observe(time.Since(start).Seconds())
 				break
 			}
-			status := classifyAliyunError(callErr)
-			metrics.RequestTotal.WithLabelValues("aliyun", "ListTagResources", status).Inc()
+			status := classifyAliyunError(attrErr)
+			metrics.RequestTotal.WithLabelValues("aliyun", "DescribeLoadBalancerAttribute", status).Inc()
 			if status == "auth_error" {
 				break
 			}
-			time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
+			time.Sleep(time.Duration(150*(attempt+1)) * time.Millisecond)
 		}
-		if callErr != nil {
-			continue
-		}
-		if len(resp.TagResources) == 0 {
-			continue
-		}
-		for _, tr := range resp.TagResources {
-			if len(tr.Tags) == 0 {
-				continue
+		if attrErr == nil && attrResp != nil {
+			var jr struct {
+				Tags struct {
+					Tag []struct {
+						TagKey   string `json:"TagKey"`
+						TagValue string `json:"TagValue"`
+					} `json:"Tag"`
+				} `json:"Tags"`
+				LoadBalancerName string `json:"LoadBalancerName"`
 			}
-			for _, kv := range tr.Tags {
-				if kv.Key == "CodeName" {
-					out[lbID] = kv.Value
+			_ = json.Unmarshal(attrResp.GetHttpContentBytes(), &jr)
+			for _, tt := range jr.Tags.Tag {
+				if strings.EqualFold(tt.TagKey, "CodeName") || strings.EqualFold(tt.TagKey, "code_name") {
+					out[lbID] = tt.TagValue
+				}
+			}
+			// 仅提取 CodeName，不再使用 LoadBalancerName 兜底
+		}
+
+		// 使用通用请求调用 SLB 的 DescribeTags 接口，避免依赖 ARN 与账号 ID
+		if out[lbID] == "" {
+			creq := requests.NewCommonRequest()
+			creq.Method = "POST"
+			creq.Scheme = "https"
+			creq.Product = "Slb"
+			creq.Version = "2014-05-15"
+			creq.ApiName = "DescribeTags"
+			creq.QueryParams["RegionId"] = region
+			creq.QueryParams["LoadBalancerId"] = lbID
+			var cresp *responses.CommonResponse
+			var cerr error
+			for attempt := 0; attempt < 3; attempt++ {
+				start := time.Now()
+				cresp, cerr = slbClient.ProcessCommonRequest(creq)
+				if cerr == nil {
+					metrics.RequestTotal.WithLabelValues("aliyun", "DescribeTags", "success").Inc()
+					metrics.RequestDuration.WithLabelValues("aliyun", "DescribeTags").Observe(time.Since(start).Seconds())
+					break
+				}
+				status := classifyAliyunError(cerr)
+				metrics.RequestTotal.WithLabelValues("aliyun", "DescribeTags", status).Inc()
+				if status == "auth_error" {
+					break
+				}
+				time.Sleep(time.Duration(150*(attempt+1)) * time.Millisecond)
+			}
+			if cerr == nil && cresp != nil {
+				var tj struct {
+					TagSets struct {
+						TagSet []struct {
+							TagKey   string `json:"TagKey"`
+							TagValue string `json:"TagValue"`
+						} `json:"TagSet"`
+					} `json:"TagSets"`
+				}
+				_ = json.Unmarshal(cresp.GetHttpContentBytes(), &tj)
+				for _, ts := range tj.TagSets.TagSet {
+					if strings.EqualFold(ts.TagKey, "CodeName") || strings.EqualFold(ts.TagKey, "code_name") {
+						out[lbID] = ts.TagValue
+					}
 				}
 			}
 		}
-		time.Sleep(25 * time.Millisecond)
+
+		if out[lbID] == "" && tagClient != nil {
+			req := tag.CreateListTagResourcesRequest()
+			req.RegionId = region
+			arn := "arn:acs:slb:" + region + ":" + account.AccountID + ":loadbalancer/" + lbID
+			arns := []string{arn}
+			req.ResourceARN = &arns
+			var resp *tag.ListTagResourcesResponse
+			var callErr error
+			for attempt := 0; attempt < 3; attempt++ {
+				startReq := time.Now()
+				resp, callErr = tagClient.ListTagResources(req)
+				if callErr == nil {
+					metrics.RequestTotal.WithLabelValues("aliyun", "ListTagResources", "success").Inc()
+					metrics.RequestDuration.WithLabelValues("aliyun", "ListTagResources").Observe(time.Since(startReq).Seconds())
+					break
+				}
+				status := classifyAliyunError(callErr)
+				metrics.RequestTotal.WithLabelValues("aliyun", "ListTagResources", status).Inc()
+				if status == "auth_error" {
+					break
+				}
+				time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
+			}
+			if callErr == nil && resp != nil {
+				var jrA struct {
+					TagResources []struct {
+						Tags []struct {
+							Key      string `json:"Key"`
+							Value    string `json:"Value"`
+							TagKey   string `json:"TagKey"`
+							TagValue string `json:"TagValue"`
+						} `json:"Tags"`
+					} `json:"TagResources"`
+				}
+				_ = json.Unmarshal(resp.GetHttpContentBytes(), &jrA)
+				for _, tr := range jrA.TagResources {
+					for _, kv := range tr.Tags {
+						k := kv.Key
+						if k == "" {
+							k = kv.TagKey
+						}
+						v := kv.Value
+						if v == "" {
+							v = kv.TagValue
+						}
+						if strings.EqualFold(k, "CodeName") || strings.EqualFold(k, "code_name") {
+							out[lbID] = v
+						}
+					}
+				}
+				if out[lbID] == "" {
+					var jrB struct {
+						TagResources struct {
+							TagResource []struct {
+								TagKey   string `json:"TagKey"`
+								TagValue string `json:"TagValue"`
+								Key      string `json:"Key"`
+								Value    string `json:"Value"`
+							} `json:"TagResource"`
+						} `json:"TagResources"`
+					}
+					_ = json.Unmarshal(resp.GetHttpContentBytes(), &jrB)
+					for _, tr := range jrB.TagResources.TagResource {
+						k := tr.TagKey
+						if k == "" {
+							k = tr.Key
+						}
+						v := tr.TagValue
+						if v == "" {
+							v = tr.Value
+						}
+						if strings.EqualFold(k, "CodeName") || strings.EqualFold(k, "code_name") {
+							out[lbID] = v
+						}
+					}
+				}
+			}
+		}
+
+		time.Sleep(20 * time.Millisecond)
 	}
+	assigned := 0
+	for _, v := range out {
+		if v != "" {
+			assigned++
+		}
+	}
+	log.Printf("Aliyun SLB 标签采集完成 account_id=%s region=%s 资源数=%d 有code_name=%d", account.AccountID, region, len(ids), assigned)
 	return out
 }
