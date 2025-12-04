@@ -5,6 +5,7 @@ var SupportedResources = map[string][]string{
     "aliyun": {
         "ecs",
         "bwp",
+        "slb",
     },
     "huawei":  {},
     "tencent": {},

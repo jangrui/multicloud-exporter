@@ -5,6 +5,7 @@
 .DS_Store
 .vscode/
 .idea/
+.trae/
 *.test
 *.cov
 *.log

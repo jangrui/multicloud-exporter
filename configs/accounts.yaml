@@ -6,9 +6,19 @@ accounts:
       regions: ["*"] # 采集所有区域
       resources:
         - bwp
+        - slb
     - account_id: ""
       access_key_id: ""
       access_key_secret: ""
       regions: ["*"]
       resources:
         - bwp
+        - slb
+  tencent:
+    - account_id: ""
+      access_key_id: ""
+      access_key_secret: ""
+      regions: ["*"] # 采集所有区域
+      resources:
+        - bwp
+        # - slb

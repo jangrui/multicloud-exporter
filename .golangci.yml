@@ -1,0 +1,8 @@
+version: 2
+run:
+  deadline: 3m
+linters:
+  enable:
+    - govet
+    - staticcheck
+    - errcheck

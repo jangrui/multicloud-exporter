@@ -57,9 +57,9 @@ func (a *Collector) listECSInstanceIDs(account config.CloudAccount, region strin
 		if callErr != nil {
 			break
 		}
-		if resp.Instances.Instance == nil || len(resp.Instances.Instance) == 0 {
-			break
-		}
+        if len(resp.Instances.Instance) == 0 {
+            break
+        }
 		for _, ins := range resp.Instances.Instance {
 			if ins.InstanceId != "" {
 				ids = append(ids, ins.InstanceId)
@@ -122,9 +122,9 @@ func (a *Collector) fetchECSTags(account config.CloudAccount, region string, ids
 			if callErr != nil {
 				break
 			}
-			if resp.TagResources.TagResource == nil {
-				break
-			}
+            if len(resp.TagResources.TagResource) == 0 {
+                break
+            }
 			// 遍历标签资源，仅保留 TagKey=="CodeName" 的键值
 			for _, tr := range resp.TagResources.TagResource {
 				if tr.ResourceId == "" {

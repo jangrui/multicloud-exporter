@@ -68,7 +68,7 @@ func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []st
 		if callErr != nil {
 			break
 		}
-		if resp.CommonBandwidthPackages.CommonBandwidthPackage == nil || len(resp.CommonBandwidthPackages.CommonBandwidthPackage) == 0 {
+		if len(resp.CommonBandwidthPackages.CommonBandwidthPackage) == 0 {
 			break
 		}
 		for _, pkg := range resp.CommonBandwidthPackages.CommonBandwidthPackage {
@@ -140,7 +140,7 @@ func (a *Collector) fetchCBWPTags(account config.CloudAccount, region string, id
 			if callErr != nil {
 				break
 			}
-			if resp.TagResources.TagResource == nil {
+			if len(resp.TagResources.TagResource) == 0 {
 				break
 			}
 			// 遍历标签资源，仅保留 TagKey=="CodeName" 的键值

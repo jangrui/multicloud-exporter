@@ -323,6 +323,72 @@ products:
           - net_tx.Pkgs
           - in_ratelimit_drop_pps
           - out_ratelimit_drop_pps
+    - namespace: acs_slb_dashboard
+      period: 60
+      metric_info:
+        - metric_list:
+				  - ActiveConnection # 监听每秒活跃连接数
+				  - DropConnection # 监听每秒丢失连接数
+				  - DropPacketRX # 监听每秒丢失入包数
+				  - DropPacketTX # 监听每秒丢失出包数
+				  - DropTrafficRX # 监听每秒丢失入bit数
+				  - DropTrafficTX # 监听每秒丢失出bit数
+				  - GroupActiveConnection # 分组活跃连接数
+				  - GroupNewConnection # 分组新建连接数
+				  - GroupTotalTrafficRX # 分组流入带宽合计
+				  - GroupTotalTrafficTX # 分组流出带宽合计
+				  - GroupTrafficRX # 分组流入带宽(不推荐)
+				  - GroupTrafficTX # 分组流出带宽(不推荐)
+				  - GroupUnhealthyServerCount # 分组后端异常ECS实例个数
+				  - HealthyServerCountWithRule # 七层转发规则后端健康ECS实例个数
+				  - HeathyServerCount # 健康检查后端健康ECS实例个数
+				  - InactiveConnection # 监听非活跃连接数
+				  - InstanceActiveConnection # 实例每秒活跃连接数
+				  - InstanceDropConnection # 实例每秒丢失连接数
+				  - InstanceDropPacketRX # 实例每秒丢失入包数
+				  - InstanceDropPacketTX # 实例每秒丢失出包数
+				  - InstanceDropTrafficRX # 实例每秒丢失入bit数
+				  - InstanceDropTrafficTX # 实例每秒丢失出bit数
+				  - InstanceInactiveConnection # 实例每秒非活跃连接数
+				  - InstanceMaxConnection # 实例每秒最大并发连接数
+				  - InstanceMaxConnectionUtilization # 实例最大连接数使用率
+				  - InstanceNewConnection # 实例每秒新建连接数
+				  - InstanceNewConnectionUtilization # 实例新建连接数使用率
+				  - InstancePacketRX # 实例每秒入包数
+				  - InstancePacketTX # 实例每秒出包数
+				  - InstanceQps # 七层实例QPS
+				  - InstanceQpsUtilization # 七层实例QPS使用率
+				  - InstanceRt # 七层实例RT
+				  - InstanceStatusCode2xx # 七层实例每秒状态码2XX数量
+				  - InstanceStatusCode3xx # 七层实例每秒状态码3XX数量
+				  - InstanceStatusCode4xx # 七层实例每秒状态码4XX数量\t
+				  - InstanceStatusCode5xx # 七层实例每秒状态码5XX数量
+				  - InstanceStatusCodeOther # 七层实例每秒其它状态码数量
+				  - InstanceTrafficRX # 实例每秒入bit数
+				  - InstanceTrafficRXUtilization # 实例网络流入带宽使用率
+				  - InstanceTrafficTX # 实例每秒出bit数
+				  - InstanceTrafficTXUtilization # 实例网络流出带宽使用率
+				  - InstanceUpstreamCode4xx # 七层实例每秒UpstreamCode4xx数量
+				  - InstanceUpstreamCode5xx # 七层实例每秒UpstreamCode5xx数量
+				  - InstanceUpstreamRt # 七层实例UpstreamRt
+				  - MaxConnection # 监听每秒最大连接数
+				  - NewConnection # 监听新建连接数
+				  - PacketRX # 监听每秒流入数据包数
+				  - PacketTX # 监听每秒流出数据包数
+				  - Qps # 七层监听QPS
+				  - Rt # 七层监听RT
+				  - StatusCode2xx # 七层监听每秒状态码2XX数量\t
+				  - StatusCode3xx # 七层监听每秒状态码3XX数量
+				  - StatusCode4xx # 七层监听每秒状态码4XX数量
+				  - StatusCode5xx # 七层监听每秒状态码5XX数量
+				  - StatusCodeOther # 七层监听每秒其它状态码数量
+				  - TrafficRXNew # 监听流入带宽
+				  - TrafficTXNew # 监听流出带宽
+				  - UnhealthyServerCount # 健康检查后端异常ECS实例个数
+				  - UnhealthyServerCountWithRule # 七层转发规则后端异常ECS实例个数
+				  - UpstreamCode4xx # 七层监听每秒UpstreamCode4xx数量
+				  - UpstreamCode5xx # 七层监听每秒UpstreamCode5xx数量
+				  - UpstreamRt # 七层监听UpstreamRt
   huawei: []
   tencent:
     - namespace: QCE/BWP

@@ -72,7 +72,7 @@ func (t *Collector) fetchBWPMonitor(account config.CloudAccount, region string, 
 				continue
 			}
 			for _, dp := range resp.Response.DataPoints {
-				if dp == nil || dp.Dimensions == nil || dp.Values == nil || len(dp.Values) == 0 {
+				if dp == nil || len(dp.Dimensions) == 0 || len(dp.Values) == 0 {
 					continue
 				}
 				var rid string

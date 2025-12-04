@@ -243,10 +243,13 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 					// - ECS：使用 ListTagResources 过滤 TagKey=="CodeName"，得到实例的业务名称
 					// - BWP：使用 ListTagResources 过滤 TagKey=="CodeName"，得到带宽包的业务名称
 					// 其他命名空间当前不提供 code_name，保持为空字符串
-					if rtype == "bwp" {
+					switch rtype {
+					case "bwp":
 						tagLabels = a.fetchCBWPTags(account, region, resIDs)
-					} else if rtype == "ecs" {
+					case "ecs":
 						tagLabels = a.fetchECSTags(account, region, resIDs)
+					case "slb":
+						tagLabels = a.fetchSLBTags(account, region, resIDs)
 					}
 
 					// 并发执行该指标的各批次查询：由 msem 控制并发槽，避免超过云监控 API 限流。
@@ -455,14 +458,7 @@ func containsResource(list []string, r string) bool {
 	return false
 }
 
-func resourceTypeForDim(dimKey string) string {
-	switch dimKey {
-	case "sharebandwidthpackages", "bandwidthPackageId":
-		return "bwp"
-	default:
-		return dimKey
-	}
-}
+//
 
 func resourceTypeForNamespace(namespace string) string {
 	switch namespace {
@@ -470,6 +466,8 @@ func resourceTypeForNamespace(namespace string) string {
 		return "bwp"
 	case "acs_ecs_dashboard":
 		return "ecs"
+	case "acs_slb_dashboard":
+		return "slb"
 	default:
 		return ""
 	}
@@ -481,6 +479,8 @@ func (a *Collector) resourceIDsForNamespace(account config.CloudAccount, region 
 		return a.listCBWPIDs(account, region), "bwp"
 	case "acs_ecs_dashboard":
 		return a.listECSInstanceIDs(account, region), "ecs"
+	case "acs_slb_dashboard":
+		return a.listSLBIDs(account, region), "slb"
 	default:
 		return []string{}, ""
 	}
