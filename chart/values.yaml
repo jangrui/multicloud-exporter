@@ -68,3 +68,7 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+reloader:
+  enabled: true
+  useAuto: false

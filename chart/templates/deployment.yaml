@@ -10,6 +10,14 @@ spec:
   template:
     metadata:
       labels: {{- include "multicloud-exporter.selectorLabels" . | nindent 8 }}
+{{- if .Values.reloader.enabled }}
+      annotations:
+{{- if .Values.reloader.useAuto }}
+        reloader.stakater.com/auto: "true"
+{{- else }}
+        configmap.reloader.stakater.com/reload: "{{ default "multicloud-exporter" .Values.fullname }}-config,{{ default "multicloud-exporter" .Values.fullname }}-products{{- if and .Values.accounts (or .Values.accounts.secrets .Values.accounts.grouped) }},{{ default "multicloud-exporter" .Values.fullname }}-accounts{{- end }}"
+{{- end }}
+{{- end }}
     spec:
       containers:
         - name: exporter
