@@ -534,7 +534,7 @@ func resourceTypeForNamespace(namespace string) string {
 	case "acs_ecs_dashboard":
 		return "ecs"
 	case "acs_slb_dashboard":
-		return "slb"
+		return "lb"
 	default:
 		return ""
 	}
@@ -547,7 +547,7 @@ func (a *Collector) resourceIDsForNamespace(account config.CloudAccount, region 
 	case "acs_ecs_dashboard":
 		return a.listECSInstanceIDs(account, region), "ecs"
 	case "acs_slb_dashboard":
-		return a.listSLBIDs(account, region), "slb"
+		return a.listSLBIDs(account, region), "lb"
 	default:
 		return []string{}, ""
 	}

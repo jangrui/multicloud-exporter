@@ -5,10 +5,10 @@ var SupportedResources = map[string][]string{
     "aliyun": {
         "ecs",
         "bwp",
-        "slb",
+        "lb",
     },
     "huawei":  {},
-    "tencent": {},
+    "tencent": {"lb", "bwp"},
 }
 
 // GetAllResources 返回指定云平台的全部资源类型

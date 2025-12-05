@@ -38,12 +38,12 @@ func discoverAliyun(ctx context.Context, cfg *config.Config) []config.Product {
 				nsSet["acs_ecs_dashboard"] = struct{}{}
 			case "bwp":
 				nsSet["acs_bandwidth_package"] = struct{}{}
-			case "slb":
-				nsSet["acs_slb_dashboard"] = struct{}{}
+            case "lb":
+                nsSet["acs_slb_dashboard"] = struct{}{}
 			case "*":
 				nsSet["acs_ecs_dashboard"] = struct{}{}
 				nsSet["acs_bandwidth_package"] = struct{}{}
-				nsSet["acs_slb_dashboard"] = struct{}{}
+                nsSet["acs_slb_dashboard"] = struct{}{}
 			}
 		}
 	}

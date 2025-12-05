@@ -34,6 +34,8 @@ func (t *Collector) Collect(account config.CloudAccount) {
                 t.collectRedis(account, region)
             case "clb":
                 t.collectCLB(account, region)
+            case "slb":
+                t.collectCLB(account, region)
             case "eip":
                 t.collectEIP(account, region)
             case "bwp":
@@ -94,7 +96,28 @@ func (t *Collector) collectRedis(account config.CloudAccount, region string) {
 }
 
 func (t *Collector) collectCLB(account config.CloudAccount, region string) {
-    log.Printf("Collecting Tencent CLB in region %s (not implemented)", region)
+    if t.cfg == nil {
+        return
+    }
+    var prods []config.Product
+    if t.disc != nil {
+        if ps, ok := t.disc.Get()["tencent"]; ok && len(ps) > 0 {
+            prods = ps
+        }
+    }
+    if len(prods) == 0 {
+        return
+    }
+    for _, p := range prods {
+        if p.Namespace != "QCE/CLB" {
+            continue
+        }
+        vips := t.listCLBVips(account, region)
+        if len(vips) == 0 {
+            continue
+        }
+        t.fetchCLBMonitor(account, region, p, vips)
+    }
 }
 
 func (t *Collector) collectEIP(account config.CloudAccount, region string) {

@@ -7,11 +7,13 @@ require (
 	github.com/prometheus/client_golang v1.18.0
 	github.com/stretchr/testify v1.8.4 // indirect
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/clb v1.0.854
-	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.0.854
+	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common v1.3.2
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/monitor v1.0.854
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/vpc v1.0.854
 	gopkg.in/yaml.v3 v3.0.1
 )
+
+require github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/cvm v1.3.2
 
 require (
 	github.com/beorn7/perks v1.0.1 // indirect

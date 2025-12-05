@@ -11,7 +11,7 @@
 - 模块：`internal/discovery`
   - `manager.go`：管理发现、刷新、存储与通知
   - `aliyun.go`：阿里云命名空间指标发现（`acs_ecs_dashboard`、`acs_bandwidth_package`、`acs_slb_dashboard`）
-  - `tencent.go`：腾讯云命名空间指标发现（`QCE/BWP`）
+  - `tencent.go`：腾讯云命名空间指标发现（`QCE/BWP`、`QCE/CLB`）
 
 ## 运行时行为
 
@@ -22,7 +22,7 @@
 
 ## 配置来源
 
-- `accounts.yaml`：按 `provider` 与 `resources` 选择命名空间；阿里云 SLB 仅发现具备 `InstanceId` 维度的指标，剔除分组级指标。
+- `accounts.yaml`：按 `provider` 与 `resources` 选择命名空间；负载均衡统一资源名为 `lb`，阿里云仅发现具备 `InstanceId` 维度的指标，剔除分组级指标。
 - `credential`：优先使用全局凭证访问云产品接口，缺省时回退账号凭证。
 
 ## REST API

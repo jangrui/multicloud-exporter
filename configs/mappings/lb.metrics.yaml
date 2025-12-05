@@ -1,5 +1,5 @@
-# 统一 SLB 指标映射关系（Aliyun / Tencent）
-# 说明：canonical 指代统一后的 `slb_*` 名称；各云平台原始指标在 providers 下声明，并给出单位与查询层的缩放建议。
+# 统一 LB 指标映射关系（Aliyun / Tencent）
+# 说明：canonical 指代统一后的 `lb_*` 名称；各云平台原始指标在 providers 下声明，并给出单位与查询层的缩放建议。
 
 canonical:
   traffic_rx_bps:
@@ -103,7 +103,7 @@ aliyun_only:
     unit: ratio
     scale_hint: "Grafana 以 % 展示，不强制乘 100"
 
-# 腾讯云特有指标示例：保留原名语义，统一到 slb_tencent_* 前缀（可选）
+# 腾讯云特有指标示例：保留原名语义，统一到 lb_tencent_* 前缀（可选）
 # 实际暴露建议：若能等价映射到 canonical，则优先映射；否则以 provider 特有前缀暴露。
 
 tencent_only:
