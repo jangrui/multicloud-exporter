@@ -27,8 +27,6 @@ spec:
             - name: http
               containerPort: {{ .Values.service.port }}
           env:
-            - name: SCRAPE_INTERVAL
-              value: {{ .Values.env.scrapeInterval | quote }}
             - name: EXPORTER_PORT
               value: {{ .Values.service.port | quote }}
             - name: SERVER_PATH

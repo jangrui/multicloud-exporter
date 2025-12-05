@@ -12,6 +12,7 @@ import (
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/discovery"
 	"multicloud-exporter/internal/metrics"
+	"multicloud-exporter/internal/utils"
 
 	"sync"
 
@@ -572,13 +573,13 @@ func (a *Collector) getCachedIDs(account config.CloudAccount, region, namespace,
 	ttlDur := time.Hour
 	if a.cfg != nil && a.cfg.ServerConf != nil {
 		if a.cfg.ServerConf.DiscoveryTTL != "" {
-			if d, err := time.ParseDuration(a.cfg.ServerConf.DiscoveryTTL); err == nil {
+			if d, err := utils.ParseDuration(a.cfg.ServerConf.DiscoveryTTL); err == nil {
 				ttlDur = d
 			}
 		}
 	} else if a.cfg != nil && a.cfg.Server != nil {
 		if a.cfg.Server.DiscoveryTTL != "" {
-			if d, err := time.ParseDuration(a.cfg.Server.DiscoveryTTL); err == nil {
+			if d, err := utils.ParseDuration(a.cfg.Server.DiscoveryTTL); err == nil {
 				ttlDur = d
 			}
 		}

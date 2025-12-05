@@ -14,6 +14,11 @@ import (
 )
 
 func (t *Collector) listCLBVips(account config.CloudAccount, region string) []string {
+	if ids, hit := t.getCachedIDs(account, region, "QCE/CLB", "lb"); hit {
+		log.Printf("Tencent CLB VIPs cache hit account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
+		return ids
+	}
+
 	credential := common.NewCredential(account.AccessKeyID, account.AccessKeySecret)
 	client, err := clb.NewClient(credential, region, profile.NewClientProfile())
 	if err != nil {
@@ -35,6 +40,7 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 			}
 		}
 	}
+	t.setCachedIDs(account, region, "QCE/CLB", "lb", vips)
 	log.Printf("Tencent CLB VIPs enumerated account_id=%s region=%s count=%d", account.AccountID, region, len(vips))
 	return vips
 }

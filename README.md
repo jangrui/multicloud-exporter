@@ -62,6 +62,7 @@ server:
   port: 9101
   page_size: 1000
   discovery_ttl: "1h"
+  scrape_interval: "60s"
 ```
 
 
@@ -153,7 +154,7 @@ scrape_configs:
 ## 环境变量
 
 - `EXPORTER_PORT`: 监听端口；优先级高于配置文件。未设置则读取 `server.port`，再回退为 `9101`。
-- `SCRAPE_INTERVAL`: 采集间隔秒数（默认60）
+- `SCRAPE_INTERVAL`: 采集间隔（默认60s），支持时间格式（如 30s, 1m）。
 - `SERVER_PATH`: 指向 `server.yaml`
  
 - `ACCOUNTS_PATH`: 指向 `accounts.yaml`

@@ -2,10 +2,10 @@
 package config
 
 import (
-    "log"
-    "os"
+	"log"
+	"os"
 
-    "gopkg.in/yaml.v3"
+	"gopkg.in/yaml.v3"
 )
 
 // CloudAccount 描述单个云账号的采集范围与凭证
@@ -40,80 +40,92 @@ func LoadConfig() *Config {
 	var cfg Config
 
 	// 可选：兼容旧版单文件配置
-    if configPath := os.Getenv("CONFIG_PATH"); configPath != "" {
-        if data, err := os.ReadFile(configPath); err == nil {
-            expanded := os.ExpandEnv(string(data))
-            _ = yaml.Unmarshal([]byte(expanded), &cfg)
-        } else {
-            log.Printf("CONFIG_PATH not loaded: %v", err)
-        }
-    }
+	if configPath := os.Getenv("CONFIG_PATH"); configPath != "" {
+		if data, err := os.ReadFile(configPath); err == nil {
+			expanded := os.ExpandEnv(string(data))
+			_ = yaml.Unmarshal([]byte(expanded), &cfg)
+		} else {
+			log.Printf("CONFIG_PATH not loaded: %v", err)
+		}
+	}
 
 	// 新版拆分：server.yaml
-    if serverPath := os.Getenv("SERVER_PATH"); serverPath != "" {
-        data, err := os.ReadFile(serverPath)
-        if err != nil {
-            log.Fatalf("Failed to read server config: %v", err)
-        }
-        expanded := os.ExpandEnv(string(data))
-        var s struct {
-            Server *ServerConf `yaml:"server"`
-        }
-        if err := yaml.Unmarshal([]byte(expanded), &s); err != nil {
-            log.Fatalf("Failed to parse server config: %v", err)
-        }
-        if s.Server != nil {
-            cfg.Server = s.Server
-            cfg.ServerConf = s.Server
-        }
-    }
+	if serverPath := os.Getenv("SERVER_PATH"); serverPath != "" {
+		data, err := os.ReadFile(serverPath)
+		if err != nil {
+			log.Fatalf("Failed to read server config: %v", err)
+		}
+		expanded := os.ExpandEnv(string(data))
+		var s struct {
+			Server *ServerConf `yaml:"server"`
+		}
+		if err := yaml.Unmarshal([]byte(expanded), &s); err != nil {
+			log.Fatalf("Failed to parse server config: %v", err)
+		}
+		if s.Server != nil {
+			cfg.Server = s.Server
+			cfg.ServerConf = s.Server
+		}
+	}
 
-    // 手工产品配置已废弃：Exporter 全面采用自动发现生成产品与指标配置
+	// 手工产品配置已废弃：Exporter 全面采用自动发现生成产品与指标配置
 
 	// 新版拆分：accounts.yaml
-    if accountsPath := os.Getenv("ACCOUNTS_PATH"); accountsPath != "" {
-        accData, err := os.ReadFile(accountsPath)
-        if err != nil {
-            log.Fatalf("Failed to read accounts: %v", err)
-        }
-        accExpanded := os.ExpandEnv(string(accData))
-        var accCfg struct {
-            AccountsByProvider       map[string][]CloudAccount `yaml:"accounts"`
-            AccountsByProviderLegacy map[string][]CloudAccount `yaml:"accounts_by_provider"`
-            AccountsList             []CloudAccount            `yaml:"accounts_list"`
-        }
-        if err := yaml.Unmarshal([]byte(accExpanded), &accCfg); err != nil {
-            log.Fatalf("Failed to parse accounts: %v", err)
-        }
-        if accCfg.AccountsByProvider != nil {
-            cfg.AccountsByProvider = accCfg.AccountsByProvider
-        }
-        if accCfg.AccountsByProviderLegacy != nil {
-            cfg.AccountsByProviderLegacy = accCfg.AccountsByProviderLegacy
-        }
-        if len(accCfg.AccountsList) > 0 {
-            cfg.AccountsList = accCfg.AccountsList
-        }
-    }
+	if accountsPath := os.Getenv("ACCOUNTS_PATH"); accountsPath != "" {
+		accData, err := os.ReadFile(accountsPath)
+		if err != nil {
+			log.Fatalf("Failed to read accounts: %v", err)
+		}
+		accExpanded := os.ExpandEnv(string(accData))
+		var accCfg struct {
+			AccountsByProvider       map[string][]CloudAccount `yaml:"accounts"`
+			AccountsByProviderLegacy map[string][]CloudAccount `yaml:"accounts_by_provider"`
+			AccountsList             []CloudAccount            `yaml:"accounts_list"`
+		}
+		if err := yaml.Unmarshal([]byte(accExpanded), &accCfg); err != nil {
+			log.Fatalf("Failed to parse accounts: %v", err)
+		}
+		if accCfg.AccountsByProvider != nil {
+			cfg.AccountsByProvider = accCfg.AccountsByProvider
+		}
+		if accCfg.AccountsByProviderLegacy != nil {
+			cfg.AccountsByProviderLegacy = accCfg.AccountsByProviderLegacy
+		}
+		if len(accCfg.AccountsList) > 0 {
+			cfg.AccountsList = accCfg.AccountsList
+		}
+	}
 
 	// 账号文件中若包含环境占位符，将通过 env 展开（由容器 envFrom 注入）
 	return &cfg
 }
 
 type ServerConf struct {
-	ServiceEndpoint  string `yaml:"service_endpoint"`
-	Port             int    `yaml:"port"`
-	PageSize         int    `yaml:"page_size"`
-	LogDest          int    `yaml:"log_dest"`
-	LogDir           string `yaml:"log_dir"`
-	LogLevel         string `yaml:"log_level"`
-	HttpProxy        string `yaml:"http_proxy"`
-	HttpsProxy       string `yaml:"https_proxy"`
-	NoProxy          string `yaml:"no_proxy"`
-	NoMeta           bool   `yaml:"no_meta"`
-	NoSavepoint      bool   `yaml:"no_savepoint"`
+	ServiceEndpoint string `yaml:"service_endpoint"`
+	Port            int    `yaml:"port"`
+	PageSize        int    `yaml:"page_size"`
+	LogDest         int    `yaml:"log_dest"`
+	LogDir          string `yaml:"log_dir"`
+	LogLevel        string `yaml:"log_level"`
+	HttpProxy       string `yaml:"http_proxy"`
+	HttpsProxy      string `yaml:"https_proxy"`
+	NoProxy         string `yaml:"no_proxy"`
+	NoMeta          bool   `yaml:"no_meta"`
+	NoSavepoint     bool   `yaml:"no_savepoint"`
+	// DiscoveryTTL 控制资源自动发现结果的缓存生命周期。
+	// 支持的时间单位：
+	//   - s: 秒 (second)
+	//   - m: 分钟 (minute)
+	//   - h: 小时 (hour)
+	//   - d: 天 (day, 1d = 24h = 1440m = 86400s)
+	// 若未指定单位，默认单位为纳秒（ns，Go time.ParseDuration 行为），因此建议始终显式指定单位。
+	// 示例：
+	//   - "1d": 缓存 1 天
+	//   - "60m": 缓存 60 分钟
+	//   - "24h": 缓存 24 小时
 	DiscoveryTTL     string `yaml:"discovery_ttl"`
 	DiscoveryRefresh string `yaml:"discovery_refresh"`
+	ScrapeInterval   string `yaml:"scrape_interval"`
 	// 区域级并发：同一账号下并行采集的地域数量，建议 1-8。
 	RegionConcurrency int `yaml:"region_concurrency"`
 	// 指标级并发：同一地域、同一产品下并行处理的指标批次数，建议 1-10。

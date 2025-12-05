@@ -22,19 +22,10 @@ import (
 
 // main 启动 HTTP 服务并周期性采集各云资源指标
 func main() {
-	port := os.Getenv("EXPORTER_PORT")
-	intervalStr := os.Getenv("SCRAPE_INTERVAL")
-	if intervalStr == "" {
-		intervalStr = "60"
-	}
-
-	interval, err := strconv.Atoi(intervalStr)
-	if err != nil {
-		log.Fatal("Invalid SCRAPE_INTERVAL")
-	}
-
 	cfg := config.LoadConfig()
 	log.Printf("配置加载完成，账号配置集合 sizes: accounts=%d products=%d", len(cfg.AccountsList)+len(cfg.AccountsByProvider)+len(cfg.AccountsByProviderLegacy), len(cfg.ProductsList)+len(cfg.ProductsByProvider)+len(cfg.ProductsByProviderLegacy))
+
+	port := os.Getenv("EXPORTER_PORT")
 	if port == "" {
 		if cfg.Server != nil && cfg.Server.Port > 0 {
 			port = strconv.Itoa(cfg.Server.Port)
@@ -44,6 +35,34 @@ func main() {
 			port = "9100"
 		}
 	}
+
+	// 确定采集间隔：默认 60s
+	interval := 60 * time.Second
+
+	// 1. 优先从配置文件读取
+	if cfg.Server != nil && cfg.Server.ScrapeInterval != "" {
+		if d, err := time.ParseDuration(cfg.Server.ScrapeInterval); err == nil {
+			interval = d
+		} else {
+			log.Printf("Warning: invalid scrape_interval in config: %v", err)
+		}
+	} else if cfg.ServerConf != nil && cfg.ServerConf.ScrapeInterval != "" {
+		if d, err := time.ParseDuration(cfg.ServerConf.ScrapeInterval); err == nil {
+			interval = d
+		}
+	}
+
+	// 2. 环境变量覆盖 (SCRAPE_INTERVAL)
+	if envInterval := os.Getenv("SCRAPE_INTERVAL"); envInterval != "" {
+		if i, err := strconv.Atoi(envInterval); err == nil {
+			interval = time.Duration(i) * time.Second
+		} else if d, err := time.ParseDuration(envInterval); err == nil {
+			interval = d
+		} else {
+			log.Printf("Warning: invalid SCRAPE_INTERVAL env: %v", err)
+		}
+	}
+
 	mgr := discovery.NewManager(cfg)
 	ctx := context.Background()
 	mgr.Start(ctx)
@@ -60,17 +79,17 @@ func main() {
 	prometheus.MustRegister(metrics.RequestDuration)
 	prometheus.MustRegister(metrics.NamespaceMetric)
 
-	// 周期性采集，采集间隔由环境变量 SCRAPE_INTERVAL 控制
+	// 周期性采集，采集间隔由配置或环境变量控制
 	go func() {
 		for {
-			log.Printf("开始采集，周期=%ds", interval)
+			log.Printf("开始采集，周期=%v", interval)
 			if v := mgr.Version(); v != lastVer {
 				cfg.ProductsByProvider = mgr.Get()
 				lastVer = v
 			}
 			coll.Collect()
-			log.Printf("采集完成，休眠 %d 秒", interval)
-			time.Sleep(time.Duration(interval) * time.Second)
+			log.Printf("采集完成，休眠 %v", interval)
+			time.Sleep(interval)
 		}
 	}()
 
