@@ -1,4 +1,7 @@
 # OS/editor
+
+
+
 .DS_Store
 .vscode/
 .idea/
@@ -18,6 +21,9 @@ coverage/
 
 # Logs
 *.log
+*.out
+*.test
+*.cov
 
 # Env & secrets
 .env
@@ -30,3 +36,5 @@ accounts.local.yaml
 PRODUCT_PLAN.md
 CHANGELOG.md
 TODO.md
+configs/products.yaml
+configs/products.auto.yaml

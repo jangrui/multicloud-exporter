@@ -68,31 +68,7 @@ func LoadConfig() *Config {
         }
     }
 
-	// 新版拆分：products.yaml
-    if productsPath := os.Getenv("PRODUCTS_PATH"); productsPath != "" {
-        data, err := os.ReadFile(productsPath)
-        if err != nil {
-            log.Fatalf("Failed to read products config: %v", err)
-        }
-        expanded := os.ExpandEnv(string(data))
-        var p struct {
-            ProductsByProvider       map[string][]Product `yaml:"products"`
-            ProductsByProviderLegacy map[string][]Product `yaml:"products_by_provider"`
-            ProductsList             []Product            `yaml:"products_list"`
-        }
-        if err := yaml.Unmarshal([]byte(expanded), &p); err != nil {
-            log.Fatalf("Failed to parse products config: %v", err)
-        }
-        if p.ProductsByProvider != nil {
-            cfg.ProductsByProvider = p.ProductsByProvider
-        }
-        if p.ProductsByProviderLegacy != nil {
-            cfg.ProductsByProviderLegacy = p.ProductsByProviderLegacy
-        }
-        if len(p.ProductsList) > 0 {
-            cfg.ProductsList = p.ProductsList
-        }
-    }
+    // 手工产品配置已废弃：Exporter 全面采用自动发现生成产品与指标配置
 
 	// 新版拆分：accounts.yaml
     if accountsPath := os.Getenv("ACCOUNTS_PATH"); accountsPath != "" {

@@ -15,7 +15,7 @@ spec:
 {{- if .Values.reloader.useAuto }}
         reloader.stakater.com/auto: "true"
 {{- else }}
-        configmap.reloader.stakater.com/reload: "{{ default "multicloud-exporter" .Values.fullname }}-config,{{ default "multicloud-exporter" .Values.fullname }}-products{{- if and .Values.accounts (or .Values.accounts.secrets .Values.accounts.grouped) }},{{ default "multicloud-exporter" .Values.fullname }}-accounts{{- end }}"
+        configmap.reloader.stakater.com/reload: "{{ default "multicloud-exporter" .Values.fullname }}-config{{- if and .Values.accounts (or .Values.accounts.secrets .Values.accounts.grouped) }},{{ default "multicloud-exporter" .Values.fullname }}-accounts{{- end }}"
 {{- end }}
 {{- end }}
     spec:
@@ -33,8 +33,6 @@ spec:
               value: {{ .Values.service.port | quote }}
             - name: SERVER_PATH
               value: "/app/configs/server.yaml"
-            - name: PRODUCTS_PATH
-              value: "/app/configs/products.yaml"
 {{- if and .Values.accounts (or .Values.accounts.secrets .Values.accounts.grouped) }}
             - name: ACCOUNTS_PATH
               value: "/app/configs/accounts.yaml"
@@ -114,9 +112,6 @@ spec:
             - name: server
               mountPath: "/app/configs/server.yaml"
               subPath: server.yaml
-            - name: products
-              mountPath: "/app/configs/products.yaml"
-              subPath: products.yaml
 {{- if and .Values.accounts (or .Values.accounts.secrets .Values.accounts.grouped) }}
             - name: accounts
               mountPath: "/app/configs/accounts.yaml"
@@ -127,9 +122,6 @@ spec:
         - name: server
           configMap:
             name: {{ default "multicloud-exporter" .Values.fullname }}-config
-        - name: products
-          configMap:
-            name: {{ default "multicloud-exporter" .Values.fullname }}-products
 {{- if and .Values.accounts (or .Values.accounts.secrets .Values.accounts.grouped) }}
         - name: accounts
           configMap:

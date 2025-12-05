@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"multicloud-exporter/internal/config"
+	"multicloud-exporter/internal/discovery"
 	"multicloud-exporter/internal/metrics"
 
 	"sync"
@@ -21,6 +22,7 @@ import (
 // Collector 封装阿里云资源采集逻辑
 type Collector struct {
 	cfg       *config.Config
+	disc      *discovery.Manager
 	metaCache map[string]metricMeta
 	metaMu    sync.RWMutex
 	cacheMu   sync.RWMutex
@@ -28,8 +30,8 @@ type Collector struct {
 }
 
 // NewCollector 创建阿里云采集器实例
-func NewCollector(cfg *config.Config) *Collector {
-	return &Collector{cfg: cfg, metaCache: make(map[string]metricMeta), resCache: make(map[string]resCacheEntry)}
+func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
+	return &Collector{cfg: cfg, disc: mgr, metaCache: make(map[string]metricMeta), resCache: make(map[string]resCacheEntry)}
 }
 
 // Collect 根据账号配置遍历区域与资源类型并采集
@@ -121,18 +123,10 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 		return
 	}
 	var prods []config.Product
-	if a.cfg.ProductsByProvider != nil {
-		if ps, ok := a.cfg.ProductsByProvider["aliyun"]; ok && len(ps) > 0 {
+	if a.disc != nil {
+		if ps, ok := a.disc.Get()["aliyun"]; ok && len(ps) > 0 {
 			prods = ps
 		}
-	}
-	if len(prods) == 0 && a.cfg.ProductsByProviderLegacy != nil {
-		if ps, ok := a.cfg.ProductsByProviderLegacy["aliyun"]; ok && len(ps) > 0 {
-			prods = ps
-		}
-	}
-	if len(prods) == 0 {
-		prods = a.cfg.ProductsList
 	}
 	if len(prods) == 0 {
 		return
@@ -223,7 +217,15 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 					if len(meta.Dimensions) == 0 {
 						continue
 					}
-					dimKey := meta.Dimensions[0]
+					if prod.Namespace == "acs_slb_dashboard" {
+						if !hasAnyDim(meta.Dimensions, []string{"InstanceId", "instanceId", "instance_id"}) {
+							continue
+						}
+					}
+					dimKey := chooseDimKeyForNamespace(prod.Namespace, meta.Dimensions)
+					if dimKey == "" {
+						continue
+					}
 					rtype := resourceTypeForNamespace(prod.Namespace)
 					cachedIDs, hit := a.getCachedIDs(account, region, prod.Namespace, rtype)
 					var resIDs []string
@@ -309,10 +311,25 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 									break
 								}
 								var points []map[string]interface{}
-								if err := json.Unmarshal([]byte(resp.Datapoints), &points); err != nil {
-									break
+								if dp := strings.TrimSpace(resp.Datapoints); dp == "" {
+									points = []map[string]interface{}{}
+								} else if err := json.Unmarshal([]byte(dp), &points); err != nil {
+									// 当返回为空或非标准 JSON 时，回退为无数据，但仍暴露 0 值，便于在 /metrics 中检索指标是否存在
+									points = []map[string]interface{}{}
 								}
 								log.Printf("Aliyun 拉取指标成功 account_id=%s region=%s namespace=%s metric=%s 返回点数=%d", account.AccountID, region, ns, m, len(points))
+								if len(points) == 0 {
+									// 无数据时仍输出 0 值样本，让指标可见
+									for _, rid := range ids[start:end] {
+										var codeNameVal string
+										if tags != nil {
+											codeNameVal = tags[rid]
+										}
+										metrics.NamespaceGauge(ns, m).WithLabelValues(
+											"aliyun", account.AccountID, region, rtype, rid, ns, m, codeNameVal,
+										).Set(0)
+									}
+								}
 								for _, pnt := range points {
 									idAny, ok := pnt[dkey]
 									if !ok {
@@ -447,6 +464,56 @@ func chooseStatistics(available []string, desired []string) []string {
 		return available
 	}
 	return res
+}
+
+func chooseDimKeyForNamespace(namespace string, dims []string) string {
+	if len(dims) == 0 {
+		return ""
+	}
+	pick := func(candidates ...string) string {
+		for _, want := range candidates {
+			lw := strings.ToLower(want)
+			for _, d := range dims {
+				if strings.ToLower(d) == lw {
+					return d
+				}
+			}
+		}
+		return ""
+	}
+	switch namespace {
+	case "acs_ecs_dashboard":
+		if v := pick("instanceId", "InstanceId", "instance_id"); v != "" {
+			return v
+		}
+	case "acs_bandwidth_package":
+		// 阿里云 BWP 通常使用 InstanceId 作为维度键
+		if v := pick("instanceId", "InstanceId", "instance_id"); v != "" {
+			return v
+		}
+	case "acs_slb_dashboard":
+		if v := pick("instanceId", "InstanceId", "instance_id"); v != "" {
+			return v
+		}
+		return ""
+	}
+	return dims[0]
+}
+
+func hasAnyDim(dims []string, keys []string) bool {
+	if len(dims) == 0 || len(keys) == 0 {
+		return false
+	}
+	lower := make(map[string]struct{}, len(dims))
+	for _, d := range dims {
+		lower[strings.ToLower(strings.TrimSpace(d))] = struct{}{}
+	}
+	for _, k := range keys {
+		if _, ok := lower[strings.ToLower(k)]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 func containsResource(list []string, r string) bool {

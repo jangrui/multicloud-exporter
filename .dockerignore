@@ -6,20 +6,26 @@
 .vscode/
 .idea/
 .trae/
-*.test
-*.cov
-*.log
 
 # Binaries & build outputs
 bin/
 build/
 dist/
+script/
+
+# Tests & coverage
+*.test
+*.out
+*.cov
 coverage/
-scripts/
+
+# Logs
+*.log
+*.out
+*.test
+*.cov
 
 # Env & secrets
-*.out
-
 *.env
 *.env.*
 *.pem
@@ -30,3 +36,5 @@ accounts.local.yaml
 PRODUCT_PLAN.md
 CHANGELOG.md
 TODO.md
+configs/products.yaml
+configs/products.auto.yaml

@@ -62,29 +62,8 @@ server:
   port: 9101
   page_size: 1000
   discovery_ttl: "1h"
-  discovery_refresh: ""
 ```
 
-### products.yaml
-
-```yaml
-products:
-  aliyun:
-    - namespace: acs_bandwidth_package
-      period: 60
-      metric_info:
-        - metric_list:
-          - in_bandwidth_utilization
-          - out_bandwidth_utilization
-          - net_rx.rate
-          - net_tx.rate
-          - net_rx.Pkgs
-          - net_tx.Pkgs
-          - in_ratelimit_drop_pps
-          - out_ratelimit_drop_pps
-  huawei: []
-  tencent: []
-```
 
 ### accounts.yaml
 
@@ -119,7 +98,7 @@ cd multicloud-exporter
 curl -LO https://github.com/jangrui/multicloud-exporter/releases/latest/download/multicloud-exporter
 chmod +x multicloud-exporter
 export SERVER_PATH=./configs/server.yaml
-export PRODUCTS_PATH=./configs/products.yaml
+# 不设置 PRODUCTS_PATH 时启用自动发现
 export ACCOUNTS_PATH=./configs/accounts.yaml
 ./multicloud-exporter
 ```
@@ -130,9 +109,8 @@ export ACCOUNTS_PATH=./configs/accounts.yaml
 docker run -d \
   -p 9101:9101 \
   -v $(pwd)/configs:/app/configs \
-  -e ACCOUNTS_PATH=/app/configs/accounts.yaml \
-  -e PRODUCTS_PATH=/app/configs/products.yaml \
-  -e SERVER_PATH=/app/configs/server.yaml \
+  -e ACCOUNTS_PATH=/app/configs/accounts.yaml 
+  -e SERVER_PATH=/app/configs/server.yaml 
   multicloud-exporter
 ```
 
@@ -177,11 +155,12 @@ scrape_configs:
 - `EXPORTER_PORT`: 监听端口；优先级高于配置文件。未设置则读取 `server.port`，再回退为 `9101`。
 - `SCRAPE_INTERVAL`: 采集间隔秒数（默认60）
 - `SERVER_PATH`: 指向 `server.yaml`
-- `PRODUCTS_PATH`: 指向 `products.yaml`
+ 
 - `ACCOUNTS_PATH`: 指向 `accounts.yaml`
 
 ## 采集与缓存
 
 - 采集流程：程序按配置加载产品与指标 → 枚举资源ID（按命名空间映射） → 批量拉取最新监控数据 → 暴露为Prometheus指标。
 - 缓存策略：枚举的资源ID会被缓存，TTL可配置（`discovery_ttl`）。在TTL内的采集轮次直接使用缓存，避免重复枚举导致的API费用与限流。
+- 自动发现：仅监听 `accounts.yaml` 的资源集合变化（`resources`），有变化时触发发现刷新；不再支持周期刷新参数。
 - 日志提示：增加采集阶段日志，包括账号/区域开始结束、产品加载、资源缓存命中/枚举数量、每批次拉取点数等，便于排查与观测。

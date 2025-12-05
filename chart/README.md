@@ -37,7 +37,7 @@ kubectl -n monitoring get po,svc -l app.kubernetes.io/name=multicloud-exporter
 
 - 配置文件
   - `server.yaml`：由 `values.server` 渲染为 ConfigMap 并挂载到容器固定路径
-  - `products.yaml`：由 Chart 内置为 ConfigMap 并挂载到容器固定路径
+  - `products.yaml`：可选，受 `values.products.enabled` 控制；禁用时不挂载，Exporter 使用自动发现
   - `accounts.yaml`：由用户预创建 Secret 提供并挂载到容器固定路径
 
 -- 账号 Secret 引用
@@ -62,3 +62,4 @@ kubectl -n monitoring get po,svc -l app.kubernetes.io/name=multicloud-exporter
 ## 备注
 
 - 建议将敏感配置通过 Secret 管理，避免直接提交到版本库。
+ - Chart 不再支持 `server.discovery_refresh`；Exporter 通过监听 `accounts.yaml` 的资源集合变化触发发现刷新。

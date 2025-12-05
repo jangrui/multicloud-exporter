@@ -8,12 +8,13 @@ import (
     "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
     cvm "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/cvm/v20170312"
     "multicloud-exporter/internal/config"
+    "multicloud-exporter/internal/discovery"
     "multicloud-exporter/internal/metrics"
 )
 
-type Collector struct{ cfg *config.Config }
+type Collector struct{ cfg *config.Config; disc *discovery.Manager }
 
-func NewCollector(cfg *config.Config) *Collector { return &Collector{cfg: cfg} }
+func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector { return &Collector{cfg: cfg, disc: mgr} }
 
 // Collect 根据账号配置遍历区域与资源类型并采集
 func (t *Collector) Collect(account config.CloudAccount) {
@@ -105,18 +106,13 @@ func (t *Collector) collectBWP(account config.CloudAccount, region string) {
         return
     }
     var prods []config.Product
-    if t.cfg.ProductsByProvider != nil {
-        if ps, ok := t.cfg.ProductsByProvider["tencent"]; ok && len(ps) > 0 {
-            prods = ps
-        }
-    }
-    if len(prods) == 0 && t.cfg.ProductsByProviderLegacy != nil {
-        if ps, ok := t.cfg.ProductsByProviderLegacy["tencent"]; ok && len(ps) > 0 {
+    if t.disc != nil {
+        if ps, ok := t.disc.Get()["tencent"]; ok && len(ps) > 0 {
             prods = ps
         }
     }
     if len(prods) == 0 {
-        prods = t.cfg.ProductsList
+        return
     }
     for _, p := range prods {
         if p.Namespace != "QCE/BWP" {

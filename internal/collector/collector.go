@@ -2,30 +2,33 @@
 package collector
 
 import (
-	"log"
-	"sync"
+    "log"
+    "sync"
 
-	"multicloud-exporter/internal/config"
-	"multicloud-exporter/internal/providers/aliyun"
-	"multicloud-exporter/internal/providers/huawei"
-	"multicloud-exporter/internal/providers/tencent"
+    "multicloud-exporter/internal/config"
+    "multicloud-exporter/internal/discovery"
+    "multicloud-exporter/internal/providers/aliyun"
+    "multicloud-exporter/internal/providers/huawei"
+    "multicloud-exporter/internal/providers/tencent"
 )
 
 // Collector 持有配置与各云采集器实例
 type Collector struct {
-	cfg     *config.Config
-	aliyun  *aliyun.Collector
-	huawei  *huawei.Collector
-	tencent *tencent.Collector
+    cfg     *config.Config
+    disc    *discovery.Manager
+    aliyun  *aliyun.Collector
+    huawei  *huawei.Collector
+    tencent *tencent.Collector
 }
 
 // NewCollector 创建调度器并初始化各云采集器
-func NewCollector(cfg *config.Config) *Collector {
+func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
     return &Collector{
         cfg:     cfg,
-        aliyun:  aliyun.NewCollector(cfg),
+        disc:    mgr,
+        aliyun:  aliyun.NewCollector(cfg, mgr),
         huawei:  huawei.NewCollector(),
-        tencent: tencent.NewCollector(cfg),
+        tencent: tencent.NewCollector(cfg, mgr),
     }
 }
 

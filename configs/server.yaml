@@ -2,7 +2,6 @@ server:
   port: 9101
   page_size: 1000
   discovery_ttl: "1d"
-  discovery_refresh: ""
   # 区域级并发：同一账号下并行采集的地域数量（建议 1-8）
   region_concurrency: 4
   # 指标级并发：同一地域、同一产品下并行处理的指标批次（建议 1-10）

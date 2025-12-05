@@ -1,11 +1,11 @@
 {
-  "title": "阿里云 SLB 监控",
+  "title": "SLB 监控",
   "tags": ["network", "slb", "mce"],
   "timezone": "browser",
   "schemaVersion": 41,
   "version": 1,
   "refresh": "30s",
-  "uid": "aliyun-slb-dashboard",
+  "uid": "slb",
   "editable": true,
   "panels": [
     {
