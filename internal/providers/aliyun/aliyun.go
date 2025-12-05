@@ -251,7 +251,7 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 						tagLabels = a.fetchCBWPTags(account, region, resIDs)
 					case "ecs":
 						tagLabels = a.fetchECSTags(account, region, resIDs)
-					case "slb":
+					case "lb", "slb":
 						tagLabels = a.fetchSLBTags(account, region, resIDs)
 					}
 
