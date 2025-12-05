@@ -18,6 +18,7 @@ script/
 *.out
 *.cov
 coverage/
+configs/products/
 
 # Logs
 *.log
