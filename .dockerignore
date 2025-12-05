@@ -40,3 +40,4 @@ TODO.md
 configs/products.yaml
 configs/products.auto.yaml
 .github/workflows/ci.yml
+internal/discovery/configs/products.auto.yaml

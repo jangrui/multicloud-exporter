@@ -158,12 +158,15 @@ func (m *Manager) reloadAccounts(path string) string {
 	if err != nil {
 		return ""
 	}
+	// 同样需要进行环境变量替换，否则热加载后的配置包含占位符
+	expanded := os.ExpandEnv(string(data))
+
 	var accCfg struct {
 		AccountsByProvider       map[string][]config.CloudAccount `yaml:"accounts"`
 		AccountsByProviderLegacy map[string][]config.CloudAccount `yaml:"accounts_by_provider"`
 		AccountsList             []config.CloudAccount            `yaml:"accounts_list"`
 	}
-	if err := yaml.Unmarshal(data, &accCfg); err != nil {
+	if err := yaml.Unmarshal([]byte(expanded), &accCfg); err != nil {
 		return ""
 	}
 	if m.cfg != nil {
