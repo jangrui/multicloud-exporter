@@ -3,7 +3,7 @@ server:
   page_size: 1000
   # Log configuration
   log:
-    level: info
+    level: ${LOG_LEVEL}
     format: json # json or console
     output: stdout # stdout, file, or both
     file:

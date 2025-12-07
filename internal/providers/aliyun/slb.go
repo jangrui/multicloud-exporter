@@ -17,6 +17,7 @@ import (
 )
 
 func (a *Collector) listSLBIDs(account config.CloudAccount, region string) ([]string, map[string]interface{}) {
+	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region)
 	client, err := slb.NewClientWithAccessKey(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
 		return []string{}, nil
@@ -54,7 +55,7 @@ func (a *Collector) listSLBIDs(account config.CloudAccount, region string) ([]st
 			status := classifyAliyunError(callErr)
 			metrics.RequestTotal.WithLabelValues("aliyun", "DescribeLoadBalancers", status).Inc()
 			if status == "region_skip" || status == "auth_error" {
-				logger.Log.Warnf("Aliyun SLB describe error region=%s page=%d status=%s: %v", region, page, status, callErr)
+				ctxLog.Warnf("SLB describe error page=%d status=%s: %v", page, status, callErr)
 				break
 			}
 			time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
@@ -79,7 +80,7 @@ func (a *Collector) listSLBIDs(account config.CloudAccount, region string) ([]st
 
 	// 并发获取每个实例的监听器详情（用于补充 port/protocol 维度）
 	if len(ids) > 0 {
-		logger.Log.Debugf("Aliyun 开始获取SLB监听器详情 count=%d", len(ids))
+		ctxLog.Debugf("开始获取SLB监听器详情 count=%d", len(ids))
 		var wg sync.WaitGroup
 		sem := make(chan struct{}, 5) // 控制并发度
 		var mu sync.Mutex
@@ -105,7 +106,7 @@ func (a *Collector) listSLBIDs(account config.CloudAccount, region string) ([]st
 				}
 
 				if err != nil {
-					logger.Log.Warnf("Aliyun fetch SLB attribute failed id=%s: %v", lbId, err)
+					ctxLog.Warnf("fetch SLB attribute failed id=%s: %v", lbId, err)
 					return
 				}
 
@@ -132,17 +133,20 @@ func (a *Collector) listSLBIDs(account config.CloudAccount, region string) ([]st
 		wg.Wait()
 	}
 
-	logger.Log.Debugf("Aliyun 枚举SLB实例完成 account_id=%s region=%s 实例数=%d 带监听器数=%d", account.AccountID, region, len(ids), len(meta))
+	ctxLog.Debugf("枚举SLB实例完成 实例数=%d 带监听器数=%d", len(ids), len(meta))
 	return ids, meta
 }
 
-func (a *Collector) fetchSLBTags(account config.CloudAccount, region string, ids []string) map[string]string {
+// fetchSLBTags 批量获取 SLB 标签（包含 code_name）
+func (a *Collector) fetchSLBTags(account config.CloudAccount, region, namespace, metric string, ids []string) map[string]string {
 	if len(ids) == 0 {
 		return map[string]string{}
 	}
+	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "namespace", namespace, "metric", metric)
+
 	tagClient, tagErr := tag.NewClientWithAccessKey(region, account.AccessKeyID, account.AccessKeySecret)
 	if tagErr != nil {
-		logger.Log.Warnf("Aliyun init tag client error: %v", tagErr)
+		ctxLog.Warnf("init tag client error: %v", tagErr)
 		return map[string]string{}
 	}
 
@@ -256,7 +260,7 @@ func (a *Collector) fetchSLBTags(account config.CloudAccount, region string, ids
 
 		// 进度日志
 		if (end)%100 == 0 || end == total {
-			logger.Log.Debugf("Aliyun SLB 标签采集进度 account_id=%s region=%s progress=%d/%d", account.AccountID, region, end, total)
+			ctxLog.Debugf("SLB 标签采集进度 progress=%d/%d (%.1f%%)", end, total, float64(end)/float64(total)*100)
 		}
 
 		// 批次间隔
@@ -269,6 +273,6 @@ func (a *Collector) fetchSLBTags(account config.CloudAccount, region string, ids
 			assigned++
 		}
 	}
-	logger.Log.Debugf("Aliyun SLB 标签采集完成 account_id=%s region=%s 资源数=%d 有code_name=%d", account.AccountID, region, len(ids), assigned)
+	ctxLog.Debugf("SLB 标签采集完成 资源数=%d 有code_name=%d", len(ids), assigned)
 	return out
 }

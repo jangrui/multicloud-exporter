@@ -13,7 +13,8 @@ import (
 )
 
 func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []string {
-	logger.Log.Debugf("Aliyun 枚举共享带宽包开始 account_id=%s region=%s", account.AccountID, region)
+	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region)
+	ctxLog.Debugf("枚举共享带宽包开始")
 	client, err := vpc.NewClientWithAccessKey(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
 		return []string{}
@@ -60,7 +61,7 @@ func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []st
 			status := classifyAliyunError(callErr)
 			metrics.RequestTotal.WithLabelValues("aliyun", "DescribeCommonBandwidthPackages", status).Inc()
 			if status == "region_skip" || status == "auth_error" {
-				logger.Log.Warnf("Aliyun CBWP describe error region=%s page=%d status=%s: %v", region, page, status, callErr)
+				ctxLog.Warnf("CBWP describe error page=%d status=%s: %v", page, status, callErr)
 				break
 			}
 			time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
@@ -80,7 +81,7 @@ func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []st
 		page++
 		time.Sleep(50 * time.Millisecond)
 	}
-	logger.Log.Debugf("Aliyun 枚举共享带宽包完成 account_id=%s region=%s 数量=%d", account.AccountID, region, len(ids))
+	ctxLog.Debugf("枚举共享带宽包完成 数量=%d", len(ids))
 	return ids
 }
 

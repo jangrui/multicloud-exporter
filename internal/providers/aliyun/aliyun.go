@@ -139,7 +139,8 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 	if len(prods) == 0 {
 		return
 	}
-	logger.Log.Debugf("Aliyun 加载产品配置 account_id=%s region=%s 数量=%d", account.AccountID, region, len(prods))
+	baseLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region)
+	baseLog.Debugf("加载产品配置 数量=%d", len(prods))
 	ak := account.AccessKeyID
 	sk := account.AccessKeySecret
 	if a.cfg.Credential != nil {
@@ -223,13 +224,13 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 						localPeriod = meta.MinPeriod
 					}
 					if len(meta.Dimensions) == 0 {
-						logger.Log.Warnf("Aliyun metric skipped (no dimensions): namespace=%s metric=%s", prod.Namespace, metricName)
+						baseLog.With("namespace", prod.Namespace, "metric", metricName).Warn("metric skipped (no dimensions)")
 						continue
 					}
 					// 针对不同产品，检查是否包含必要的维度
 					// 使用统一的维度检查函数，不再硬编码产品名称
 					if !a.checkRequiredDimensions(prod.Namespace, meta.Dimensions) {
-						logger.Log.Warnf("Aliyun metric skipped (dimension mismatch): namespace=%s metric=%s dims=%v", prod.Namespace, metricName, meta.Dimensions)
+						baseLog.With("namespace", prod.Namespace, "metric", metricName).Warnf("metric skipped (dimension mismatch): dims=%v", meta.Dimensions)
 						continue
 					}
 					dimKey := chooseDimKeyForNamespace(prod.Namespace, meta.Dimensions)
@@ -241,11 +242,11 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 					var resIDs []string
 					if hit {
 						resIDs = cachedIDs
-						logger.Log.Debugf("Aliyun 资源缓存命中 account_id=%s region=%s namespace=%s resource_type=%s 数量=%d", account.AccountID, region, prod.Namespace, rtype, len(resIDs))
+						baseLog.With("namespace", prod.Namespace, "resource_type", rtype).Debugf("资源缓存命中 数量=%d", len(resIDs))
 					} else {
 						resIDs, rtype, metaInfo = a.resourceIDsForNamespace(account, region, prod.Namespace)
 						a.setCachedIDs(account, region, prod.Namespace, rtype, resIDs, metaInfo)
-						logger.Log.Debugf("Aliyun 资源枚举完成 account_id=%s region=%s namespace=%s resource_type=%s 数量=%d", account.AccountID, region, prod.Namespace, rtype, len(resIDs))
+						baseLog.With("namespace", prod.Namespace, "resource_type", rtype).Debugf("资源枚举完成 数量=%d", len(resIDs))
 						if len(resIDs) == 0 {
 							continue
 						}
@@ -261,7 +262,7 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 					case "ecs":
 						tagLabels = a.fetchECSTags(account, region, resIDs)
 					case "lb", "slb":
-						tagLabels = a.fetchSLBTags(account, region, resIDs)
+						tagLabels = a.fetchSLBTags(account, region, prod.Namespace, metricName, resIDs)
 					}
 
 					// 并发执行该指标的各批次查询：由 msem 控制并发槽，避免超过云监控 API 限流。
@@ -270,6 +271,8 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 					go func(ns, m string, dkey string, rtype string, ids []string, tags map[string]string, p string, stats []string, meta map[string]interface{}, metricDims []string) {
 						defer mwg.Done()
 						defer func() { <-msem }()
+
+						ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "namespace", ns, "metric", m)
 
 						// 构建所有维度的请求对象
 						var allDims []map[string]string
@@ -327,6 +330,12 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 							if end > len(allDims) {
 								end = len(allDims)
 							}
+
+							// 进度日志
+							if (end)%100 == 0 || end == len(allDims) {
+								ctxLog.Debugf("指标采集进度 progress=%d/%d (%.1f%%)", end, len(allDims), float64(end)/float64(len(allDims))*100)
+							}
+
 							dims := allDims[start:end]
 							dimsJSON, _ := json.Marshal(dims)
 							req := cms.CreateDescribeMetricLastRequest()
@@ -342,7 +351,7 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 							}
 							req.Dimensions = string(dimsJSON)
 							nextToken := ""
-							logger.Log.Debugf("Aliyun 拉取指标开始 account_id=%s region=%s namespace=%s metric=%s period=%s 维度数=%d", account.AccountID, region, ns, m, p, len(dims))
+							ctxLog.Debugf("拉取指标开始 period=%s 维度数=%d", p, len(dims))
 							for {
 								if nextToken != "" {
 									req.NextToken = nextToken
@@ -361,13 +370,13 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 									status := classifyAliyunError(callErr)
 									metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricLast", status).Inc()
 									if status == "auth_error" || status == "region_skip" {
-										logger.Log.Warnf("CMS DescribeMetricLast error status=%s: %v", status, callErr)
+										ctxLog.Warnf("CMS DescribeMetricLast error status=%s: %v", status, callErr)
 										break
 									}
 									time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
 								}
 								if callErr != nil {
-									logger.Log.Errorf("Aliyun 拉取指标失败 account_id=%s region=%s namespace=%s metric=%s error=%v", account.AccountID, region, ns, m, callErr)
+									ctxLog.Errorf("拉取指标失败 error=%v", callErr)
 									break
 								}
 								var points []map[string]interface{}
@@ -376,12 +385,12 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 								} else if err := json.Unmarshal([]byte(dp), &points); err != nil {
 									// 当返回为空或非标准 JSON 时，回退为无数据，但仍暴露 0 值，便于在 /metrics 中检索指标是否存在
 									points = []map[string]interface{}{}
-									logger.Log.Errorf("Aliyun 指标数据解析失败 namespace=%s metric=%s content=%s error=%v", ns, m, dp, err)
+									ctxLog.Errorf("指标数据解析失败 content=%s error=%v", dp, err)
 								}
-								logger.Log.Debugf("Aliyun 拉取指标成功 account_id=%s region=%s namespace=%s metric=%s 返回点数=%d", account.AccountID, region, ns, m, len(points))
+								ctxLog.Debugf("拉取指标成功 返回点数=%d", len(points))
 								if len(points) == 0 {
 									// 无数据时仍输出 0 值样本，让指标可见
-									logger.Log.Debugf("Aliyun 指标无数据填充0值 namespace=%s metric=%s ids_count=%d", ns, m, len(dims))
+									ctxLog.Debugf("指标无数据填充0值 ids_count=%d", len(dims))
 									for _, dim := range dims {
 										rid := dim[dkey]
 										var codeNameVal string
@@ -464,7 +473,7 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 								nextToken = resp.NextToken
 								time.Sleep(25 * time.Millisecond)
 							}
-							logger.Log.Debugf("Aliyun 拉取指标完成 account_id=%s region=%s namespace=%s metric=%s", account.AccountID, region, ns, m)
+							ctxLog.Debugf("拉取指标完成")
 						}
 					}(prod.Namespace, metricName, dimKey, rtype, resIDs, tagLabels, localPeriod, meta.Statistics, metaInfo, meta.Dimensions)
 				}
