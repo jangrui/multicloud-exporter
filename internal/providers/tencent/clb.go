@@ -25,8 +25,17 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 		return []string{}
 	}
 	req := clb.NewDescribeLoadBalancersRequest()
+	start := time.Now()
 	resp, err := client.DescribeLoadBalancers(req)
-	if err != nil || resp == nil || resp.Response == nil || resp.Response.LoadBalancerSet == nil {
+	if err != nil {
+		status := classifyTencentError(err)
+		metrics.RequestTotal.WithLabelValues("tencent", "DescribeLoadBalancers", status).Inc()
+		return []string{}
+	}
+	metrics.RequestTotal.WithLabelValues("tencent", "DescribeLoadBalancers", "success").Inc()
+	metrics.RequestDuration.WithLabelValues("tencent", "DescribeLoadBalancers").Observe(time.Since(start).Seconds())
+
+	if resp == nil || resp.Response == nil || resp.Response.LoadBalancerSet == nil {
 		return []string{}
 	}
 	var vips []string
@@ -77,8 +86,21 @@ func (t *Collector) fetchCLBMonitor(account config.CloudAccount, region string, 
 			end := time.Now()
 			req.StartTime = common.StringPtr(start.UTC().Format("2006-01-02T15:04:05Z"))
 			req.EndTime = common.StringPtr(end.UTC().Format("2006-01-02T15:04:05Z"))
+
+			reqStart := time.Now()
 			resp, err := client.GetMonitorData(req)
-			if err != nil || resp == nil || resp.Response == nil || resp.Response.DataPoints == nil {
+			if err != nil {
+				status := classifyTencentError(err)
+				metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", status).Inc()
+				if status == "limit_error" {
+					metrics.RateLimitTotal.WithLabelValues("tencent", "GetMonitorData").Inc()
+				}
+				continue
+			}
+			metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", "success").Inc()
+			metrics.RequestDuration.WithLabelValues("tencent", "GetMonitorData").Observe(time.Since(reqStart).Seconds())
+
+			if resp == nil || resp.Response == nil || resp.Response.DataPoints == nil {
 				continue
 			}
 			for _, dp := range resp.Response.DataPoints {

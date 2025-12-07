@@ -11,7 +11,9 @@ import (
 
 var newAliyunCMSClient = func(region, ak, sk string) (*cms.Client, error) { return cms.NewClientWithAccessKey(region, ak, sk) }
 
-func discoverAliyun(ctx context.Context, cfg *config.Config) []config.Product {
+type AliyunDiscoverer struct{}
+
+func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []config.Product {
 	if cfg == nil {
 		return nil
 	}
@@ -38,12 +40,12 @@ func discoverAliyun(ctx context.Context, cfg *config.Config) []config.Product {
 				nsSet["acs_ecs_dashboard"] = struct{}{}
 			case "bwp":
 				nsSet["acs_bandwidth_package"] = struct{}{}
-            case "lb":
-                nsSet["acs_slb_dashboard"] = struct{}{}
+			case "lb":
+				nsSet["acs_slb_dashboard"] = struct{}{}
 			case "*":
 				nsSet["acs_ecs_dashboard"] = struct{}{}
 				nsSet["acs_bandwidth_package"] = struct{}{}
-                nsSet["acs_slb_dashboard"] = struct{}{}
+				nsSet["acs_slb_dashboard"] = struct{}{}
 			}
 		}
 	}
@@ -101,4 +103,8 @@ func discoverAliyun(ctx context.Context, cfg *config.Config) []config.Product {
 		prods = append(prods, config.Product{Namespace: ns, AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: metrics}}})
 	}
 	return prods
+}
+
+func init() {
+	Register("aliyun", &AliyunDiscoverer{})
 }

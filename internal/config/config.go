@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"sync"
 
 	"gopkg.in/yaml.v3"
 )
@@ -20,6 +21,8 @@ type CloudAccount struct {
 
 // Config 汇总所有云账号配置
 type Config struct {
+	Mu sync.RWMutex `yaml:"-"`
+
 	Server     *ServerConf `yaml:"server"`
 	ServerConf *ServerConf `yaml:"serverconf"`
 	RemoteProm *RemoteProm `yaml:"remote_prom"`

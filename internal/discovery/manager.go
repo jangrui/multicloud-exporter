@@ -55,13 +55,15 @@ func (m *Manager) UpdatedAt() time.Time {
 
 func (m *Manager) Refresh(ctx context.Context) error {
 	prods := make(map[string][]config.Product)
-	ap, tp := aliyunDiscoverFn(ctx, m.cfg), tencentDiscoverFn(ctx, m.cfg)
-	if len(ap) > 0 {
-		prods["aliyun"] = ap
+	m.cfg.Mu.RLock()
+	for _, name := range GetAllDiscoverers() {
+		if d, ok := GetDiscoverer(name); ok {
+			if ps := d.Discover(ctx, m.cfg); len(ps) > 0 {
+				prods[name] = ps
+			}
+		}
 	}
-	if len(tp) > 0 {
-		prods["tencent"] = tp
-	}
+	m.cfg.Mu.RUnlock()
 	m.mu.Lock()
 	changed := !equalProducts(m.products, prods)
 	m.products = prods
@@ -170,14 +172,27 @@ func (m *Manager) reloadAccounts(path string) string {
 		return ""
 	}
 	if m.cfg != nil {
+		m.cfg.Mu.Lock()
 		m.cfg.AccountsByProvider = accCfg.AccountsByProvider
 		m.cfg.AccountsByProviderLegacy = accCfg.AccountsByProviderLegacy
 		m.cfg.AccountsList = accCfg.AccountsList
+		sig := m.accountsSignatureLocked()
+		m.cfg.Mu.Unlock()
+		return sig
 	}
-	return m.accountsSignature()
+	return ""
 }
 
 func (m *Manager) accountsSignature() string {
+	if m.cfg == nil {
+		return ""
+	}
+	m.cfg.Mu.RLock()
+	defer m.cfg.Mu.RUnlock()
+	return m.accountsSignatureLocked()
+}
+
+func (m *Manager) accountsSignatureLocked() string {
 	var accounts []config.CloudAccount
 	if m.cfg == nil {
 		return ""
@@ -261,6 +276,3 @@ func (m *Manager) broadcast() {
 	}
 	m.subsMu.Unlock()
 }
-
-var aliyunDiscoverFn = discoverAliyun
-var tencentDiscoverFn = discoverTencent

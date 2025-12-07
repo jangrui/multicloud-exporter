@@ -1,7 +1,7 @@
-// 腾讯云采集器：按配置采集 CVM 等资源的静态属性
 package tencent
 
 import (
+	"strings"
 	"sync"
 	"time"
 
@@ -36,15 +36,35 @@ func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
 	}
 }
 
-// Collect 根据账号配置遍历区域与资源类型并采集
 func (t *Collector) Collect(account config.CloudAccount) {
 	regions := account.Regions
-	if len(regions) == 0 || (len(regions) == 1 && regions[0] == "*") {
-		regions = []string{"ap-guangzhou", "ap-shanghai", "ap-beijing", "ap-chengdu", "ap-chongqing", "ap-nanjing", "ap-hongkong", "ap-singapore", "ap-tokyo", "ap-seoul"}
+	if len(regions) == 0 {
+		regions = []string{"ap-guangzhou"} // Default region
 	}
 
+	var wg sync.WaitGroup
 	for _, region := range regions {
-		for _, resource := range account.Resources {
+		wg.Add(1)
+		go func(r string) {
+			defer wg.Done()
+			t.collectRegion(account, r)
+		}(region)
+	}
+	wg.Wait()
+}
+
+func (t *Collector) collectRegion(account config.CloudAccount, region string) {
+	logger.Log.Debugf("Start collecting Tencent region %s", region)
+	for _, resource := range account.Resources {
+		if resource == "*" {
+			// Collect all supported resources
+			t.collectCVM(account, region)
+			t.collectCDB(account, region)
+			t.collectRedis(account, region)
+			t.collectCLB(account, region)
+			t.collectEIP(account, region)
+			t.collectBWP(account, region)
+		} else {
 			switch resource {
 			case "cvm":
 				t.collectCVM(account, region)
@@ -83,11 +103,16 @@ func (t *Collector) collectCVM(account config.CloudAccount, region string) {
 	}
 
 	request := cvm.NewDescribeInstancesRequest()
+	start := time.Now()
 	response, err := client.DescribeInstances(request)
 	if err != nil {
+		status := classifyTencentError(err)
+		metrics.RequestTotal.WithLabelValues("tencent", "DescribeInstances", status).Inc()
 		logger.Log.Errorf("Tencent CVM describe error: %v", err)
 		return
 	}
+	metrics.RequestTotal.WithLabelValues("tencent", "DescribeInstances", "success").Inc()
+	metrics.RequestDuration.WithLabelValues("tencent", "DescribeInstances").Observe(time.Since(start).Seconds())
 
 	var ids []string
 	if response.Response.InstanceSet != nil {
@@ -216,4 +241,18 @@ func (t *Collector) setCachedIDs(account config.CloudAccount, region, namespace,
 	t.cacheMu.Lock()
 	t.resCache[t.cacheKey(account, region, namespace, rtype)] = resCacheEntry{IDs: ids, UpdatedAt: time.Now()}
 	t.cacheMu.Unlock()
+}
+
+func classifyTencentError(err error) string {
+	msg := err.Error()
+	if strings.Contains(msg, "AuthFailure") || strings.Contains(msg, "InvalidCredential") {
+		return "auth_error"
+	}
+	if strings.Contains(msg, "RequestLimitExceeded") {
+		return "limit_error"
+	}
+	if strings.Contains(msg, "timeout") || strings.Contains(msg, "network") {
+		return "network_error"
+	}
+	return "error"
 }

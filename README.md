@@ -11,6 +11,7 @@
 - 兼容 Prometheus 格式
 - 动态指标命名：按云产品命名空间+指标名生成，例如阿里云共享带宽 `acs_bandwidth_package_in_bandwidth_utilization`
 - 资源发现缓存：枚举到的资源ID支持缓存与TTL，显著降低 API 次数
+- 自身监控：内置 API 请求耗时、限流统计与采集周期耗时指标
 
 ## 支持的资源类型
 
@@ -129,6 +130,8 @@ docker run -d \
 
 ## 指标格式
 
+### 业务指标
+
 ```
 multicloud_resource_metric{
   cloud_provider="aliyun",
@@ -138,6 +141,21 @@ multicloud_resource_metric{
   resource_id="i-xxxxx",
   metric_name="cpu_cores"
 } 4
+```
+
+### 自身监控指标
+
+```
+# API 请求耗时（直方图）
+multicloud_request_duration_seconds_bucket{cloud_provider="aliyun", api="DescribeInstances", le="0.1"} 10
+multicloud_request_duration_seconds_sum{...} 5.2
+multicloud_request_duration_seconds_count{...} 100
+
+# API 限流统计
+multicloud_rate_limit_total{cloud_provider="tencent", api="GetMonitorData"} 5
+
+# 采集周期耗时
+multicloud_collection_duration_seconds_bucket{le="10"} 1
 ```
 
 动态命名空间指标（已统一命名为 bwp_*，跨云一致）：

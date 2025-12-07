@@ -20,6 +20,15 @@ kubectl -n monitoring get po,svc -l app.kubernetes.io/name=multicloud-exporter
 
 默认监听 `9101` 端口并创建 `ClusterIP` Service，采集间隔为 `60` 秒。
 
+## 自身监控
+
+Exporter 暴露了 `/metrics` 端点，其中包含自身运行状态指标：
+- `multicloud_request_duration_seconds`: API 请求耗时
+- `multicloud_rate_limit_total`: API 限流次数
+- `multicloud_collection_duration_seconds`: 采集周期总耗时
+
+建议在 Prometheus 中配置相应的告警规则（如限流激增、采集超时）。
+
 ## 参数
 
 - 镜像

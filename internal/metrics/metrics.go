@@ -39,6 +39,20 @@ var (
 		},
 		[]string{"cloud_provider", "account_id", "region", "namespace", "resource_type", "resource_id", "metric_name"},
 	)
+	RateLimitTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "multicloud_rate_limit_total",
+			Help: " - 云 API 限流次数统计",
+		},
+		[]string{"cloud_provider", "api"},
+	)
+	CollectionDuration = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "multicloud_collection_duration_seconds",
+			Help:    " - 采集周期总耗时（秒）",
+			Buckets: prometheus.DefBuckets,
+		},
+	)
 )
 
 var (
@@ -151,4 +165,15 @@ func metricHelpForNamespace(namespace, metric string) string {
 		return h(metric)
 	}
 	return " - 云产品指标"
+}
+
+// Reset 重置所有 Gauge 指标，用于清理过期 Series
+func Reset() {
+	ResourceMetric.Reset()
+	NamespaceMetric.Reset()
+	nsGaugesMu.Lock()
+	defer nsGaugesMu.Unlock()
+	for _, g := range nsGauges {
+		g.Reset()
+	}
 }

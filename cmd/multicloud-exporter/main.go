@@ -105,6 +105,8 @@ func main() {
 	prometheus.MustRegister(metrics.RequestTotal)
 	prometheus.MustRegister(metrics.RequestDuration)
 	prometheus.MustRegister(metrics.NamespaceMetric)
+	prometheus.MustRegister(metrics.RateLimitTotal)
+	prometheus.MustRegister(metrics.CollectionDuration)
 
 	// 周期性采集，采集间隔由配置或环境变量控制
 	go func() {
@@ -115,8 +117,11 @@ func main() {
 				cfg.ProductsByProvider = mgr.Get()
 				lastVer = v
 			}
+			// 在采集前重置指标，避免过期 Series 残留
+			metrics.Reset()
 			coll.Collect()
 			duration := time.Since(start)
+			metrics.CollectionDuration.Observe(duration.Seconds())
 			logger.Log.Infof("==========================================")
 			logger.Log.Infof("采集周期完成，总耗时: %v", duration)
 			logger.Log.Infof("==========================================")

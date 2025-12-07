@@ -7,34 +7,40 @@ import (
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/discovery"
 	"multicloud-exporter/internal/logger"
-	"multicloud-exporter/internal/providers/aliyun"
-	"multicloud-exporter/internal/providers/huawei"
-	"multicloud-exporter/internal/providers/tencent"
+	"multicloud-exporter/internal/providers"
+	_ "multicloud-exporter/internal/providers/aliyun"
+	_ "multicloud-exporter/internal/providers/huawei"
+	_ "multicloud-exporter/internal/providers/tencent"
 )
 
 // Collector 持有配置与各云采集器实例
 type Collector struct {
-	cfg     *config.Config
-	disc    *discovery.Manager
-	aliyun  *aliyun.Collector
-	huawei  *huawei.Collector
-	tencent *tencent.Collector
+	cfg       *config.Config
+	disc      *discovery.Manager
+	providers map[string]providers.Provider
 }
 
 // NewCollector 创建调度器并初始化各云采集器
 func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
-	return &Collector{
-		cfg:     cfg,
-		disc:    mgr,
-		aliyun:  aliyun.NewCollector(cfg, mgr),
-		huawei:  huawei.NewCollector(),
-		tencent: tencent.NewCollector(cfg, mgr),
+	c := &Collector{
+		cfg:       cfg,
+		disc:      mgr,
+		providers: make(map[string]providers.Provider),
 	}
+
+	for _, name := range providers.GetAllProviders() {
+		if factory, ok := providers.GetFactory(name); ok {
+			c.providers[name] = factory(cfg, mgr)
+		}
+	}
+	return c
 }
 
 // Collect 为每个账号并发执行采集任务
 func (c *Collector) Collect() {
-	logger.Log.Infof("开始采集，加载账号数量=%d", len(c.cfg.AccountsList)+len(c.cfg.AccountsByProvider)+len(c.cfg.AccountsByProviderLegacy))
+	c.cfg.Mu.RLock()
+	total := len(c.cfg.AccountsList) + len(c.cfg.AccountsByProvider) + len(c.cfg.AccountsByProviderLegacy)
+	logger.Log.Infof("开始采集，加载账号数量=%d", total)
 	var accounts []config.CloudAccount
 	accounts = append(accounts, c.cfg.AccountsList...)
 	if c.cfg.AccountsByProvider != nil {
@@ -53,6 +59,7 @@ func (c *Collector) Collect() {
 			}
 		}
 	}
+	c.cfg.Mu.RUnlock()
 
 	var wg sync.WaitGroup
 	for _, account := range accounts {
@@ -69,18 +76,15 @@ func (c *Collector) Collect() {
 
 // collectAccount 规范化资源类型并路由到对应云采集器
 func (c *Collector) collectAccount(account config.CloudAccount) {
-	if len(account.Resources) == 0 || (len(account.Resources) == 1 && account.Resources[0] == "*") {
-		account.Resources = GetAllResources(account.Provider)
+	p, ok := c.providers[account.Provider]
+	if !ok {
+		logger.Log.Warnf("Unknown provider: %s", account.Provider)
+		return
 	}
 
-	switch account.Provider {
-	case "aliyun":
-		c.aliyun.Collect(account)
-	case "huawei":
-		c.huawei.Collect(account)
-	case "tencent":
-		c.tencent.Collect(account)
-	default:
-		logger.Log.Warnf("Unknown provider: %s", account.Provider)
+	if len(account.Resources) == 0 || (len(account.Resources) == 1 && account.Resources[0] == "*") {
+		account.Resources = p.GetDefaultResources()
 	}
+
+	p.Collect(account)
 }

@@ -25,8 +25,17 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 		return []string{}
 	}
 	req := vpc.NewDescribeBandwidthPackagesRequest()
+	start := time.Now()
 	resp, err := client.DescribeBandwidthPackages(req)
-	if err != nil || resp == nil || resp.Response == nil || resp.Response.BandwidthPackageSet == nil {
+	if err != nil {
+		status := classifyTencentError(err)
+		metrics.RequestTotal.WithLabelValues("tencent", "DescribeBandwidthPackages", status).Inc()
+		return []string{}
+	}
+	metrics.RequestTotal.WithLabelValues("tencent", "DescribeBandwidthPackages", "success").Inc()
+	metrics.RequestDuration.WithLabelValues("tencent", "DescribeBandwidthPackages").Observe(time.Since(start).Seconds())
+
+	if resp == nil || resp.Response == nil || resp.Response.BandwidthPackageSet == nil {
 		return []string{}
 	}
 	var ids []string
@@ -73,8 +82,20 @@ func (t *Collector) fetchBWPMonitor(account config.CloudAccount, region string, 
 			end := time.Now()
 			req.StartTime = common.StringPtr(start.UTC().Format("2006-01-02T15:04:05Z"))
 			req.EndTime = common.StringPtr(end.UTC().Format("2006-01-02T15:04:05Z"))
+			reqStart := time.Now()
 			resp, err := client.GetMonitorData(req)
-			if err != nil || resp == nil || resp.Response == nil || resp.Response.DataPoints == nil {
+			if err != nil {
+				status := classifyTencentError(err)
+				metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", status).Inc()
+				if status == "limit_error" {
+					metrics.RateLimitTotal.WithLabelValues("tencent", "GetMonitorData").Inc()
+				}
+				continue
+			}
+			metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", "success").Inc()
+			metrics.RequestDuration.WithLabelValues("tencent", "GetMonitorData").Observe(time.Since(reqStart).Seconds())
+
+			if resp == nil || resp.Response == nil || resp.Response.DataPoints == nil {
 				continue
 			}
 			for _, dp := range resp.Response.DataPoints {
