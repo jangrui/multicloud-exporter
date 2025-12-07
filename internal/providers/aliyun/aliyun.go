@@ -30,6 +30,13 @@ type Collector struct {
 	resCache  map[string]resCacheEntry
 }
 
+// resCacheEntry 缓存资源ID及元数据
+type resCacheEntry struct {
+	IDs       []string
+	Meta      map[string]interface{}
+	UpdatedAt time.Time
+}
+
 // NewCollector 创建阿里云采集器实例
 func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
 	return &Collector{cfg: cfg, disc: mgr, metaCache: make(map[string]metricMeta), resCache: make(map[string]resCacheEntry)}
@@ -230,14 +237,14 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 						continue
 					}
 					rtype := resourceTypeForNamespace(prod.Namespace)
-					cachedIDs, hit := a.getCachedIDs(account, region, prod.Namespace, rtype)
+					cachedIDs, metaInfo, hit := a.getCachedIDs(account, region, prod.Namespace, rtype)
 					var resIDs []string
 					if hit {
 						resIDs = cachedIDs
 						log.Printf("Aliyun 资源缓存命中 account_id=%s region=%s namespace=%s resource_type=%s 数量=%d", account.AccountID, region, prod.Namespace, rtype, len(resIDs))
 					} else {
-						resIDs, rtype = a.resourceIDsForNamespace(account, region, prod.Namespace)
-						a.setCachedIDs(account, region, prod.Namespace, rtype, resIDs)
+						resIDs, rtype, metaInfo = a.resourceIDsForNamespace(account, region, prod.Namespace)
+						a.setCachedIDs(account, region, prod.Namespace, rtype, resIDs, metaInfo)
 						log.Printf("Aliyun 资源枚举完成 account_id=%s region=%s namespace=%s resource_type=%s 数量=%d", account.AccountID, region, prod.Namespace, rtype, len(resIDs))
 						if len(resIDs) == 0 {
 							continue
@@ -260,18 +267,67 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 					// 并发执行该指标的各批次查询：由 msem 控制并发槽，避免超过云监控 API 限流。
 					mwg.Add(1)
 					msem <- struct{}{}
-					go func(ns, m string, dkey string, rtype string, ids []string, tags map[string]string, p string, stats []string) {
+					go func(ns, m string, dkey string, rtype string, ids []string, tags map[string]string, p string, stats []string, meta map[string]interface{}, metricDims []string) {
 						defer mwg.Done()
 						defer func() { <-msem }()
-						for start := 0; start < len(ids); start += 50 {
+
+						// 构建所有维度的请求对象
+						var allDims []map[string]string
+						// 检查是否需要扩展维度（如 SLB 端口）
+						needExpand := false
+						var portKey, protoKey string
+						if rtype == "lb" && (hasAnyDim(metricDims, []string{"port", "Port"})) {
+							needExpand = true
+							for _, d := range metricDims {
+								if strings.EqualFold(d, "port") {
+									portKey = d
+								}
+								if strings.EqualFold(d, "protocol") {
+									protoKey = d
+								}
+							}
+						}
+
+						for _, id := range ids {
+							if needExpand && meta != nil {
+								if listeners, ok := meta[id]; ok {
+									// 假设 meta[id] 是 []map[string]string 类型（监听器列表）
+									if list, ok := listeners.([]map[string]string); ok && len(list) > 0 {
+										for _, l := range list {
+											// 复制监听器维度并添加实例ID
+											d := make(map[string]string)
+											// 使用正确的维度 Key（大小写敏感）
+											if v, ok := l["port"]; ok {
+												if portKey != "" {
+													d[portKey] = v
+												} else {
+													d["port"] = v
+												}
+											}
+											if v, ok := l["protocol"]; ok {
+												if protoKey != "" {
+													d[protoKey] = v
+												} else {
+													d["protocol"] = v
+												}
+											}
+											d[dkey] = id
+											allDims = append(allDims, d)
+										}
+										continue
+									}
+								}
+							}
+							// 默认仅使用实例ID
+							allDims = append(allDims, map[string]string{dkey: id})
+						}
+
+						for start := 0; start < len(allDims); start += 50 {
 							end := start + 50
-							if end > len(ids) {
-								end = len(ids)
+							if end > len(allDims) {
+								end = len(allDims)
 							}
-							dims := make([]map[string]string, 0, end-start)
-							for _, id := range ids[start:end] {
-								dims = append(dims, map[string]string{dkey: id})
-							}
+							dims := allDims[start:end]
 							dimsJSON, _ := json.Marshal(dims)
 							req := cms.CreateDescribeMetricLastRequest()
 							req.Namespace = ns
@@ -311,6 +367,7 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 									time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
 								}
 								if callErr != nil {
+									log.Printf("Aliyun 拉取指标失败 account_id=%s region=%s namespace=%s metric=%s error=%v", account.AccountID, region, ns, m, callErr)
 									break
 								}
 								var points []map[string]interface{}
@@ -319,15 +376,34 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 								} else if err := json.Unmarshal([]byte(dp), &points); err != nil {
 									// 当返回为空或非标准 JSON 时，回退为无数据，但仍暴露 0 值，便于在 /metrics 中检索指标是否存在
 									points = []map[string]interface{}{}
+									log.Printf("Aliyun 指标数据解析失败 namespace=%s metric=%s content=%s error=%v", ns, m, dp, err)
 								}
 								log.Printf("Aliyun 拉取指标成功 account_id=%s region=%s namespace=%s metric=%s 返回点数=%d", account.AccountID, region, ns, m, len(points))
 								if len(points) == 0 {
 									// 无数据时仍输出 0 值样本，让指标可见
-									for _, rid := range ids[start:end] {
+									log.Printf("Aliyun 指标无数据填充0值 namespace=%s metric=%s ids_count=%d", ns, m, len(dims))
+									for _, dim := range dims {
+										rid := dim[dkey]
 										var codeNameVal string
 										if tags != nil {
 											codeNameVal = tags[rid]
 										}
+										// 如果有端口/协议维度，追加到 code_name 以区分
+										var extras []string
+										if p, ok := dim["port"]; ok {
+											extras = append(extras, "port:"+p)
+										}
+										if p, ok := dim["protocol"]; ok {
+											extras = append(extras, "proto:"+p)
+										}
+										if len(extras) > 0 {
+											if codeNameVal != "" {
+												codeNameVal += "," + strings.Join(extras, ",")
+											} else {
+												codeNameVal = strings.Join(extras, ",")
+											}
+										}
+
 										metrics.NamespaceGauge(ns, m).WithLabelValues(
 											"aliyun", account.AccountID, region, rtype, rid, ns, m, codeNameVal,
 										).Set(0)
@@ -343,6 +419,26 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 									var codeNameVal string
 									if tags != nil {
 										codeNameVal = tags[rid]
+									}
+
+									// 如果有端口/协议维度，追加到 code_name 以区分
+									var extras []string
+									if p, ok := pnt["port"]; ok {
+										if ps, ok := p.(string); ok {
+											extras = append(extras, "port:"+ps)
+										}
+									}
+									if p, ok := pnt["protocol"]; ok {
+										if ps, ok := p.(string); ok {
+											extras = append(extras, "proto:"+ps)
+										}
+									}
+									if len(extras) > 0 {
+										if codeNameVal != "" {
+											codeNameVal += "," + strings.Join(extras, ",")
+										} else {
+											codeNameVal = strings.Join(extras, ",")
+										}
 									}
 
 									// 应用指标缩放（如 bps 转换）
@@ -370,7 +466,7 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 							}
 							log.Printf("Aliyun 拉取指标完成 account_id=%s region=%s namespace=%s metric=%s", account.AccountID, region, ns, m)
 						}
-					}(prod.Namespace, metricName, dimKey, rtype, resIDs, tagLabels, localPeriod, meta.Statistics)
+					}(prod.Namespace, metricName, dimKey, rtype, resIDs, tagLabels, localPeriod, meta.Statistics, metaInfo, meta.Dimensions)
 				}
 			}
 		}(prod)
@@ -456,20 +552,34 @@ func (a *Collector) getMetricMeta(client *cms.Client, namespace, metric string) 
 
 //
 
-func (a *Collector) checkRequiredDimensions(namespace string, availableDims []string) bool {
-	// 优先从配置中获取映射规则
+func (a *Collector) checkRequiredDimensions(namespace string, dims []string) bool {
+	// 使用配置驱动的映射
+	if a.cfg != nil && a.cfg.ServerConf != nil && len(a.cfg.ServerConf.ResourceDimMapping) > 0 {
+		key := "aliyun." + namespace
+		if req, ok := a.cfg.ServerConf.ResourceDimMapping[key]; ok && len(req) > 0 {
+			return hasAnyDim(dims, req)
+		}
+	}
+
+	// 内置默认映射
+	defaults := config.DefaultResourceDimMapping()
 	key := "aliyun." + namespace
-	var reqs []string
-	if a.cfg != nil && a.cfg.Server != nil && a.cfg.Server.ResourceDimMapping != nil {
-		reqs = a.cfg.Server.ResourceDimMapping[key]
+	if req, ok := defaults[key]; ok {
+		return hasAnyDim(dims, req)
 	}
 
-	// 如果配置中未定义，则回退到代码内置默认值（或视为无需检查）
-	if len(reqs) == 0 {
-		return true
+	// 针对 SLB 的特殊处理：如果包含 instanceId 且包含 port，也认为是匹配的（组合维度）
+	// 但实际上，只要有 instanceId，我们就认为可以尝试（具体是否需要扩展维度，在采集时判断）
+	// 此处仅判断是否"完全无关"
+	// 例如：如果指标只支持 [userId, groupId]，而我们只有 instanceId，则应返回 false
+	// 如果指标支持 [userId, instanceId, port, protocol]，我们有 instanceId，则返回 true
+	if namespace == "acs_slb_dashboard" {
+		if hasAnyDim(dims, []string{"instanceId", "InstanceId"}) {
+			return true
+		}
 	}
 
-	return hasAnyDim(availableDims, reqs)
+	return true
 }
 
 func chooseStatistics(available []string, desired []string) []string {
@@ -566,34 +676,30 @@ func resourceTypeForNamespace(namespace string) string {
 	}
 }
 
-func (a *Collector) resourceIDsForNamespace(account config.CloudAccount, region string, namespace string) ([]string, string) {
+func (a *Collector) resourceIDsForNamespace(account config.CloudAccount, region string, namespace string) ([]string, string, map[string]interface{}) {
 	switch namespace {
 	case "acs_bandwidth_package":
-		return a.listCBWPIDs(account, region), "bwp"
+		return a.listCBWPIDs(account, region), "bwp", nil
 	case "acs_ecs_dashboard":
-		return a.listECSInstanceIDs(account, region), "ecs"
+		return a.listECSInstanceIDs(account, region), "ecs", nil
 	case "acs_slb_dashboard":
-		return a.listSLBIDs(account, region), "lb"
+		ids, meta := a.listSLBIDs(account, region)
+		return ids, "lb", meta
 	default:
-		return []string{}, ""
+		return []string{}, "", nil
 	}
-}
-
-type resCacheEntry struct {
-	IDs       []string
-	UpdatedAt time.Time
 }
 
 func (a *Collector) cacheKey(account config.CloudAccount, region, namespace, rtype string) string {
 	return account.AccountID + "|" + region + "|" + namespace + "|" + rtype
 }
 
-func (a *Collector) getCachedIDs(account config.CloudAccount, region, namespace, rtype string) ([]string, bool) {
+func (a *Collector) getCachedIDs(account config.CloudAccount, region, namespace, rtype string) ([]string, map[string]interface{}, bool) {
 	a.cacheMu.RLock()
 	entry, ok := a.resCache[a.cacheKey(account, region, namespace, rtype)]
 	a.cacheMu.RUnlock()
-	if !ok || len(entry.IDs) == 0 {
-		return nil, false
+	if !ok {
+		return nil, nil, false
 	}
 	ttlDur := time.Hour
 	if a.cfg != nil && a.cfg.ServerConf != nil {
@@ -610,14 +716,14 @@ func (a *Collector) getCachedIDs(account config.CloudAccount, region, namespace,
 		}
 	}
 	if time.Since(entry.UpdatedAt) > ttlDur {
-		return nil, false
+		return nil, nil, false
 	}
-	return entry.IDs, true
+	return entry.IDs, entry.Meta, true
 }
 
-func (a *Collector) setCachedIDs(account config.CloudAccount, region, namespace, rtype string, ids []string) {
+func (a *Collector) setCachedIDs(account config.CloudAccount, region, namespace, rtype string, ids []string, meta map[string]interface{}) {
 	a.cacheMu.Lock()
-	a.resCache[a.cacheKey(account, region, namespace, rtype)] = resCacheEntry{IDs: ids, UpdatedAt: time.Now()}
+	a.resCache[a.cacheKey(account, region, namespace, rtype)] = resCacheEntry{IDs: ids, Meta: meta, UpdatedAt: time.Now()}
 	a.cacheMu.Unlock()
 }
 func classifyAliyunError(err error) string {

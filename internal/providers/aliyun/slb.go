@@ -3,7 +3,9 @@ package aliyun
 import (
 	"encoding/json"
 	"log"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"multicloud-exporter/internal/config"
@@ -14,12 +16,13 @@ import (
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/tag"
 )
 
-func (a *Collector) listSLBIDs(account config.CloudAccount, region string) []string {
+func (a *Collector) listSLBIDs(account config.CloudAccount, region string) ([]string, map[string]interface{}) {
 	client, err := slb.NewClientWithAccessKey(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
-		return []string{}
+		return []string{}, nil
 	}
 	var ids []string
+	meta := make(map[string]interface{})
 	pageSize := 50
 	if a.cfg != nil {
 		if a.cfg.Server != nil && a.cfg.Server.PageSize > 0 {
@@ -73,8 +76,64 @@ func (a *Collector) listSLBIDs(account config.CloudAccount, region string) []str
 		page++
 		time.Sleep(50 * time.Millisecond)
 	}
-	log.Printf("Aliyun 枚举SLB实例完成 account_id=%s region=%s 数量=%d", account.AccountID, region, len(ids))
-	return ids
+
+	// 并发获取每个实例的监听器详情（用于补充 port/protocol 维度）
+	if len(ids) > 0 {
+		log.Printf("Aliyun 开始获取SLB监听器详情 count=%d", len(ids))
+		var wg sync.WaitGroup
+		sem := make(chan struct{}, 5) // 控制并发度
+		var mu sync.Mutex
+
+		for _, id := range ids {
+			wg.Add(1)
+			sem <- struct{}{}
+			go func(lbId string) {
+				defer wg.Done()
+				defer func() { <-sem }()
+
+				req := slb.CreateDescribeLoadBalancerAttributeRequest()
+				req.LoadBalancerId = lbId
+
+				var resp *slb.DescribeLoadBalancerAttributeResponse
+				var err error
+				for i := 0; i < 3; i++ {
+					resp, err = client.DescribeLoadBalancerAttribute(req)
+					if err == nil {
+						break
+					}
+					time.Sleep(time.Duration(100*(i+1)) * time.Millisecond)
+				}
+
+				if err != nil {
+					log.Printf("Aliyun fetch SLB attribute failed id=%s: %v", lbId, err)
+					return
+				}
+
+				var listeners []map[string]string
+				// 尝试从 ListenerPortsAndProtocol 获取
+				if resp.ListenerPortsAndProtocol.ListenerPortAndProtocol != nil {
+					for _, lp := range resp.ListenerPortsAndProtocol.ListenerPortAndProtocol {
+						if lp.ListenerPort > 0 && lp.ListenerProtocol != "" {
+							listeners = append(listeners, map[string]string{
+								"port":     strconv.Itoa(lp.ListenerPort),
+								"protocol": lp.ListenerProtocol,
+							})
+						}
+					}
+				}
+
+				if len(listeners) > 0 {
+					mu.Lock()
+					meta[lbId] = listeners
+					mu.Unlock()
+				}
+			}(id)
+		}
+		wg.Wait()
+	}
+
+	log.Printf("Aliyun 枚举SLB实例完成 account_id=%s region=%s 实例数=%d 带监听器数=%d", account.AccountID, region, len(ids), len(meta))
+	return ids, meta
 }
 
 func (a *Collector) fetchSLBTags(account config.CloudAccount, region string, ids []string) map[string]string {
