@@ -93,12 +93,17 @@ func main() {
 	// 周期性采集，采集间隔由配置或环境变量控制
 	go func() {
 		for {
+			start := time.Now()
 			log.Printf("开始采集，周期=%v", interval)
 			if v := mgr.Version(); v != lastVer {
 				cfg.ProductsByProvider = mgr.Get()
 				lastVer = v
 			}
 			coll.Collect()
+			duration := time.Since(start)
+			log.Printf("==========================================")
+			log.Printf("采集周期完成，总耗时: %v", duration)
+			log.Printf("==========================================")
 			log.Printf("采集完成，休眠 %v", interval)
 			time.Sleep(interval)
 		}
