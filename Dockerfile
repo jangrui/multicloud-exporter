@@ -10,6 +10,7 @@ FROM alpine:latest
 WORKDIR /app
 RUN apk add --no-cache ca-certificates tzdata
 COPY --from=builder /app/multicloud-exporter .
+COPY --from=builder /app/configs/mappings/lb.metrics.yaml ./configs/mappings/lb.metrics.yaml
 
 ENV EXPORTER_PORT=9101
 ENV SCRAPE_INTERVAL=60
