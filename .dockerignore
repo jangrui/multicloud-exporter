@@ -11,6 +11,7 @@
 bin/
 build/
 dist/
+!dist/multicloud-exporter-*
 script/
 
 # Tests & coverage

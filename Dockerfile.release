@@ -1,0 +1,24 @@
+FROM alpine:latest
+
+WORKDIR /app
+
+RUN apk add --no-cache ca-certificates tzdata
+
+# Build args automatically populated by docker buildx
+ARG TARGETOS
+ARG TARGETARCH
+
+# Copy the pre-built binary matching the target platform
+COPY dist/multicloud-exporter-${TARGETOS}-${TARGETARCH} ./multicloud-exporter
+
+# Environment variables matching the original Dockerfile
+ENV EXPORTER_PORT=9101
+ENV SCRAPE_INTERVAL=60
+ENV SERVER_PATH=/app/configs/server.yaml
+ENV PRODUCTS_PATH=/app/configs/products.yaml
+
+EXPOSE 9101
+
+USER 65532:65532
+
+ENTRYPOINT ["./multicloud-exporter"]
