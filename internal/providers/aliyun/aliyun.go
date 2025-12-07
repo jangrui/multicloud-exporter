@@ -235,11 +235,11 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 						log.Printf("Aliyun 资源缓存命中 account_id=%s region=%s namespace=%s resource_type=%s 数量=%d", account.AccountID, region, prod.Namespace, rtype, len(resIDs))
 					} else {
 						resIDs, rtype = a.resourceIDsForNamespace(account, region, prod.Namespace)
+						a.setCachedIDs(account, region, prod.Namespace, rtype, resIDs)
+						log.Printf("Aliyun 资源枚举完成 account_id=%s region=%s namespace=%s resource_type=%s 数量=%d", account.AccountID, region, prod.Namespace, rtype, len(resIDs))
 						if len(resIDs) == 0 {
 							continue
 						}
-						a.setCachedIDs(account, region, prod.Namespace, rtype, resIDs)
-						log.Printf("Aliyun 资源枚举完成 account_id=%s region=%s namespace=%s resource_type=%s 数量=%d", account.AccountID, region, prod.Namespace, rtype, len(resIDs))
 					}
 					var tagLabels map[string]string
 					// code_name 标签来源：
@@ -342,6 +342,12 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 									if tags != nil {
 										codeNameVal = tags[rid]
 									}
+
+									// 应用指标缩放（如 bps 转换）
+									if scale := metrics.GetMetricScale(ns, m); scale != 0 && scale != 1 {
+										val *= scale
+									}
+
 									// NamespaceGauge 的最后一个标签为 code_name，用于展示资源的业务标识
 									metrics.NamespaceGauge(ns, m).WithLabelValues(
 										"aliyun",

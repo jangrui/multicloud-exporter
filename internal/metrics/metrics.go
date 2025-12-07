@@ -51,6 +51,7 @@ var (
 	aliasByNamespace  = make(map[string]map[string]string)
 	helpByNamespace   = make(map[string]func(string) string)
 	aliasFuncByNS     = make(map[string]func(string) string)
+	scaleByNamespace  = make(map[string]map[string]float64)
 )
 
 func RegisterNamespacePrefix(namespace, prefix string) {
@@ -61,12 +62,25 @@ func RegisterNamespaceMetricAlias(namespace string, aliases map[string]string) {
 	aliasByNamespace[namespace] = aliases
 }
 
+func RegisterNamespaceMetricScale(namespace string, scales map[string]float64) {
+	scaleByNamespace[namespace] = scales
+}
+
 func RegisterNamespaceHelp(namespace string, help func(string) string) {
 	helpByNamespace[namespace] = help
 }
 
 func RegisterNamespaceAliasFunc(namespace string, fn func(string) string) {
 	aliasFuncByNS[namespace] = fn
+}
+
+func GetMetricScale(namespace, metric string) float64 {
+	if scales, ok := scaleByNamespace[namespace]; ok {
+		if s, ok := scales[metric]; ok {
+			return s
+		}
+	}
+	return 1.0
 }
 
 func aliasPrefixForNamespace(namespace string) string {

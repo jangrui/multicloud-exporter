@@ -25,6 +25,17 @@ func main() {
 	cfg := config.LoadConfig()
 	log.Printf("配置加载完成，账号配置集合 sizes: accounts=%d products=%d", len(cfg.AccountsList)+len(cfg.AccountsByProvider)+len(cfg.AccountsByProviderLegacy), len(cfg.ProductsList)+len(cfg.ProductsByProvider)+len(cfg.ProductsByProviderLegacy))
 
+	// 加载指标映射配置
+	if mappingPath := os.Getenv("MAPPING_PATH"); mappingPath != "" {
+		config.LoadMetricMappings(mappingPath)
+	} else {
+		// 尝试加载默认位置的映射文件
+		defaultPath := "configs/mappings/lb.metrics.yaml"
+		if _, err := os.Stat(defaultPath); err == nil {
+			config.LoadMetricMappings(defaultPath)
+		}
+	}
+
 	port := os.Getenv("EXPORTER_PORT")
 	if port == "" {
 		if cfg.Server != nil && cfg.Server.Port > 0 {

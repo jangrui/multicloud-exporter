@@ -101,7 +101,9 @@ func (t *Collector) fetchCLBMonitor(account config.CloudAccount, region string, 
 				}
 				alias := metrics.NamespaceGauge("QCE/CLB", m)
 				scaled := val
-				if m == "VipIntraffic" || m == "VipOuttraffic" {
+				if scale := metrics.GetMetricScale("QCE/CLB", m); scale != 0 && scale != 1 {
+					scaled = val * scale
+				} else if m == "VipIntraffic" || m == "VipOuttraffic" {
 					scaled = val * 1000000
 				}
 				alias.WithLabelValues("tencent", account.AccountID, region, "lb", rid, "QCE/CLB", m, "").Set(scaled)
