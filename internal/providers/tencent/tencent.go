@@ -2,13 +2,12 @@
 package tencent
 
 import (
-	"log"
-	"strings"
 	"sync"
 	"time"
 
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/discovery"
+	"multicloud-exporter/internal/logger"
 	"multicloud-exporter/internal/metrics"
 	"multicloud-exporter/internal/utils"
 
@@ -62,7 +61,7 @@ func (t *Collector) Collect(account config.CloudAccount) {
 			case "bwp":
 				t.collectBWP(account, region)
 			default:
-				log.Printf("Tencent resource type %s not implemented yet", resource)
+				logger.Log.Warnf("Tencent resource type %s not implemented yet", resource)
 			}
 		}
 	}
@@ -79,14 +78,14 @@ func (t *Collector) collectCVM(account config.CloudAccount, region string) {
 	cpf := profile.NewClientProfile()
 	client, err := cvm.NewClient(credential, region, cpf)
 	if err != nil {
-		log.Printf("Tencent CVM client error: %v", err)
+		logger.Log.Errorf("Tencent CVM client error: %v", err)
 		return
 	}
 
 	request := cvm.NewDescribeInstancesRequest()
 	response, err := client.DescribeInstances(request)
 	if err != nil {
-		log.Printf("Tencent CVM describe error: %v", err)
+		logger.Log.Errorf("Tencent CVM describe error: %v", err)
 		return
 	}
 
@@ -117,15 +116,15 @@ func (t *Collector) collectCVM(account config.CloudAccount, region string) {
 	}
 	// Cache the discovery result
 	t.setCachedIDs(account, region, "cvm", "cvm", ids)
-	log.Printf("Tencent CVM enumerated account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
+	logger.Log.Debugf("Tencent CVM enumerated account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
 }
 
 func (t *Collector) collectCDB(account config.CloudAccount, region string) {
-	log.Printf("Collecting Tencent CDB in region %s (not implemented)", region)
+	logger.Log.Warnf("Collecting Tencent CDB in region %s (not implemented)", region)
 }
 
 func (t *Collector) collectRedis(account config.CloudAccount, region string) {
-	log.Printf("Collecting Tencent Redis in region %s (not implemented)", region)
+	logger.Log.Warnf("Collecting Tencent Redis in region %s (not implemented)", region)
 }
 
 func (t *Collector) collectCLB(account config.CloudAccount, region string) {
@@ -154,7 +153,7 @@ func (t *Collector) collectCLB(account config.CloudAccount, region string) {
 }
 
 func (t *Collector) collectEIP(account config.CloudAccount, region string) {
-	log.Printf("Collecting Tencent EIP in region %s (not implemented)", region)
+	logger.Log.Warnf("Collecting Tencent EIP in region %s (not implemented)", region)
 }
 
 func (t *Collector) collectBWP(account config.CloudAccount, region string) {
@@ -217,37 +216,4 @@ func (t *Collector) setCachedIDs(account config.CloudAccount, region, namespace,
 	t.cacheMu.Lock()
 	t.resCache[t.cacheKey(account, region, namespace, rtype)] = resCacheEntry{IDs: ids, UpdatedAt: time.Now()}
 	t.cacheMu.Unlock()
-}
-
-func (t *Collector) checkRequiredDimensions(namespace string, availableDims []string) bool {
-	// 优先从配置中获取映射规则
-	// 腾讯云的 Namespace 通常是 "QCE/CVM" 这种格式，需要与 config 中的 key 匹配
-	key := "tencent." + namespace
-	var reqs []string
-	if t.cfg != nil && t.cfg.Server != nil && t.cfg.Server.ResourceDimMapping != nil {
-		reqs = t.cfg.Server.ResourceDimMapping[key]
-	}
-
-	// 如果配置中未定义，则回退到代码内置默认值（或视为无需检查）
-	if len(reqs) == 0 {
-		return true
-	}
-
-	return hasAnyDim(availableDims, reqs)
-}
-
-func hasAnyDim(dims []string, keys []string) bool {
-	if len(dims) == 0 || len(keys) == 0 {
-		return false
-	}
-	lower := make(map[string]struct{}, len(dims))
-	for _, d := range dims {
-		lower[strings.ToLower(strings.TrimSpace(d))] = struct{}{}
-	}
-	for _, k := range keys {
-		if _, ok := lower[strings.ToLower(k)]; ok {
-			return true
-		}
-	}
-	return false
 }

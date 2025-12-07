@@ -1,11 +1,11 @@
 package aliyun
 
 import (
-	"log"
 	"strings"
 	"time"
 
 	"multicloud-exporter/internal/config"
+	"multicloud-exporter/internal/logger"
 	"multicloud-exporter/internal/metrics"
 
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
@@ -13,7 +13,7 @@ import (
 )
 
 func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []string {
-	log.Printf("Aliyun 枚举共享带宽包开始 account_id=%s region=%s", account.AccountID, region)
+	logger.Log.Debugf("Aliyun 枚举共享带宽包开始 account_id=%s region=%s", account.AccountID, region)
 	client, err := vpc.NewClientWithAccessKey(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
 		return []string{}
@@ -60,7 +60,7 @@ func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []st
 			status := classifyAliyunError(callErr)
 			metrics.RequestTotal.WithLabelValues("aliyun", "DescribeCommonBandwidthPackages", status).Inc()
 			if status == "region_skip" || status == "auth_error" {
-				log.Printf("Aliyun CBWP describe error region=%s page=%d status=%s: %v", region, page, status, callErr)
+				logger.Log.Warnf("Aliyun CBWP describe error region=%s page=%d status=%s: %v", region, page, status, callErr)
 				break
 			}
 			time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
@@ -80,7 +80,7 @@ func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []st
 		page++
 		time.Sleep(50 * time.Millisecond)
 	}
-	log.Printf("Aliyun 枚举共享带宽包完成 account_id=%s region=%s 数量=%d", account.AccountID, region, len(ids))
+	logger.Log.Debugf("Aliyun 枚举共享带宽包完成 account_id=%s region=%s 数量=%d", account.AccountID, region, len(ids))
 	return ids
 }
 

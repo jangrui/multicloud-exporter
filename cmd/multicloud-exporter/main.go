@@ -4,7 +4,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -13,6 +12,7 @@ import (
 	"multicloud-exporter/internal/collector"
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/discovery"
+	"multicloud-exporter/internal/logger"
 	"multicloud-exporter/internal/metrics"
 	_ "multicloud-exporter/internal/metrics/aliyun"
 
@@ -22,17 +22,33 @@ import (
 
 // main 启动 HTTP 服务并周期性采集各云资源指标
 func main() {
-	cfg := config.LoadConfig()
-	log.Printf("配置加载完成，账号配置集合 sizes: accounts=%d products=%d", len(cfg.AccountsList)+len(cfg.AccountsByProvider)+len(cfg.AccountsByProviderLegacy), len(cfg.ProductsList)+len(cfg.ProductsByProvider)+len(cfg.ProductsByProviderLegacy))
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		logger.Log.Fatalf("Failed to load config: %v", err)
+	}
+	if cfg.Server != nil && cfg.Server.Log != nil {
+		logger.Init(cfg.Server.Log)
+	}
+	defer logger.Sync()
+
+	logger.Log.Infof("配置加载完成，账号配置集合 sizes: accounts=%d products=%d", len(cfg.AccountsList)+len(cfg.AccountsByProvider)+len(cfg.AccountsByProviderLegacy), len(cfg.ProductsList)+len(cfg.ProductsByProvider)+len(cfg.ProductsByProviderLegacy))
 
 	// 加载指标映射配置
 	if mappingPath := os.Getenv("MAPPING_PATH"); mappingPath != "" {
-		config.LoadMetricMappings(mappingPath)
+		if err := config.LoadMetricMappings(mappingPath); err != nil {
+			logger.Log.Warnf("Failed to load metric mappings from %s: %v", mappingPath, err)
+		} else {
+			logger.Log.Infof("Loaded metric mappings from %s", mappingPath)
+		}
 	} else {
 		// 尝试加载默认位置的映射文件
 		defaultPath := "configs/mappings/lb.metrics.yaml"
 		if _, err := os.Stat(defaultPath); err == nil {
-			config.LoadMetricMappings(defaultPath)
+			if err := config.LoadMetricMappings(defaultPath); err != nil {
+				logger.Log.Warnf("Failed to load metric mappings from %s: %v", defaultPath, err)
+			} else {
+				logger.Log.Infof("Loaded metric mappings from %s", defaultPath)
+			}
 		}
 	}
 
@@ -55,7 +71,7 @@ func main() {
 		if d, err := time.ParseDuration(cfg.Server.ScrapeInterval); err == nil {
 			interval = d
 		} else {
-			log.Printf("Warning: invalid scrape_interval in config: %v", err)
+			logger.Log.Warnf("Warning: invalid scrape_interval in config: %v", err)
 		}
 	} else if cfg.ServerConf != nil && cfg.ServerConf.ScrapeInterval != "" {
 		if d, err := time.ParseDuration(cfg.ServerConf.ScrapeInterval); err == nil {
@@ -70,7 +86,7 @@ func main() {
 		} else if d, err := time.ParseDuration(envInterval); err == nil {
 			interval = d
 		} else {
-			log.Printf("Warning: invalid SCRAPE_INTERVAL env: %v", err)
+			logger.Log.Warnf("Warning: invalid SCRAPE_INTERVAL env: %v", err)
 		}
 	}
 
@@ -94,17 +110,17 @@ func main() {
 	go func() {
 		for {
 			start := time.Now()
-			log.Printf("开始采集，周期=%v", interval)
+			logger.Log.Infof("开始采集，周期=%v", interval)
 			if v := mgr.Version(); v != lastVer {
 				cfg.ProductsByProvider = mgr.Get()
 				lastVer = v
 			}
 			coll.Collect()
 			duration := time.Since(start)
-			log.Printf("==========================================")
-			log.Printf("采集周期完成，总耗时: %v", duration)
-			log.Printf("==========================================")
-			log.Printf("采集完成，休眠 %v", interval)
+			logger.Log.Infof("==========================================")
+			logger.Log.Infof("采集周期完成，总耗时: %v", duration)
+			logger.Log.Infof("==========================================")
+			logger.Log.Infof("采集完成，休眠 %v", interval)
 			time.Sleep(interval)
 		}
 	}()
@@ -150,6 +166,6 @@ func main() {
 			}
 		}
 	})
-	log.Printf("服务启动，端口=%s", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	logger.Log.Infof("服务启动，端口=%s", port)
+	logger.Log.Fatal(http.ListenAndServe(":"+port, nil))
 }

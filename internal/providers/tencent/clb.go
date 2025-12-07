@@ -1,10 +1,10 @@
 package tencent
 
 import (
-	"log"
 	"time"
 
 	"multicloud-exporter/internal/config"
+	"multicloud-exporter/internal/logger"
 	"multicloud-exporter/internal/metrics"
 
 	clb "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/clb/v20180317"
@@ -15,7 +15,7 @@ import (
 
 func (t *Collector) listCLBVips(account config.CloudAccount, region string) []string {
 	if ids, hit := t.getCachedIDs(account, region, "QCE/CLB", "lb"); hit {
-		log.Printf("Tencent CLB VIPs cache hit account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
+		logger.Log.Debugf("Tencent CLB VIPs cache hit account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
 		return ids
 	}
 
@@ -41,7 +41,7 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 		}
 	}
 	t.setCachedIDs(account, region, "QCE/CLB", "lb", vips)
-	log.Printf("Tencent CLB VIPs enumerated account_id=%s region=%s count=%d", account.AccountID, region, len(vips))
+	logger.Log.Debugf("Tencent CLB VIPs enumerated account_id=%s region=%s count=%d", account.AccountID, region, len(vips))
 	return vips
 }
 

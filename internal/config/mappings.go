@@ -1,7 +1,7 @@
 package config
 
 import (
-	"log"
+	"fmt"
 	"multicloud-exporter/internal/metrics"
 	"os"
 
@@ -20,17 +20,15 @@ type MetricMapping struct {
 	TencentOnly map[string]MetricDef            `yaml:"tencent_only"`
 }
 
-func LoadMetricMappings(path string) {
+func LoadMetricMappings(path string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		log.Printf("Warning: Failed to read metric mappings from %s: %v", path, err)
-		return
+		return fmt.Errorf("failed to read metric mappings from %s: %v", path, err)
 	}
 
 	var mapping MetricMapping
 	if err := yaml.Unmarshal(data, &mapping); err != nil {
-		log.Printf("Error parsing metric mappings: %v", err)
-		return
+		return fmt.Errorf("error parsing metric mappings: %v", err)
 	}
 
 	// Hardcoded namespaces for now as they are not in the yaml
@@ -88,5 +86,5 @@ func LoadMetricMappings(path string) {
 	metrics.RegisterNamespaceMetricAlias(tencentNS, tencentAliases)
 	metrics.RegisterNamespaceMetricScale(tencentNS, tencentScales)
 
-	log.Printf("Loaded metric mappings from %s (Aliyun: %d, Tencent: %d)", path, len(aliyunAliases), len(tencentAliases))
+	return nil
 }

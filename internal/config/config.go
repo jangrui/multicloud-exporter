@@ -2,7 +2,7 @@
 package config
 
 import (
-	"log"
+	"fmt"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -52,7 +52,7 @@ func DefaultResourceDimMapping() map[string][]string {
 }
 
 // LoadConfig 从环境变量 CONFIG_PATH 指向的 YAML 文件加载配置
-func LoadConfig() *Config {
+func LoadConfig() (*Config, error) {
 	var cfg Config
 
 	// 可选：兼容旧版单文件配置
@@ -61,7 +61,7 @@ func LoadConfig() *Config {
 			expanded := os.ExpandEnv(string(data))
 			_ = yaml.Unmarshal([]byte(expanded), &cfg)
 		} else {
-			log.Printf("CONFIG_PATH not loaded: %v", err)
+			return nil, fmt.Errorf("CONFIG_PATH not loaded: %v", err)
 		}
 	}
 
@@ -69,14 +69,14 @@ func LoadConfig() *Config {
 	if serverPath := os.Getenv("SERVER_PATH"); serverPath != "" {
 		data, err := os.ReadFile(serverPath)
 		if err != nil {
-			log.Fatalf("Failed to read server config: %v", err)
+			return nil, fmt.Errorf("failed to read server config: %v", err)
 		}
 		expanded := os.ExpandEnv(string(data))
 		var s struct {
 			Server *ServerConf `yaml:"server"`
 		}
 		if err := yaml.Unmarshal([]byte(expanded), &s); err != nil {
-			log.Fatalf("Failed to parse server config: %v", err)
+			return nil, fmt.Errorf("failed to parse server config: %v", err)
 		}
 		if s.Server != nil {
 			cfg.Server = s.Server
@@ -102,7 +102,7 @@ func LoadConfig() *Config {
 	if accountsPath := os.Getenv("ACCOUNTS_PATH"); accountsPath != "" {
 		accData, err := os.ReadFile(accountsPath)
 		if err != nil {
-			log.Fatalf("Failed to read accounts: %v", err)
+			return nil, fmt.Errorf("failed to read accounts: %v", err)
 		}
 		accExpanded := os.ExpandEnv(string(accData))
 		var accCfg struct {
@@ -111,7 +111,7 @@ func LoadConfig() *Config {
 			AccountsList             []CloudAccount            `yaml:"accounts_list"`
 		}
 		if err := yaml.Unmarshal([]byte(accExpanded), &accCfg); err != nil {
-			log.Fatalf("Failed to parse accounts: %v", err)
+			return nil, fmt.Errorf("failed to parse accounts: %v", err)
 		}
 		if accCfg.AccountsByProvider != nil {
 			cfg.AccountsByProvider = accCfg.AccountsByProvider
@@ -125,21 +125,25 @@ func LoadConfig() *Config {
 	}
 
 	// 账号文件中若包含环境占位符，将通过 env 展开（由容器 envFrom 注入）
-	return &cfg
+	return &cfg, nil
 }
 
 type ServerConf struct {
 	ServiceEndpoint string `yaml:"service_endpoint"`
 	Port            int    `yaml:"port"`
 	PageSize        int    `yaml:"page_size"`
-	LogDest         int    `yaml:"log_dest"`
-	LogDir          string `yaml:"log_dir"`
-	LogLevel        string `yaml:"log_level"`
-	HttpProxy       string `yaml:"http_proxy"`
-	HttpsProxy      string `yaml:"https_proxy"`
-	NoProxy         string `yaml:"no_proxy"`
-	NoMeta          bool   `yaml:"no_meta"`
-	NoSavepoint     bool   `yaml:"no_savepoint"`
+	// Deprecated: use Log.Output instead
+	LogDest int `yaml:"log_dest"`
+	// Deprecated: use Log.File.Path instead
+	LogDir string `yaml:"log_dir"`
+	// Deprecated: use Log.Level instead
+	LogLevel    string     `yaml:"log_level"`
+	Log         *LogConfig `yaml:"log"`
+	HttpProxy   string     `yaml:"http_proxy"`
+	HttpsProxy  string     `yaml:"https_proxy"`
+	NoProxy     string     `yaml:"no_proxy"`
+	NoMeta      bool       `yaml:"no_meta"`
+	NoSavepoint bool       `yaml:"no_savepoint"`
 	// DiscoveryTTL 控制资源自动发现结果的缓存生命周期。
 	// 支持的时间单位：
 	//   - s: 秒 (second)
@@ -165,6 +169,21 @@ type ServerConf struct {
 	// Key 为 "provider.namespace"，例如 "aliyun.acs_ecs_dashboard"。
 	// Value 为该产品必须包含的维度键列表（任一匹配即可），例如 ["InstanceId", "instance_id"]。
 	ResourceDimMapping map[string][]string `yaml:"resource_dim_mapping"`
+}
+
+type FileLogConfig struct {
+	Path       string `yaml:"path"`
+	MaxSize    int    `yaml:"max_size"` // in MB
+	MaxBackups int    `yaml:"max_backups"`
+	MaxAge     int    `yaml:"max_age"` // in days
+	Compress   bool   `yaml:"compress"`
+}
+
+type LogConfig struct {
+	Level  string         `yaml:"level"`  // debug, info, warn, error
+	Format string         `yaml:"format"` // json, console
+	Output string         `yaml:"output"` // stdout, file, both
+	File   *FileLogConfig `yaml:"file"`
 }
 
 type BasicAuth struct {

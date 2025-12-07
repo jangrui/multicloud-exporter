@@ -1,10 +1,10 @@
 package tencent
 
 import (
-	"log"
 	"time"
 
 	"multicloud-exporter/internal/config"
+	"multicloud-exporter/internal/logger"
 	"multicloud-exporter/internal/metrics"
 
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
@@ -15,7 +15,7 @@ import (
 
 func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []string {
 	if ids, hit := t.getCachedIDs(account, region, "QCE/BWP", "bwp"); hit {
-		log.Printf("Tencent BWP IDs cache hit account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
+		logger.Log.Debugf("Tencent BWP IDs cache hit account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
 		return ids
 	}
 
@@ -37,7 +37,7 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 		ids = append(ids, *bp.BandwidthPackageId)
 	}
 	t.setCachedIDs(account, region, "QCE/BWP", "bwp", ids)
-	log.Printf("Tencent BWP enumerated account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
+	logger.Log.Debugf("Tencent BWP enumerated account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
 	return ids
 }
 

@@ -3,12 +3,12 @@ package discovery
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"os"
 	"sync"
 	"time"
 
 	"multicloud-exporter/internal/config"
+	"multicloud-exporter/internal/logger"
 
 	"gopkg.in/yaml.v3"
 )
@@ -68,7 +68,7 @@ func (m *Manager) Refresh(ctx context.Context) error {
 	if changed {
 		m.version++
 		m.updatedAt = time.Now()
-		log.Printf("discovery refreshed version=%d", m.version)
+		logger.Log.Infof("discovery refreshed version=%d", m.version)
 	}
 	m.mu.Unlock()
 	if changed {
@@ -76,7 +76,7 @@ func (m *Manager) Refresh(ctx context.Context) error {
 	}
 	if !m.noSavepoint() {
 		if err := m.Save("configs/products.auto.yaml"); err != nil {
-			log.Printf("discovery save error: %v", err)
+			logger.Log.Errorf("discovery save error: %v", err)
 		}
 	}
 	return nil

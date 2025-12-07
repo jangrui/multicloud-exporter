@@ -63,6 +63,18 @@ server:
   page_size: 1000
   discovery_ttl: "1h"
   scrape_interval: "60s"
+  
+  # 日志配置
+  log:
+    level: info      # debug, info, warn, error
+    format: json     # json, console
+    output: stdout   # stdout, file, both
+    file:
+      path: logs/exporter.log
+      max_size: 100  # MB
+      max_backups: 3
+      max_age: 28    # days
+      compress: true
 ```
 
 

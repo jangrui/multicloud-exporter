@@ -2,9 +2,8 @@
 package huawei
 
 import (
-    "log"
-
-    "multicloud-exporter/internal/config"
+	"multicloud-exporter/internal/config"
+	"multicloud-exporter/internal/logger"
 )
 
 // Collector 封装华为云资源采集逻辑
@@ -21,35 +20,35 @@ func (h *Collector) Collect(account config.CloudAccount) {
 	}
 
 	for _, region := range regions {
-        for _, resource := range account.Resources {
-            switch resource {
-            case "rds":
-                h.collectRDS(account, region)
-            case "redis":
-                h.collectRedis(account, region)
-            case "elb":
-                h.collectELB(account, region)
-            case "eip":
-                h.collectEIP(account, region)
-            default:
-                log.Printf("Huawei resource type %s not implemented yet", resource)
-            }
-        }
-    }
+		for _, resource := range account.Resources {
+			switch resource {
+			case "rds":
+				h.collectRDS(account, region)
+			case "redis":
+				h.collectRedis(account, region)
+			case "elb":
+				h.collectELB(account, region)
+			case "eip":
+				h.collectEIP(account, region)
+			default:
+				logger.Log.Warnf("Huawei resource type %s not implemented yet", resource)
+			}
+		}
+	}
 }
 
 func (h *Collector) collectRDS(account config.CloudAccount, region string) {
-    log.Printf("Collecting Huawei RDS in region %s (not implemented)", region)
+	logger.Log.Warnf("Collecting Huawei RDS in region %s (not implemented)", region)
 }
 
 func (h *Collector) collectRedis(account config.CloudAccount, region string) {
-	log.Printf("Collecting Huawei Redis in region %s (not implemented)", region)
+	logger.Log.Warnf("Collecting Huawei Redis in region %s (not implemented)", region)
 }
 
 func (h *Collector) collectELB(account config.CloudAccount, region string) {
-	log.Printf("Collecting Huawei ELB in region %s (not implemented)", region)
+	logger.Log.Warnf("Collecting Huawei ELB in region %s (not implemented)", region)
 }
 
 func (h *Collector) collectEIP(account config.CloudAccount, region string) {
-	log.Printf("Collecting Huawei EIP in region %s (not implemented)", region)
+	logger.Log.Warnf("Collecting Huawei EIP in region %s (not implemented)", region)
 }

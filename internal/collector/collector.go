@@ -2,69 +2,69 @@
 package collector
 
 import (
-    "log"
-    "sync"
+	"sync"
 
-    "multicloud-exporter/internal/config"
-    "multicloud-exporter/internal/discovery"
-    "multicloud-exporter/internal/providers/aliyun"
-    "multicloud-exporter/internal/providers/huawei"
-    "multicloud-exporter/internal/providers/tencent"
+	"multicloud-exporter/internal/config"
+	"multicloud-exporter/internal/discovery"
+	"multicloud-exporter/internal/logger"
+	"multicloud-exporter/internal/providers/aliyun"
+	"multicloud-exporter/internal/providers/huawei"
+	"multicloud-exporter/internal/providers/tencent"
 )
 
 // Collector 持有配置与各云采集器实例
 type Collector struct {
-    cfg     *config.Config
-    disc    *discovery.Manager
-    aliyun  *aliyun.Collector
-    huawei  *huawei.Collector
-    tencent *tencent.Collector
+	cfg     *config.Config
+	disc    *discovery.Manager
+	aliyun  *aliyun.Collector
+	huawei  *huawei.Collector
+	tencent *tencent.Collector
 }
 
 // NewCollector 创建调度器并初始化各云采集器
 func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
-    return &Collector{
-        cfg:     cfg,
-        disc:    mgr,
-        aliyun:  aliyun.NewCollector(cfg, mgr),
-        huawei:  huawei.NewCollector(),
-        tencent: tencent.NewCollector(cfg, mgr),
-    }
+	return &Collector{
+		cfg:     cfg,
+		disc:    mgr,
+		aliyun:  aliyun.NewCollector(cfg, mgr),
+		huawei:  huawei.NewCollector(),
+		tencent: tencent.NewCollector(cfg, mgr),
+	}
 }
 
 // Collect 为每个账号并发执行采集任务
 func (c *Collector) Collect() {
-    log.Printf("开始采集，加载账号数量=%d", len(c.cfg.AccountsList)+len(c.cfg.AccountsByProvider)+len(c.cfg.AccountsByProviderLegacy))
+	logger.Log.Infof("开始采集，加载账号数量=%d", len(c.cfg.AccountsList)+len(c.cfg.AccountsByProvider)+len(c.cfg.AccountsByProviderLegacy))
 	var accounts []config.CloudAccount
 	accounts = append(accounts, c.cfg.AccountsList...)
-    if c.cfg.AccountsByProvider != nil {
-        for provider, list := range c.cfg.AccountsByProvider {
-            for _, acc := range list {
-                acc.Provider = provider
-                accounts = append(accounts, acc)
-            }
-        }
-    }
-    if c.cfg.AccountsByProviderLegacy != nil {
-        for provider, list := range c.cfg.AccountsByProviderLegacy {
-            for _, acc := range list {
-                acc.Provider = provider
-                accounts = append(accounts, acc)
-            }
-        }
-    }
+	if c.cfg.AccountsByProvider != nil {
+		for provider, list := range c.cfg.AccountsByProvider {
+			for _, acc := range list {
+				acc.Provider = provider
+				accounts = append(accounts, acc)
+			}
+		}
+	}
+	if c.cfg.AccountsByProviderLegacy != nil {
+		for provider, list := range c.cfg.AccountsByProviderLegacy {
+			for _, acc := range list {
+				acc.Provider = provider
+				accounts = append(accounts, acc)
+			}
+		}
+	}
 
 	var wg sync.WaitGroup
-    for _, account := range accounts {
-        wg.Add(1)
-        go func(acc config.CloudAccount) {
-            defer wg.Done()
-            log.Printf("开始账号采集 provider=%s account_id=%s", acc.Provider, acc.AccountID)
-            c.collectAccount(acc)
-            log.Printf("完成账号采集 provider=%s account_id=%s", acc.Provider, acc.AccountID)
-        }(account)
-    }
-    wg.Wait()
+	for _, account := range accounts {
+		wg.Add(1)
+		go func(acc config.CloudAccount) {
+			defer wg.Done()
+			logger.Log.Debugf("开始账号采集 provider=%s account_id=%s", acc.Provider, acc.AccountID)
+			c.collectAccount(acc)
+			logger.Log.Debugf("完成账号采集 provider=%s account_id=%s", acc.Provider, acc.AccountID)
+		}(account)
+	}
+	wg.Wait()
 }
 
 // collectAccount 规范化资源类型并路由到对应云采集器
@@ -81,6 +81,6 @@ func (c *Collector) collectAccount(account config.CloudAccount) {
 	case "tencent":
 		c.tencent.Collect(account)
 	default:
-		log.Printf("Unknown provider: %s", account.Provider)
+		logger.Log.Warnf("Unknown provider: %s", account.Provider)
 	}
 }

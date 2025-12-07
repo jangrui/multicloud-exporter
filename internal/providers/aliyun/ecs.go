@@ -1,10 +1,10 @@
 package aliyun
 
 import (
-	"log"
 	"time"
 
 	"multicloud-exporter/internal/config"
+	"multicloud-exporter/internal/logger"
 	"multicloud-exporter/internal/metrics"
 
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
@@ -12,7 +12,7 @@ import (
 )
 
 func (a *Collector) listECSInstanceIDs(account config.CloudAccount, region string) []string {
-	log.Printf("Aliyun 枚举ECS实例开始 account_id=%s region=%s", account.AccountID, region)
+	logger.Log.Debugf("Aliyun 枚举ECS实例开始 account_id=%s region=%s", account.AccountID, region)
 	client, err := ecs.NewClientWithAccessKey(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
 		return []string{}
@@ -49,7 +49,7 @@ func (a *Collector) listECSInstanceIDs(account config.CloudAccount, region strin
 			status := classifyAliyunError(callErr)
 			metrics.RequestTotal.WithLabelValues("aliyun", "DescribeInstances", status).Inc()
 			if status == "region_skip" || status == "auth_error" {
-				log.Printf("Aliyun ECS describe error region=%s page=%d status=%s: %v", region, page, status, callErr)
+				logger.Log.Warnf("Aliyun ECS describe error region=%s page=%d status=%s: %v", region, page, status, callErr)
 				break
 			}
 			time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
@@ -57,9 +57,9 @@ func (a *Collector) listECSInstanceIDs(account config.CloudAccount, region strin
 		if callErr != nil {
 			break
 		}
-        if len(resp.Instances.Instance) == 0 {
-            break
-        }
+		if len(resp.Instances.Instance) == 0 {
+			break
+		}
 		for _, ins := range resp.Instances.Instance {
 			if ins.InstanceId != "" {
 				ids = append(ids, ins.InstanceId)
@@ -71,7 +71,7 @@ func (a *Collector) listECSInstanceIDs(account config.CloudAccount, region strin
 		page++
 		time.Sleep(50 * time.Millisecond)
 	}
-	log.Printf("Aliyun 枚举ECS实例完成 account_id=%s region=%s 数量=%d", account.AccountID, region, len(ids))
+	logger.Log.Debugf("Aliyun 枚举ECS实例完成 account_id=%s region=%s 数量=%d", account.AccountID, region, len(ids))
 	return ids
 }
 
@@ -122,9 +122,9 @@ func (a *Collector) fetchECSTags(account config.CloudAccount, region string, ids
 			if callErr != nil {
 				break
 			}
-            if len(resp.TagResources.TagResource) == 0 {
-                break
-            }
+			if len(resp.TagResources.TagResource) == 0 {
+				break
+			}
 			// 遍历标签资源，仅保留 TagKey=="CodeName" 的键值
 			for _, tr := range resp.TagResources.TagResource {
 				if tr.ResourceId == "" {
