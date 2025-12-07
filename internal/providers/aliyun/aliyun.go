@@ -541,7 +541,23 @@ func (a *Collector) getMetricMeta(client *cms.Client, namespace, metric string) 
 			out.Statistics = parts
 		}
 		if r.Periods != "" {
-			out.MinPeriod = strings.TrimSpace(r.Periods)
+			// 解析 Periods (如 "60,300") 取最小值，避免直接透传导致 API 报错
+			parts := strings.Split(r.Periods, ",")
+			minP := 0
+			for _, p := range parts {
+				p = strings.TrimSpace(p)
+				if val, err := strconv.Atoi(p); err == nil && val > 0 {
+					if minP == 0 || val < minP {
+						minP = val
+					}
+				}
+			}
+			if minP > 0 {
+				out.MinPeriod = strconv.Itoa(minP)
+			} else {
+				// fallback
+				out.MinPeriod = strings.TrimSpace(r.Periods)
+			}
 		}
 	}
 	a.metaMu.Lock()
