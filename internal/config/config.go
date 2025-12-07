@@ -35,6 +35,22 @@ type Config struct {
 	ProductsList             []Product            `yaml:"products_list"`
 }
 
+// DefaultResourceDimMapping 返回默认的资源维度映射配置
+func DefaultResourceDimMapping() map[string][]string {
+	return map[string][]string{
+		// Aliyun
+		"aliyun.acs_ecs_dashboard":     {"InstanceId", "instanceId", "instance_id"},
+		"aliyun.acs_slb_dashboard":     {"InstanceId", "instanceId", "instance_id"},
+		"aliyun.acs_bandwidth_package": {"InstanceId", "instanceId", "instance_id"},
+		// Tencent
+		"tencent.QCE/CVM": {"InstanceId"},
+		"tencent.QCE/LB":  {"LoadBalancerId", "vip"},
+		// AWS (Example)
+		"aws.AWS/EC2": {"InstanceId"},
+		"aws.AWS/ELB": {"LoadBalancerName"},
+	}
+}
+
 // LoadConfig 从环境变量 CONFIG_PATH 指向的 YAML 文件加载配置
 func LoadConfig() *Config {
 	var cfg Config
@@ -65,6 +81,18 @@ func LoadConfig() *Config {
 		if s.Server != nil {
 			cfg.Server = s.Server
 			cfg.ServerConf = s.Server
+			// 初始化默认维度映射
+			if cfg.Server.ResourceDimMapping == nil {
+				cfg.Server.ResourceDimMapping = DefaultResourceDimMapping()
+			} else {
+				// 合并默认配置（优先使用用户配置，缺失的补充默认）
+				def := DefaultResourceDimMapping()
+				for k, v := range def {
+					if _, ok := cfg.Server.ResourceDimMapping[k]; !ok {
+						cfg.Server.ResourceDimMapping[k] = v
+					}
+				}
+			}
 		}
 	}
 
@@ -132,6 +160,11 @@ type ServerConf struct {
 	MetricConcurrency int `yaml:"metric_concurrency"`
 	// 产品级并发：同一地域下并行处理的命名空间（云产品）数量，建议 1-4。
 	ProductConcurrency int `yaml:"product_concurrency"`
+
+	// ResourceDimMapping 定义各云厂商、各产品（Namespace）的资源维度校验规则。
+	// Key 为 "provider.namespace"，例如 "aliyun.acs_ecs_dashboard"。
+	// Value 为该产品必须包含的维度键列表（任一匹配即可），例如 ["InstanceId", "instance_id"]。
+	ResourceDimMapping map[string][]string `yaml:"resource_dim_mapping"`
 }
 
 type BasicAuth struct {

@@ -3,6 +3,7 @@ package tencent
 
 import (
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -216,4 +217,37 @@ func (t *Collector) setCachedIDs(account config.CloudAccount, region, namespace,
 	t.cacheMu.Lock()
 	t.resCache[t.cacheKey(account, region, namespace, rtype)] = resCacheEntry{IDs: ids, UpdatedAt: time.Now()}
 	t.cacheMu.Unlock()
+}
+
+func (t *Collector) checkRequiredDimensions(namespace string, availableDims []string) bool {
+	// 优先从配置中获取映射规则
+	// 腾讯云的 Namespace 通常是 "QCE/CVM" 这种格式，需要与 config 中的 key 匹配
+	key := "tencent." + namespace
+	var reqs []string
+	if t.cfg != nil && t.cfg.Server != nil && t.cfg.Server.ResourceDimMapping != nil {
+		reqs = t.cfg.Server.ResourceDimMapping[key]
+	}
+
+	// 如果配置中未定义，则回退到代码内置默认值（或视为无需检查）
+	if len(reqs) == 0 {
+		return true
+	}
+
+	return hasAnyDim(availableDims, reqs)
+}
+
+func hasAnyDim(dims []string, keys []string) bool {
+	if len(dims) == 0 || len(keys) == 0 {
+		return false
+	}
+	lower := make(map[string]struct{}, len(dims))
+	for _, d := range dims {
+		lower[strings.ToLower(strings.TrimSpace(d))] = struct{}{}
+	}
+	for _, k := range keys {
+		if _, ok := lower[strings.ToLower(k)]; ok {
+			return true
+		}
+	}
+	return false
 }

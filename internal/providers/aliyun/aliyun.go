@@ -216,12 +216,14 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 						localPeriod = meta.MinPeriod
 					}
 					if len(meta.Dimensions) == 0 {
+						log.Printf("Aliyun metric skipped (no dimensions): namespace=%s metric=%s", prod.Namespace, metricName)
 						continue
 					}
-					if prod.Namespace == "acs_slb_dashboard" {
-						if !hasAnyDim(meta.Dimensions, []string{"InstanceId", "instanceId", "instance_id"}) {
-							continue
-						}
+					// 针对不同产品，检查是否包含必要的维度
+					// 使用统一的维度检查函数，不再硬编码产品名称
+					if !a.checkRequiredDimensions(prod.Namespace, meta.Dimensions) {
+						log.Printf("Aliyun metric skipped (dimension mismatch): namespace=%s metric=%s dims=%v", prod.Namespace, metricName, meta.Dimensions)
+						continue
 					}
 					dimKey := chooseDimKeyForNamespace(prod.Namespace, meta.Dimensions)
 					if dimKey == "" {
@@ -418,6 +420,7 @@ func (a *Collector) getMetricMeta(client *cms.Client, namespace, metric string) 
 	start := time.Now()
 	resp, err := client.DescribeMetricMetaList(req)
 	if err != nil {
+		log.Printf("Aliyun getMetricMeta error: namespace=%s metric=%s error=%v", namespace, metric, err)
 		return metricMeta{}
 	}
 	metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricMetaList", "success").Inc()
@@ -452,6 +455,22 @@ func (a *Collector) getMetricMeta(client *cms.Client, namespace, metric string) 
 }
 
 //
+
+func (a *Collector) checkRequiredDimensions(namespace string, availableDims []string) bool {
+	// 优先从配置中获取映射规则
+	key := "aliyun." + namespace
+	var reqs []string
+	if a.cfg != nil && a.cfg.Server != nil && a.cfg.Server.ResourceDimMapping != nil {
+		reqs = a.cfg.Server.ResourceDimMapping[key]
+	}
+
+	// 如果配置中未定义，则回退到代码内置默认值（或视为无需检查）
+	if len(reqs) == 0 {
+		return true
+	}
+
+	return hasAnyDim(availableDims, reqs)
+}
 
 func chooseStatistics(available []string, desired []string) []string {
 	if len(desired) == 0 {
