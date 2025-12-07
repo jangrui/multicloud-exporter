@@ -9,9 +9,10 @@ import (
 )
 
 type MetricDef struct {
-	Metric string  `yaml:"metric"`
-	Unit   string  `yaml:"unit"`
-	Scale  float64 `yaml:"scale"`
+	Metric     string   `yaml:"metric"`
+	Unit       string   `yaml:"unit"`
+	Scale      float64  `yaml:"scale"`
+	Dimensions []string `yaml:"dimensions,omitempty"`
 }
 
 type MetricMapping struct {

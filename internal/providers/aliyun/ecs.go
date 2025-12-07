@@ -11,14 +11,18 @@ import (
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/ecs"
 )
 
-func (a *Collector) listECSInstanceIDs(account config.CloudAccount, region string) []string {
+func (a *Collector) listECSInstanceIDs(account config.CloudAccount, region string) ([]string, map[string]interface{}) {
 	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region)
 	ctxLog.Debugf("枚举ECS实例开始")
 	client, err := ecs.NewClientWithAccessKey(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
-		return []string{}
+		return []string{}, nil
 	}
 	var ids []string
+	// meta 用于存储 ECS 相关的额外维度信息（如磁盘ID、网卡ID等），暂留空
+	// 如果需要支持磁盘/网卡维度，需在此处（或单独函数）获取并填充
+	meta := make(map[string]interface{})
+
 	pageSize := 50
 	if a.cfg != nil {
 		if a.cfg.Server != nil && a.cfg.Server.PageSize > 0 {
@@ -73,7 +77,7 @@ func (a *Collector) listECSInstanceIDs(account config.CloudAccount, region strin
 		time.Sleep(50 * time.Millisecond)
 	}
 	ctxLog.Debugf("枚举ECS实例完成 数量=%d", len(ids))
-	return ids
+	return ids, meta
 }
 
 func (a *Collector) fetchECSTags(account config.CloudAccount, region string, ids []string) map[string]string {

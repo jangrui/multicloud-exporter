@@ -111,7 +111,7 @@ func sanitizeName(name string) string {
 	return n
 }
 
-func NamespaceGauge(namespace, metric string) *prometheus.GaugeVec {
+func NamespaceGauge(namespace, metric string, extraLabels ...string) *prometheus.GaugeVec {
 	nsGaugesMu.Lock()
 	defer nsGaugesMu.Unlock()
 	alias := aliasPrefixForNamespace(namespace)
@@ -133,15 +133,16 @@ func NamespaceGauge(namespace, metric string) *prometheus.GaugeVec {
 	help := metricHelpForNamespace(namespace, useMetric)
 	// 统一命名空间指标的标签集合：
 	// cloud_provider, account_id, region, resource_type, resource_id, namespace, metric_name, code_name
-	// 说明：
-	// - code_name 用于承载云资源的业务标识（如 ECS/BWP 的 CodeName 标签），替代此前的 tags 聚合字符串
-	// - 当某资源类型不存在 CodeName（或未配置）时，code_name 为空字符串，保持标签完整性
+	// 加上动态维度标签
+	labels := []string{"cloud_provider", "account_id", "region", "resource_type", "resource_id", "namespace", "metric_name", "code_name"}
+	labels = append(labels, extraLabels...)
+
 	g := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: name,
 			Help: help,
 		},
-		[]string{"cloud_provider", "account_id", "region", "resource_type", "resource_id", "namespace", "metric_name", "code_name"},
+		labels,
 	)
 	prometheus.MustRegister(g)
 	nsGauges[key] = g

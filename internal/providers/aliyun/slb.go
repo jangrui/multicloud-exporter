@@ -155,6 +155,9 @@ func (a *Collector) fetchSLBTags(account config.CloudAccount, region, namespace,
 	batchSize := 50
 	total := len(ids)
 
+	// 获取真实的 Account UID 用于构建 ARN
+	uid := a.getAccountUID(account, region)
+
 	for start := 0; start < total; start += batchSize {
 		end := start + batchSize
 		if end > total {
@@ -163,8 +166,8 @@ func (a *Collector) fetchSLBTags(account config.CloudAccount, region, namespace,
 		batchIDs := ids[start:end]
 		var arns []string
 		for _, id := range batchIDs {
-			// 构建 ARN: arn:acs:slb:{region}:{account}:loadbalancer/{lb_id}
-			arn := "arn:acs:slb:" + region + ":" + account.AccountID + ":loadbalancer/" + id
+			// 构建 ARN: arn:acs:slb:{region}:{uid}:loadbalancer/{lb_id}
+			arn := "arn:acs:slb:" + region + ":" + uid + ":loadbalancer/" + id
 			arns = append(arns, arn)
 		}
 
@@ -193,11 +196,13 @@ func (a *Collector) fetchSLBTags(account config.CloudAccount, region, namespace,
 
 		if callErr == nil && resp != nil {
 			content := resp.GetHttpContentBytes()
+
 			// 解析格式 A: TagResources -> [] { ResourceId, Tags }
 			var jrA struct {
 				TagResources []struct {
-					ResourceId string `json:"ResourceId"`
-					Tags       []struct {
+					ResourceId  string `json:"ResourceId"`
+					ResourceARN string `json:"ResourceARN"`
+					Tags        []struct {
 						Key      string `json:"Key"`
 						Value    string `json:"Value"`
 						TagKey   string `json:"TagKey"`
@@ -207,7 +212,15 @@ func (a *Collector) fetchSLBTags(account config.CloudAccount, region, namespace,
 			}
 			if err := json.Unmarshal(content, &jrA); err == nil && len(jrA.TagResources) > 0 {
 				for _, tr := range jrA.TagResources {
-					if tr.ResourceId == "" {
+					id := tr.ResourceId
+					if id == "" && tr.ResourceARN != "" {
+						// Parse ID from ARN
+						parts := strings.Split(tr.ResourceARN, "/")
+						if len(parts) > 0 {
+							id = parts[len(parts)-1]
+						}
+					}
+					if id == "" {
 						continue
 					}
 					for _, t := range tr.Tags {
@@ -220,7 +233,7 @@ func (a *Collector) fetchSLBTags(account config.CloudAccount, region, namespace,
 							v = t.TagValue
 						}
 						if strings.EqualFold(k, "CodeName") || strings.EqualFold(k, "code_name") {
-							out[tr.ResourceId] = v
+							out[id] = v
 						}
 					}
 				}

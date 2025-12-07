@@ -1,8 +1,8 @@
 package aliyun
 
 import (
-    metrics "multicloud-exporter/internal/metrics"
-    help "multicloud-exporter/internal/help"
+	help "multicloud-exporter/internal/help"
+	metrics "multicloud-exporter/internal/metrics"
 )
 
 func init() {
@@ -17,5 +17,5 @@ func init() {
 		"in_ratelimit_drop_pps":     "in_drop_pps",
 		"out_ratelimit_drop_pps":    "out_drop_pps",
 	})
-    metrics.RegisterNamespaceHelp("acs_bandwidth_package", help.BWPHelp)
+	metrics.RegisterNamespaceHelp("acs_bandwidth_package", help.BWPHelp)
 }

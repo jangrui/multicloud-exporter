@@ -18,6 +18,7 @@ import (
 
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/cms"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/ecs"
+	"github.com/aliyun/alibaba-cloud-sdk-go/services/sts"
 )
 
 // Collector 封装阿里云资源采集逻辑
@@ -28,6 +29,8 @@ type Collector struct {
 	metaMu    sync.RWMutex
 	cacheMu   sync.RWMutex
 	resCache  map[string]resCacheEntry
+	uidCache  map[string]string
+	uidMu     sync.RWMutex
 }
 
 // resCacheEntry 缓存资源ID及元数据
@@ -39,7 +42,54 @@ type resCacheEntry struct {
 
 // NewCollector 创建阿里云采集器实例
 func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
-	return &Collector{cfg: cfg, disc: mgr, metaCache: make(map[string]metricMeta), resCache: make(map[string]resCacheEntry)}
+	return &Collector{
+		cfg:       cfg,
+		disc:      mgr,
+		metaCache: make(map[string]metricMeta),
+		resCache:  make(map[string]resCacheEntry),
+		uidCache:  make(map[string]string),
+	}
+}
+
+// getAccountUID 获取阿里云账号的数字 ID (UID)
+func (a *Collector) getAccountUID(account config.CloudAccount, region string) string {
+	// 1. 尝试从缓存获取
+	a.uidMu.RLock()
+	uid, ok := a.uidCache[account.AccessKeyID]
+	a.uidMu.RUnlock()
+	if ok {
+		return uid
+	}
+
+	// 2. 调用 STS 获取 CallerIdentity
+	// region 可以是任意有效区域，通常用 cn-hangzhou 或当前区域
+	if region == "" {
+		region = "cn-hangzhou"
+	}
+	client, err := sts.NewClientWithAccessKey(region, account.AccessKeyID, account.AccessKeySecret)
+	if err != nil {
+		logger.Log.Errorf("Aliyun init STS client error: %v", err)
+		return account.AccountID // 回退到配置ID
+	}
+	// 强制使用 HTTPS
+	client.GetConfig().WithScheme("HTTPS")
+
+	req := sts.CreateGetCallerIdentityRequest()
+	resp, err := client.GetCallerIdentity(req)
+	if err != nil {
+		logger.Log.Errorf("Aliyun GetCallerIdentity error: %v", err)
+		return account.AccountID // 回退到配置ID
+	}
+
+	uid = resp.AccountId
+	if uid != "" {
+		a.uidMu.Lock()
+		a.uidCache[account.AccessKeyID] = uid
+		a.uidMu.Unlock()
+		return uid
+	}
+
+	return account.AccountID
 }
 
 // Collect 根据账号配置遍历区域与资源类型并采集
@@ -121,10 +171,6 @@ func (a *Collector) getAllRegions(account config.CloudAccount) []string {
 	}
 	return regions
 }
-
-//
-
-//
 
 func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string) {
 	if a.cfg == nil {
@@ -217,7 +263,6 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 				}
 				// 对每个指标使用指标级并发进行批次拉取。每批最多 50 个维度（实例）。
 				for _, metricName := range group.MetricList {
-					_ = metrics.NamespaceGauge(prod.Namespace, metricName)
 					meta := a.getMetricMeta(client, prod.Namespace, metricName)
 					localPeriod := period
 					if localPeriod == "" && meta.MinPeriod != "" {
@@ -265,6 +310,12 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 						tagLabels = a.fetchSLBTags(account, region, prod.Namespace, metricName, resIDs)
 					}
 
+					if len(tagLabels) > 0 {
+						logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", rtype).Debugf("FetchTags success count=%d", len(tagLabels))
+					} else {
+						logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", rtype).Debugf("FetchTags empty or failed")
+					}
+
 					// 并发执行该指标的各批次查询：由 msem 控制并发槽，避免超过云监控 API 限流。
 					mwg.Add(1)
 					msem <- struct{}{}
@@ -274,55 +325,59 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 
 						ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "namespace", ns, "metric", m)
 
-						// 构建所有维度的请求对象
-						var allDims []map[string]string
-						// 检查是否需要扩展维度（如 SLB 端口）
-						needExpand := false
-						var portKey, protoKey string
-						if rtype == "lb" && (hasAnyDim(metricDims, []string{"port", "Port"})) {
-							needExpand = true
-							for _, d := range metricDims {
-								if strings.EqualFold(d, "port") {
-									portKey = d
-								}
-								if strings.EqualFold(d, "protocol") {
-									protoKey = d
-								}
+						// Identify dynamic dimensions (excluding main resource ID and userId)
+						var dynamicDims []string
+						for _, d := range metricDims {
+							if !strings.EqualFold(d, dkey) && !strings.EqualFold(d, "userId") {
+								dynamicDims = append(dynamicDims, d)
 							}
 						}
+						hasDynamicDims := len(dynamicDims) > 0
+
+						// 将 tags 传递给闭包使用
+						localTags := tags
+
+						// 构建所有维度的请求对象
+						var allDims []map[string]string
 
 						for _, id := range ids {
-							if needExpand && meta != nil {
-								if listeners, ok := meta[id]; ok {
-									// 假设 meta[id] 是 []map[string]string 类型（监听器列表）
-									if list, ok := listeners.([]map[string]string); ok && len(list) > 0 {
-										for _, l := range list {
-											// 复制监听器维度并添加实例ID
+							added := false
+							// 如果存在动态维度（即指标需要除 instanceId 以外的维度，如 port, diskId 等）
+							if hasDynamicDims && meta != nil {
+								if subResources, ok := meta[id]; ok {
+									// meta[id] 预期为 []map[string]string，存储该实例下的子资源列表（如多个监听器、多块磁盘）
+									if list, ok := subResources.([]map[string]string); ok && len(list) > 0 {
+										for _, item := range list {
 											d := make(map[string]string)
-											// 使用正确的维度 Key（大小写敏感）
-											if v, ok := l["port"]; ok {
-												if portKey != "" {
-													d[portKey] = v
-												} else {
-													d["port"] = v
+											d[dkey] = id // 始终带上主资源ID
+
+											matchCount := 0
+											for _, dimKey := range dynamicDims {
+												// 在 item 中查找对应的维度值（忽略大小写）
+												for k, v := range item {
+													if strings.EqualFold(k, dimKey) {
+														d[dimKey] = v // API 请求使用 metricDims 定义的 Key
+														matchCount++
+														break
+													}
 												}
 											}
-											if v, ok := l["protocol"]; ok {
-												if protoKey != "" {
-													d[protoKey] = v
-												} else {
-													d["protocol"] = v
-												}
+
+											// 如果找到了匹配的动态维度，说明该子资源与当前指标相关，加入请求列表
+											if matchCount > 0 {
+												allDims = append(allDims, d)
+												added = true
 											}
-											d[dkey] = id
-											allDims = append(allDims, d)
 										}
-										continue
 									}
 								}
 							}
-							// 默认仅使用实例ID
-							allDims = append(allDims, map[string]string{dkey: id})
+
+							// 如果没有添加任何动态维度组合（可能是指标只需要 instanceId，或者没找到对应的子资源信息）
+							// 则回退到仅使用 instanceId 的单一维度请求
+							if !added {
+								allDims = append(allDims, map[string]string{dkey: id})
+							}
 						}
 
 						for start := 0; start < len(allDims); start += 50 {
@@ -333,7 +388,7 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 
 							// 进度日志
 							if (end)%100 == 0 || end == len(allDims) {
-								ctxLog.Debugf("指标采集进度 progress=%d/%d (%.1f%%)", end, len(allDims), float64(end)/float64(len(allDims))*100)
+								ctxLog.Debugf("指标采集进度 progress=%d/%d (%.1f%%) tag_count=%d", end, len(allDims), float64(end)/float64(len(allDims))*100, len(localTags))
 							}
 
 							dims := allDims[start:end]
@@ -394,28 +449,23 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 									for _, dim := range dims {
 										rid := dim[dkey]
 										var codeNameVal string
-										if tags != nil {
-											codeNameVal = tags[rid]
-										}
-										// 如果有端口/协议维度，追加到 code_name 以区分
-										var extras []string
-										if p, ok := dim["port"]; ok {
-											extras = append(extras, "port:"+p)
-										}
-										if p, ok := dim["protocol"]; ok {
-											extras = append(extras, "proto:"+p)
-										}
-										if len(extras) > 0 {
-											if codeNameVal != "" {
-												codeNameVal += "," + strings.Join(extras, ",")
-											} else {
-												codeNameVal = strings.Join(extras, ",")
-											}
+										if localTags != nil {
+											codeNameVal = localTags[rid]
 										}
 
-										metrics.NamespaceGauge(ns, m).WithLabelValues(
-											"aliyun", account.AccountID, region, rtype, rid, ns, m, codeNameVal,
-										).Set(0)
+										var dynamicLabelValues []string
+										for _, dimKey := range dynamicDims {
+											valStr := ""
+											if v, ok := dim[dimKey]; ok {
+												valStr = v
+											}
+											dynamicLabelValues = append(dynamicLabelValues, valStr)
+										}
+
+										labels := []string{"aliyun", account.AccountID, region, rtype, rid, ns, m, codeNameVal}
+										labels = append(labels, dynamicLabelValues...)
+
+										metrics.NamespaceGauge(ns, m, dynamicDims...).WithLabelValues(labels...).Set(0)
 									}
 								}
 								for _, pnt := range points {
@@ -426,28 +476,25 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 									rid, _ := idAny.(string)
 									val := pickStatisticValue(pnt, chooseStatistics(stats, group.Statistics))
 									var codeNameVal string
-									if tags != nil {
-										codeNameVal = tags[rid]
+									if localTags != nil {
+										codeNameVal = localTags[rid]
 									}
 
-									// 如果有端口/协议维度，追加到 code_name 以区分
-									var extras []string
-									if p, ok := pnt["port"]; ok {
-										if ps, ok := p.(string); ok {
-											extras = append(extras, "port:"+ps)
+									var dynamicLabelValues []string
+									for _, dimKey := range dynamicDims {
+										valStr := ""
+										// 优先从返回点取值
+										if v, ok := pnt[dimKey]; ok {
+											switch s := v.(type) {
+											case string:
+												valStr = s
+											case float64:
+												valStr = strconv.FormatFloat(s, 'f', -1, 64)
+											case int:
+												valStr = strconv.Itoa(s)
+											}
 										}
-									}
-									if p, ok := pnt["protocol"]; ok {
-										if ps, ok := p.(string); ok {
-											extras = append(extras, "proto:"+ps)
-										}
-									}
-									if len(extras) > 0 {
-										if codeNameVal != "" {
-											codeNameVal += "," + strings.Join(extras, ",")
-										} else {
-											codeNameVal = strings.Join(extras, ",")
-										}
+										dynamicLabelValues = append(dynamicLabelValues, valStr)
 									}
 
 									// 应用指标缩放（如 bps 转换）
@@ -455,17 +502,11 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 										val *= scale
 									}
 
+									labels := []string{"aliyun", account.AccountID, region, rtype, rid, ns, m, codeNameVal}
+									labels = append(labels, dynamicLabelValues...)
+
 									// NamespaceGauge 的最后一个标签为 code_name，用于展示资源的业务标识
-									metrics.NamespaceGauge(ns, m).WithLabelValues(
-										"aliyun",
-										account.AccountID,
-										region,
-										rtype,
-										rid,
-										ns,
-										m,
-										codeNameVal,
-									).Set(val)
+									metrics.NamespaceGauge(ns, m, dynamicDims...).WithLabelValues(labels...).Set(val)
 								}
 								if resp.NextToken == "" {
 									break
@@ -598,13 +639,17 @@ func (a *Collector) checkRequiredDimensions(namespace string, dims []string) boo
 	// 此处仅判断是否"完全无关"
 	// 例如：如果指标只支持 [userId, groupId]，而我们只有 instanceId，则应返回 false
 	// 如果指标支持 [userId, instanceId, port, protocol]，我们有 instanceId，则返回 true
-	if namespace == "acs_slb_dashboard" {
-		if hasAnyDim(dims, []string{"instanceId", "InstanceId"}) {
-			return true
-		}
+	//
+	// 统一逻辑：只要当前资源的主键（如 instanceId）存在于指标支持的维度列表中，即认为可采集。
+	// 具体的维度组合（如 instanceId+port）由采集逻辑中的 dynamicDims 自动补全。
+	if hasAnyDim(dims, []string{"instanceId", "InstanceId", "instance_id"}) {
+		return true
 	}
 
-	return true
+	// 对于 BWP 等其他资源，主键可能略有不同，但通常都包含 instanceId
+	// 如果未来有特殊资源主键（如 diskId），需在此处补充
+
+	return false
 }
 
 func chooseStatistics(available []string, desired []string) []string {
@@ -706,7 +751,8 @@ func (a *Collector) resourceIDsForNamespace(account config.CloudAccount, region 
 	case "acs_bandwidth_package":
 		return a.listCBWPIDs(account, region), "bwp", nil
 	case "acs_ecs_dashboard":
-		return a.listECSInstanceIDs(account, region), "ecs", nil
+		ids, meta := a.listECSInstanceIDs(account, region)
+		return ids, "ecs", meta
 	case "acs_slb_dashboard":
 		ids, meta := a.listSLBIDs(account, region)
 		return ids, "lb", meta
