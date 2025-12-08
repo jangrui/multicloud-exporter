@@ -23,3 +23,7 @@ server:
   metric_concurrency: 5
   # 产品级并发：同一地域下并行处理的命名空间数量（建议 1-4）
   product_concurrency: 2
+  admin_auth_enabled: true
+  admin_auth:
+    - username: "admin"
+      password: "changeme"

@@ -12,6 +12,8 @@
 - 动态指标命名：按云产品命名空间+指标名生成，例如阿里云共享带宽 `acs_bandwidth_package_in_bandwidth_utilization`
 - 资源发现缓存：枚举到的资源ID支持缓存与TTL，显著降低 API 次数
 - 自身监控：内置 API 请求耗时、限流统计与采集周期耗时指标
+- 管理接口认证：`/api/discovery/*` 可选启用 BasicAuth
+- 传输安全：阿里云 CMS 客户端与腾讯云 SDK 默认使用 HTTPS
 
 ## 支持的资源类型
 
@@ -189,6 +191,25 @@ scrape_configs:
  
 - `ACCOUNTS_PATH`: 指向 `accounts.yaml`
 
+## 管理接口认证
+
+可为 `/api/discovery/*` 启用 BasicAuth 认证，通过 `server.yaml` 配置：
+
+```yaml
+server:
+  admin_auth_enabled: true
+  admin_auth:
+    - username: admin
+      password: changeme
+```
+
+建议在生产环境通过 Ingress/ServiceMesh 终止 TLS，确保认证信息经由 HTTPS 传输。
+
+## 版本规范
+
+- 发布与安装统一采用带前缀的语义化版本标签：`vX.Y.Z`
+- Helm Chart 的 `version` 与 `appVersion` 保持 `v*.*.*`，CI 触发条件匹配 `v*.*.*` 标签
+
 ## 采集与缓存
 
 - 采集流程：程序按配置加载产品与指标 → 枚举资源ID（按命名空间映射） → 批量拉取最新监控数据 → 暴露为Prometheus指标。
@@ -224,3 +245,9 @@ scrape_configs:
 | **Scrape < Period**<br>(15s < 60s) | **数据冗余**<br>(重复采同一个点) | ✅ **全覆盖**（不丢数据）<br>❌ **浪费**（配额与存储） | **不推荐** |
 | **Scrape ≈ Period**<br>(60s ≈ 60s) | **完美匹配** | ✅ **无盲区且不浪费** | **核心业务指标**<br>（推荐配置） |
 
+### 4. 测试要求
+
+- 本地：`go vet ./... && golangci-lint run && go test -race -cover ./...`
+- 基准测试：`go test -bench . -benchmem -run ^$ ./...`
+- 压力测试：`go test -race -run . -parallel 16 ./...`
+- CI 强制全局覆盖率 ≥ 80%，目标 ≥ 90%

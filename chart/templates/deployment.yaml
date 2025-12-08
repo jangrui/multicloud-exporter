@@ -4,7 +4,7 @@ metadata:
   name: {{ default "multicloud-exporter" .Values.fullname }}
   labels: {{- include "multicloud-exporter.labels" . | nindent 4 }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels: {{- include "multicloud-exporter.selectorLabels" . | nindent 6 }}
   template:
@@ -26,11 +26,55 @@ spec:
           ports:
             - name: http
               containerPort: {{ .Values.service.port }}
+          livenessProbe:
+{{- if .Values.probes.liveness.enabled }}
+            httpGet:
+              path: {{ .Values.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+{{- end }}
+          readinessProbe:
+{{- if .Values.probes.readiness.enabled }}
+            httpGet:
+              path: {{ .Values.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+{{- end }}
           env:
             - name: EXPORTER_PORT
               value: {{ .Values.service.port | quote }}
             - name: SERVER_PATH
               value: "/app/configs/server.yaml"
+            - name: CLUSTER_DISCOVERY
+              value: {{ .Values.cluster.discovery | quote }}
+{{- if .Values.cluster.svcName }}
+            - name: CLUSTER_SVC
+              value: {{ .Values.cluster.svcName | quote }}
+{{- end }}
+{{- if .Values.cluster.file }}
+            - name: CLUSTER_FILE
+              value: {{ .Values.cluster.file | quote }}
+{{- end }}
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+{{- if .Values.env }}
+{{- range $k, $v := .Values.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+{{- end }}
+{{- end }}
 {{- if and .Values.accounts (or .Values.accounts.secrets .Values.accounts.grouped) }}
             - name: ACCOUNTS_PATH
               value: "/app/configs/accounts.yaml"

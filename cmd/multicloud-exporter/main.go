@@ -2,12 +2,13 @@
 package main
 
 import (
-	"context"
-	"encoding/json"
-	"net/http"
-	"os"
-	"strconv"
-	"time"
+    "context"
+    "encoding/json"
+    "net/http"
+    "os"
+    "strconv"
+    "time"
+    "crypto/subtle"
 
 	"multicloud-exporter/internal/collector"
 	"multicloud-exporter/internal/config"
@@ -113,12 +114,16 @@ func main() {
 		for {
 			start := time.Now()
 			logger.Log.Infof("开始采集，周期=%v", interval)
+			// 仅在发现配置发生变化时才重置指标，避免每周期短暂丢失导致的图表断点
+			versionChanged := false
 			if v := mgr.Version(); v != lastVer {
 				cfg.ProductsByProvider = mgr.Get()
 				lastVer = v
+				versionChanged = true
 			}
-			// 在采集前重置指标，避免过期 Series 残留
-			metrics.Reset()
+			if versionChanged {
+				metrics.Reset()
+			}
 			coll.Collect()
 			duration := time.Since(start)
 			metrics.CollectionDuration.Observe(duration.Seconds())
@@ -130,47 +135,90 @@ func main() {
 		}
 	}()
 
-	http.Handle("/metrics", promhttp.Handler())
-	http.HandleFunc("/api/discovery/config", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		data := struct {
-			Version   int64                       `json:"version"`
-			UpdatedAt int64                       `json:"updated_at"`
-			Products  map[string][]config.Product `json:"products"`
-		}{Version: mgr.Version(), UpdatedAt: mgr.UpdatedAt().Unix(), Products: mgr.Get()}
-		_ = json.NewEncoder(w).Encode(data)
-	})
-	http.HandleFunc("/api/discovery/stream", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Connection", "keep-alive")
-		fl, _ := w.(http.Flusher)
-		ch := mgr.Subscribe()
-		defer mgr.Unsubscribe(ch)
-		_, _ = w.Write([]byte("event: init\n"))
-		_, _ = w.Write([]byte("data: {}\n\n"))
-		if fl != nil {
-			fl.Flush()
-		}
-		for {
-			select {
-			case <-r.Context().Done():
-				return
-			case <-ch:
-				payload := struct {
-					Version int64 `json:"version"`
-				}{Version: mgr.Version()}
-				bs, _ := json.Marshal(payload)
-				_, _ = w.Write([]byte("event: update\n"))
-				_, _ = w.Write([]byte("data: "))
-				_, _ = w.Write(bs)
-				_, _ = w.Write([]byte("\n\n"))
-				if fl != nil {
-					fl.Flush()
-				}
-			}
-		}
-	})
+    http.Handle("/metrics", promhttp.Handler())
+    http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+        w.WriteHeader(http.StatusOK)
+        _, _ = w.Write([]byte("ok"))
+    })
+    wrap := func(h http.HandlerFunc) http.HandlerFunc {
+        enabled := false
+        var pairs []config.BasicAuth
+        if cfg.Server != nil {
+            if cfg.Server.AdminAuthEnabled {
+                enabled = true
+                pairs = cfg.Server.AdminAuth
+            }
+        }
+        if !enabled && cfg.ServerConf != nil {
+            if cfg.ServerConf.AdminAuthEnabled {
+                enabled = true
+                pairs = cfg.ServerConf.AdminAuth
+            }
+        }
+        if !enabled || len(pairs) == 0 {
+            return h
+        }
+        return func(w http.ResponseWriter, r *http.Request) {
+            u, p, ok := r.BasicAuth()
+            if !ok {
+                w.Header().Set("WWW-Authenticate", "Basic realm=restricted")
+                http.Error(w, "unauthorized", http.StatusUnauthorized)
+                return
+            }
+            authed := false
+            for _, pair := range pairs {
+                if subtle.ConstantTimeCompare([]byte(u), []byte(pair.Username)) == 1 && subtle.ConstantTimeCompare([]byte(p), []byte(pair.Password)) == 1 {
+                    authed = true
+                    break
+                }
+            }
+            if !authed {
+                http.Error(w, "forbidden", http.StatusForbidden)
+                return
+            }
+            h(w, r)
+        }
+    }
+    http.HandleFunc("/api/discovery/config", wrap(func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Content-Type", "application/json")
+        data := struct {
+            Version   int64                       `json:"version"`
+            UpdatedAt int64                       `json:"updated_at"`
+            Products  map[string][]config.Product `json:"products"`
+        }{Version: mgr.Version(), UpdatedAt: mgr.UpdatedAt().Unix(), Products: mgr.Get()}
+        _ = json.NewEncoder(w).Encode(data)
+    }))
+    http.HandleFunc("/api/discovery/stream", wrap(func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Content-Type", "text/event-stream")
+        w.Header().Set("Cache-Control", "no-cache")
+        w.Header().Set("Connection", "keep-alive")
+        fl, _ := w.(http.Flusher)
+        ch := mgr.Subscribe()
+        defer mgr.Unsubscribe(ch)
+        _, _ = w.Write([]byte("event: init\n"))
+        _, _ = w.Write([]byte("data: {}\n\n"))
+        if fl != nil {
+            fl.Flush()
+        }
+        for {
+            select {
+            case <-r.Context().Done():
+                return
+            case <-ch:
+                payload := struct {
+                    Version int64 `json:"version"`
+                }{Version: mgr.Version()}
+                bs, _ := json.Marshal(payload)
+                _, _ = w.Write([]byte("event: update\n"))
+                _, _ = w.Write([]byte("data: "))
+                _, _ = w.Write(bs)
+                _, _ = w.Write([]byte("\n\n"))
+                if fl != nil {
+                    fl.Flush()
+                }
+            }
+        }
+    }))
 	logger.Log.Infof("服务启动，端口=%s", port)
 	logger.Log.Fatal(http.ListenAndServe(":"+port, nil))
 }

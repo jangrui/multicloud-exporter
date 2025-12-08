@@ -1,4 +1,5 @@
 fullname: multicloud-exporter
+replicaCount: 1
 
 image:
   registry: 
@@ -11,6 +12,10 @@ service:
   type: ClusterIP
   nodePort:
 
+headless:
+  enabled: false
+  name: ""
+
 serviceMonitor:
   enabled: false
   labels: {}
@@ -19,6 +24,46 @@ serviceMonitor:
   scrapeTimeout: "30s"
   metricRelabelings: []
   relabelings: []
+
+hpa:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+
+probes:
+  liveness:
+    enabled: true
+    path: /healthz
+    initialDelaySeconds: 20
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+  readiness:
+    enabled: true
+    path: /metrics
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 2
+    failureThreshold: 3
+
+cluster:
+  discovery: "" # values: headless|file|""
+  svcName: ""   # required when discovery=headless
+  file: ""      # required when discovery=file
+
+# 环境变量覆盖（按需）：如果设置将覆盖 server.yaml 中的对应配置
+# - EXPORTER_PORT: 监听端口；默认 9101
+# - SCRAPE_INTERVAL: 采集间隔；支持 "60s", "1m" 等
+env: {}
+#  EXPORTER_PORT: "9101"
+#  SCRAPE_INTERVAL: "60s"
 
 server:
   port: 9101
@@ -45,6 +90,14 @@ server:
     #   max_backups: 3
     #   max_age: 28 # days
     #   compress: true
+
+  # 管理接口认证（可选）：保护 /api/discovery/*
+  # admin_auth_enabled: true 启用 BasicAuth；默认 false
+  # admin_auth: 用户名/密码对列表，用于只读访问管理接口
+  admin_auth_enabled: false
+  admin_auth: []
+  # - username: admin
+  #   password: changeme
 
 accounts:
   # 分组式账号（推荐）：按云平台拆分，模板将生成 grouped 结构的 accounts.yaml

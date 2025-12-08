@@ -1,165 +1,206 @@
-# Multicloud Exporter 逻辑架构文档
+# multicloud-exporter 集群与并行架构设计
 
-> 文档版本：v1.0.0
-> 更新日期：2025-12-07
+## 1. 云原生架构（Kubernetes）
 
-本文档旨在全盘梳理 `multicloud-exporter` 的逻辑架构，包括功能模块划分、依赖关系、业务流程、数据流向以及现有架构评估。
-
-## 1. 架构概览
-
-`multicloud-exporter` 采用 **Pull 模型**，周期性地从各云厂商 API 拉取监控数据，并转换为 Prometheus 格式暴露。系统设计遵循 **模块化** 和 **配置驱动** 原则。
-
-### 1.1 架构分层图
+### 1.1 架构图（Mermaid）
 
 ```mermaid
----
-config:
-  theme: mc
-  layout: elk
----
-graph TD
-    subgraph "Interface Layer"
-        HTTP["HTTP Server"]
-        MetricsAPI["/metrics"]
-        DiscAPI["/api/discovery"]
+graph LR
+  subgraph Kubernetes_Cluster
+    subgraph Deployment
+      P1[Pod]
+      P2[Pod]
+      P3[Pod]
     end
+    S[Service ClusterIP]
+    HS[Headless Service]
+    HPA[HPA]
+    PROBES[Probes healthz metrics]
+    AFF[Pod Anti-Affinity]
+    SM[ServiceMonitor]
+    PROM[Prometheus]
 
-    subgraph "Control Layer"
-        Collector["Collector (Scheduler)"]
-        Discovery["Discovery Manager"]
-    end
-
-    subgraph "Service Layer (Providers)"
-        Aliyun["Aliyun Provider"]
-        Tencent["Tencent Provider"]
-        Huawei["Huawei Provider"]
-    end
-
-    subgraph "Data Layer"
-        Config["Configuration Manager"]
-        MetricsReg["Metrics Registry"]
-        Cache["In-Memory Cache"]
-    end
-
-    HTTP --> MetricsAPI
-    HTTP --> DiscAPI
-    MetricsAPI --> MetricsReg
-    DiscAPI --> Discovery
-
-    Collector --> Discovery
-    Collector --> Config
-    Collector --> Aliyun
-    Collector --> Tencent
-    Collector --> Huawei
-
-    Discovery --> Config
-    
-    Aliyun --> CloudAPI_Aliyun((Aliyun API))
-    Tencent --> CloudAPI_Tencent((Tencent API))
-    Huawei --> CloudAPI_Huawei((Huawei API))
-
-    Aliyun --> MetricsReg
-    Tencent --> MetricsReg
-    Huawei --> MetricsReg
+    Deployment --> S
+    PROM -- scrape --> S
+    SM -- discovery --> PROM
+    HS --> Deployment
+    HPA --> Deployment
+    PROBES --> Deployment
+    AFF --> Deployment
+  end
 ```
 
-## 2. 核心组件详解
+### 1.2 关键点
 
-### 2.1 Interface Layer (接口层)
-- **Entry Point (`cmd/multicloud-exporter/main.go`)**: 程序的启动入口，负责初始化配置、日志、组件，并启动采集循环和 HTTP 服务。
-- **HTTP Server**: 基于 `net/http`，暴露以下端点：
-    - `/metrics`: 标准 Prometheus 指标接口。
-    - `/api/discovery/*`: 用于查看和订阅动态发现配置的 API。
+- 副本与伸缩：`replicaCount` + `HPA`（CPU 70% 目标，`minReplicas`/`maxReplicas` 可调）。
+- 服务发现与负载：`Service` 提供负载均衡；可选 `Headless Service` 提供 Pod IP 列表用于成员发现。
+- 反亲和与调度优化：通过 `affinity`/`topologySpreadConstraints`（Chart 可配置）实现跨节点扩散。
+- 健康检查：容器暴露 `GET /healthz`（存活探针）与 `GET /metrics`（就绪探针）。
+- 指标采集与导出：使用 `ServiceMonitor` 或原生注解方式供 Prometheus 抓取。
 
-### 2.2 Control Layer (控制层)
-- **Collector (`internal/collector`)**: 核心调度器。
-    - 负责加载所有云账号配置。
-    - 并发调度各云厂商的采集任务。
-    - 管理采集周期（默认 60s）。
-- **Discovery Manager (`internal/discovery`)**: 资源与配置发现管理器。
-    - 负责动态发现需要采集的产品和指标配置。
-    - 监听配置文件（`ACCOUNTS_PATH`）变更，实现热加载。
-    - 维护当前配置的版本号 (`Version`)。
+### 1.3 Helm 关键配置
 
-### 2.3 Service Layer (服务层 - Providers)
-位于 `internal/providers/`，每个云厂商对应一个子包（如 `aliyun`, `tencent`）。
-- **职责**:
-    - **认证**: 管理 API 凭证 (AccessKey/Secret)。
-    - **资源发现**: 调用云 API 获取 Region 列表、资源实例列表。
-    - **指标采集**: 调用云监控 API (如 Aliyun CMS, Tencent Monitor) 获取监控数据。
-    - **数据转换**: 将云厂商数据模型转换为 Prometheus Metric。
-- **并发控制**:
-    - 支持 Region 级、Product 级、Metric 级的多级并发控制。
+- `values.yaml`：
+  - `replicaCount`: 副本数。
+  - `hpa.enabled`, `hpa.minReplicas`, `hpa.maxReplicas`, `hpa.metrics`: 自动伸缩规则。
+  - `probes.liveness`, `probes.readiness`: 健康探针。
+  - `headless.enabled`, `headless.name`: 是否启用 Headless Service。
+  - `cluster.discovery`: `headless` | `file` | 空；`cluster.svcName`/`cluster.file` 配合使用。
 
-### 2.4 Data Layer (数据层)
-- **Configuration (`internal/config`)**: 负责解析 `server.yaml`, `accounts.yaml`, `mappings/*.yaml` 等配置文件。
-- **Metrics Registry (`internal/metrics`)**: 定义了全局共享的 Prometheus 指标向量（Vectors），如 `ResourceMetric`。
-- **Logger (`internal/logger`)**: 基于 `zap` 的结构化日志组件。
+- 模板：
+  - `templates/deployment.yaml` 支持 `replicaCount`、探针、Cluster 相关环境变量、Downward API 注入。
+  - `templates/hpa.yaml`（启用时渲染）。
+  - `templates/service.yaml` 提供对外服务与 Prometheus 抓取入口。
+  - `templates/headless-service.yaml`（可选）为成员发现提供 Pod IP 解析。
+  - `templates/servicemonitor.yaml`（如使用 Operator）。
 
-## 3. 关键业务流程
+### 1.4 实现步骤
 
-### 3.1 启动流程
-1. **加载配置**: 读取 `config.yaml` 及环境变量。
-2. **初始化组件**: 启动 Logger, Discovery Manager。
-3. **加载映射**: 读取指标映射文件（定义云指标到 Prometheus 指标的转换规则）。
-4. **启动服务**:
-    - 启动 HTTP Server。
-    - 启动后台采集 Goroutine。
+- 设置 `replicaCount` 与资源请求，部署服务。
+- 根据负载开启 `hpa.enabled` 并配置目标指标（CPU或自定义）。
+- 如需成员分片，在 `values.yaml` 中设置：
+  - `headless.enabled: true`，并将 `cluster.discovery: headless`，`cluster.svcName` 指向 headless 服务名。
+- 如需强约束调度，配置 `affinity`/`topologySpreadConstraints`。
+- 使用 `ServiceMonitor` 或在 `Service` 上配置抓取注解，完成 Prometheus 集成。
 
-### 3.2 采集流程 (Collection Loop)
-1. **触发**: 定时器触发（默认 60s）。
-2. **账号遍历**: 获取所有配置的云账号。
-3. **并发调度**: 为每个账号启动一个 Goroutine。
-4. **资源发现**:
-    - 根据账号配置，自动发现 Region。
-    - (可选) 根据 Tag 或 Resource Group 过滤资源。
-5. **指标拉取**:
-    - 根据配置的产品（Product）和命名空间（Namespace），调用云监控 API。
-    - 使用多级并发（Region -> Product -> Metric）加速拉取。
-6. **指标更新**: 将获取的数据更新到 `metrics.ResourceMetric`。
+## 2. 传统宿主机并行架构
 
-### 3.3 热加载流程
-1. **监听**: Discovery Manager 轮询检查账号配置文件 (`ACCOUNTS_PATH`) 的 ModTime。
-2. **重载**: 若文件变更，重新读取并解析 YAML。
-3. **更新**: 更新内存中的配置对象。
-4. **生效**: 下一次采集循环读取到新配置即生效。
+### 2.1 架构图（Mermaid）
 
-## 4. 关键接口定义
+```mermaid
+graph LR
+  subgraph Hosts
+    I0[Exporter instance 0]
+    I1[Exporter instance 1]
+    I2[Exporter instance 2]
+    FILE[Shared members file]
+    SHARD[Deterministic sharding fnv]
+    HB[Heartbeat TTL cleanup]
+    HR[Hot-reload SIGHUP polling]
+  end
 
-### 4.1 Provider (采集插件)
+  PROM[Prometheus]
 
-位于 `internal/providers/registry.go`，定义了云厂商采集器的标准行为：
+  PROM -- scrape --> I0
+  PROM -- scrape --> I1
+  PROM -- scrape --> I2
 
-```go
-type Provider interface {
-    // Collect 执行该账号下的所有采集任务
-    Collect(account config.CloudAccount)
-}
+  FILE --> I0
+  FILE --> I1
+  FILE --> I2
+
+  SHARD --> I0
+  SHARD --> I1
+  SHARD --> I2
+
+  HB --> FILE
+  HR --> I0
+  HR --> I1
+  HR --> I2
 ```
 
-### 4.2 Discoverer (发现插件)
+### 2.2 核心算法
 
-位于 `internal/discovery/registry.go`，定义了云产品资源发现的标准行为：
+- 成员发现（K8s/宿主机通用）：`internal/collector/collector.go:103` 使用 `CLUSTER_DISCOVERY`。
+  - `headless`: 解析 `CLUSTER_SVC` DNS 获取 Pod IP 列表，匹配 `POD_IP` 得到 `(wTotal,wIndex)`。
+  - `file`: 读取 `CLUSTER_FILE` 列表，与 `POD_NAME`/`HOSTNAME` 匹配计算 `(wTotal,wIndex)`。
 
-```go
-type Discoverer interface {
-    // Discover 根据配置发现云产品及指标元数据
-    Discover(ctx context.Context, cfg *config.Config) []config.Product
-}
-```
+- 分片与路由：
+  - 账号级分片：`assignAccount` 在 `internal/collector/collector.go:182` 基于 `fnv` 哈希计算分片。
+  - 区域级分片：`assignRegion` 在 `internal/providers/aliyun/aliyun.go:900` 与 `internal/providers/tencent/tencent.go:344`。
+  - 哈希函数：`shardOf` 在 `internal/collector/collector.go:173`，`key` 按 provider/account 或 account/region 组合。
 
-## 5. 架构演进与评估
+- 心跳与注册：
+  - 轻量化方案：共享文件记录成员，实例周期性刷新自身条目（含时间戳），清理过期记录；无外部中间件。
+  - TTL 建议：30–120s；刷新间隔 10–30s。
 
-### 5.1 架构演进 (v0.2.0)
-- **插件化**：引入 `Registry` 机制，消除了 `Collector` 和 `Discovery` 中的厂商硬编码。
-- **并发安全**：引入 `RWMutex` 保护配置对象，解决了 Race Condition。
-- **内存管理**：实现了 `metrics.Reset()` 策略，解决了长期运行的内存增长问题。
+- 配置热更新：
+  - K8s：使用 ConfigMap + `stakater/reloader` 注解已集成；Chart 已支持。
+  - 宿主机：SIGHUP 信号触发配置重载，或定时轮询文件更新时间（推荐 15–60s）。
 
-### 5.2 现有优势
-1. **高扩展性**: 新增云厂商只需实现 `Provider` 和 `Discoverer` 接口并在 `init()` 中注册，无需修改核心代码。
-2. **配置驱动**: 高度可配置，支持通过 YAML 定义指标映射。
-3. **并发性能**: 细粒度的并发控制（Region -> Product -> Metric）。
-4. **可观测性**: 内置了 API 延迟、限流、采集耗时等自身监控指标。
+### 2.3 关键环境变量
 
-### 5.3 待优化项
-1. **无状态化**: 目前 Discovery 仍部分依赖本地配置文件，未来可对接远程 Service Discovery。
+- `CLUSTER_DISCOVERY`: `headless`/`file`/空。
+- `CLUSTER_SVC`: 成员服务名（headless）。
+- `CLUSTER_FILE`: 成员列表文件路径（file）。
+- `CLUSTER_WORKERS`/`CLUSTER_INDEX`: 静态分片参数回退。
+
+## 3. 通用要求实现
+
+### 3.1 监控指标
+
+- 采集成效与性能：
+  - `collection_duration_seconds` 在 `cmd/multicloud-exporter/main.go:128` 统计周期时长。
+  - `request_total` 与 `request_duration_seconds` 在各 provider 中记录云 API 成功/失败与耗时。
+  - `rate_limit_total` 统计限流触发次数。
+  - 资源指标：统一暴露在 `metrics.NamespaceMetric`/`metrics.ResourceMetric`，示例见 `internal/metrics/*`。
+
+### 3.2 自动化部署
+
+- Kubernetes：
+  - 安装：`helm install mce ./chart -f values.yaml`。
+  - 副本与伸缩：设置 `replicaCount`，或启用 `hpa.enabled`。
+  - 成员发现：`headless.enabled: true`；`cluster.discovery: headless`；`cluster.svcName: <svc-name>`。
+  - 健康检查：`probes.liveness/readiness` 默认启用。
+  - 认证与安全：`server.admin_auth_enabled` 启用管理接口 BasicAuth；通过 Ingress/ServiceMesh 终止 TLS；云 SDK 强制 HTTPS。
+
+- 宿主机：
+  - Systemd 单元示例：
+    ```
+    [Unit]
+    Description=multicloud-exporter
+    After=network.target
+
+    [Service]
+    ExecStart=/usr/local/bin/multicloud-exporter
+    Environment="SERVER_PATH=/etc/mce/server.yaml"
+    Environment="CLUSTER_DISCOVERY=file"
+    Environment="CLUSTER_FILE=/var/run/mce/members.txt"
+    Restart=always
+
+    [Install]
+    WantedBy=multi-user.target
+    ```
+  - Prometheus `static_configs` 指向各实例 `:9101`。
+
+### 3.3 高可用与故障转移
+
+- K8s：Deployment 多副本 + HPA；探针失败自动重启；Pod 反亲和减少同机失败概率；Prometheus 多 target 抓取容错。
+- 宿主机：多实例并行；成员 TTL 清理避免僵尸；分片哈希稳定，实例宕机后剩余实例仍覆盖其分片（通过总成员变化重算）。
+
+### 3.4 性能指标与目标
+
+- 采集周期建议与云 API Period 匹配（详见 README）。
+- 并发控制：
+  - 区域并发：`server.region_concurrency`；
+  - 产品并发：`server.product_concurrency`；
+  - 指标并发：`server.metric_concurrency`；
+  - 最终目标：P95 周期完成时间 ≤ 周期时长的 0.6；错误率 ≤ 0.1%。
+  - 基准与压力：CI 执行 `go test -bench . -benchmem -run ^$ ./...` 与并行压力 `go test -race -run . -parallel 16 ./...`，收集 `benchmem` 指标并观察限流错误。
+
+### 3.5 平滑升级与回滚
+
+- K8s：RollingUpdate（`maxUnavailable=0` 推荐）；保留旧版本镜像；Chart 版本化。
+- 宿主机：逐台滚动，利用系统级负载均衡与 Prometheus 抓取冗余避免可见中断；可在灰度窗口观察核心指标。
+
+## 4. 关键实现引用
+
+- `cmd/multicloud-exporter/main.go:137` 注册 `/metrics`；`cmd/multicloud-exporter/main.go:137`–`179` 周期采集与事件流接口；`cmd/multicloud-exporter/main.go:137` 新增 `/healthz`。
+- `internal/collector/collector.go:103` 成员发现；`internal/collector/collector.go:182` 账号分片；`internal/collector/collector.go:173` 哈希函数。
+- `internal/providers/aliyun/aliyun.go:119` 区域分片；`internal/providers/tencent/tencent.go:52` 区域分片。
+- `chart/templates/deployment.yaml`、`chart/templates/hpa.yaml`、`chart/templates/headless-service.yaml`：部署、伸缩与成员发现支持。
+
+## 5. 配置参数总览（Helm）
+
+- `replicaCount`
+- `hpa.enabled`, `hpa.minReplicas`, `hpa.maxReplicas`, `hpa.metrics`
+- `probes.liveness.*`, `probes.readiness.*`
+- `headless.enabled`, `headless.name`
+- `cluster.discovery`, `cluster.svcName`, `cluster.file`
+- `server.*`（采集并发、日志、周期）
+
+## 6. 实施清单
+
+- 部署前校验：`helm lint chart/`；`go build`；`go vet`。
+- 监控接入：配置 `ServiceMonitor` 或抓取注解；加载 Grafana Dashboard。
+- 压测与配额：根据 API 限流优化并发与周期；观察 `request_total` 的 `limit_error` 维度。

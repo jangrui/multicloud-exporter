@@ -132,9 +132,9 @@ func LoadConfig() (*Config, error) {
 }
 
 type ServerConf struct {
-	ServiceEndpoint string `yaml:"service_endpoint"`
-	Port            int    `yaml:"port"`
-	PageSize        int    `yaml:"page_size"`
+    ServiceEndpoint string `yaml:"service_endpoint"`
+    Port            int    `yaml:"port"`
+    PageSize        int    `yaml:"page_size"`
 	// Deprecated: use Log.Output instead
 	LogDest int `yaml:"log_dest"`
 	// Deprecated: use Log.File.Path instead
@@ -171,7 +171,9 @@ type ServerConf struct {
 	// ResourceDimMapping 定义各云厂商、各产品（Namespace）的资源维度校验规则。
 	// Key 为 "provider.namespace"，例如 "aliyun.acs_ecs_dashboard"。
 	// Value 为该产品必须包含的维度键列表（任一匹配即可），例如 ["InstanceId", "instance_id"]。
-	ResourceDimMapping map[string][]string `yaml:"resource_dim_mapping"`
+    ResourceDimMapping map[string][]string `yaml:"resource_dim_mapping"`
+    AdminAuthEnabled   bool               `yaml:"admin_auth_enabled"`
+    AdminAuth          []BasicAuth        `yaml:"admin_auth"`
 }
 
 type FileLogConfig struct {

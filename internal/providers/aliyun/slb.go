@@ -194,82 +194,13 @@ func (a *Collector) fetchSLBTags(account config.CloudAccount, region, namespace,
 			time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
 		}
 
-		if callErr == nil && resp != nil {
-			content := resp.GetHttpContentBytes()
-
-			// 解析格式 A: TagResources -> [] { ResourceId, Tags }
-			var jrA struct {
-				TagResources []struct {
-					ResourceId  string `json:"ResourceId"`
-					ResourceARN string `json:"ResourceARN"`
-					Tags        []struct {
-						Key      string `json:"Key"`
-						Value    string `json:"Value"`
-						TagKey   string `json:"TagKey"`
-						TagValue string `json:"TagValue"`
-					} `json:"Tags"`
-				} `json:"TagResources"`
-			}
-			if err := json.Unmarshal(content, &jrA); err == nil && len(jrA.TagResources) > 0 {
-				for _, tr := range jrA.TagResources {
-					id := tr.ResourceId
-					if id == "" && tr.ResourceARN != "" {
-						// Parse ID from ARN
-						parts := strings.Split(tr.ResourceARN, "/")
-						if len(parts) > 0 {
-							id = parts[len(parts)-1]
-						}
-					}
-					if id == "" {
-						continue
-					}
-					for _, t := range tr.Tags {
-						k := t.Key
-						if k == "" {
-							k = t.TagKey
-						}
-						v := t.Value
-						if v == "" {
-							v = t.TagValue
-						}
-						if strings.EqualFold(k, "CodeName") || strings.EqualFold(k, "code_name") {
-							out[id] = v
-						}
-					}
-				}
-			}
-
-			// 解析格式 B: TagResources -> TagResource -> [] { ResourceId, TagKey, TagValue }
-			var jrB struct {
-				TagResources struct {
-					TagResource []struct {
-						ResourceId string `json:"ResourceId"`
-						TagKey     string `json:"TagKey"`
-						TagValue   string `json:"TagValue"`
-						Key        string `json:"Key"`
-						Value      string `json:"Value"`
-					} `json:"TagResource"`
-				} `json:"TagResources"`
-			}
-			if err := json.Unmarshal(content, &jrB); err == nil && len(jrB.TagResources.TagResource) > 0 {
-				for _, tr := range jrB.TagResources.TagResource {
-					if tr.ResourceId == "" {
-						continue
-					}
-					k := tr.TagKey
-					if k == "" {
-						k = tr.Key
-					}
-					v := tr.TagValue
-					if v == "" {
-						v = tr.Value
-					}
-					if strings.EqualFold(k, "CodeName") || strings.EqualFold(k, "code_name") {
-						out[tr.ResourceId] = v
-					}
-				}
-			}
-		}
+            if callErr == nil && resp != nil {
+                content := resp.GetHttpContentBytes()
+                parsed := parseSLBTagsContent(content)
+                for k, v := range parsed {
+                    out[k] = v
+                }
+            }
 
 		// 进度日志
 		if (end)%100 == 0 || end == total {
@@ -288,4 +219,77 @@ func (a *Collector) fetchSLBTags(account config.CloudAccount, region, namespace,
 	}
 	ctxLog.Debugf("SLB 标签采集完成 资源数=%d 有code_name=%d", len(ids), assigned)
 	return out
+}
+
+func parseSLBTagsContent(content []byte) map[string]string {
+    out := make(map[string]string)
+    var jrA struct {
+        TagResources []struct {
+            ResourceId  string `json:"ResourceId"`
+            ResourceARN string `json:"ResourceARN"`
+            Tags        []struct {
+                Key      string `json:"Key"`
+                Value    string `json:"Value"`
+                TagKey   string `json:"TagKey"`
+                TagValue string `json:"TagValue"`
+            } `json:"Tags"`
+        } `json:"TagResources"`
+    }
+    if err := json.Unmarshal(content, &jrA); err == nil && len(jrA.TagResources) > 0 {
+        for _, tr := range jrA.TagResources {
+            id := tr.ResourceId
+            if id == "" && tr.ResourceARN != "" {
+                parts := strings.Split(tr.ResourceARN, "/")
+                if len(parts) > 0 {
+                    id = parts[len(parts)-1]
+                }
+            }
+            if id == "" {
+                continue
+            }
+            for _, t := range tr.Tags {
+                k := t.Key
+                if k == "" {
+                    k = t.TagKey
+                }
+                v := t.Value
+                if v == "" {
+                    v = t.TagValue
+                }
+                if strings.EqualFold(k, "CodeName") || strings.EqualFold(k, "code_name") {
+                    out[id] = v
+                }
+            }
+        }
+    }
+    var jrB struct {
+        TagResources struct {
+            TagResource []struct {
+                ResourceId string `json:"ResourceId"`
+                TagKey     string `json:"TagKey"`
+                TagValue   string `json:"TagValue"`
+                Key        string `json:"Key"`
+                Value      string `json:"Value"`
+            } `json:"TagResource"`
+        } `json:"TagResources"`
+    }
+    if err := json.Unmarshal(content, &jrB); err == nil && len(jrB.TagResources.TagResource) > 0 {
+        for _, tr := range jrB.TagResources.TagResource {
+            if tr.ResourceId == "" {
+                continue
+            }
+            k := tr.TagKey
+            if k == "" {
+                k = tr.Key
+            }
+            v := tr.TagValue
+            if v == "" {
+                v = tr.Value
+            }
+            if strings.EqualFold(k, "CodeName") || strings.EqualFold(k, "code_name") {
+                out[tr.ResourceId] = v
+            }
+        }
+    }
+    return out
 }

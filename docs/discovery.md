@@ -19,6 +19,7 @@
 - 监听：定期检查 `ACCOUNTS_PATH` 文件修改时间；当解析后资源集合签名变化时触发刷新。
 - TTL：资源发现缓存按 `server.discovery_ttl` 控制（默认 `1h`）。
 - 持久化：默认写入 `configs/products.auto.yaml`；可通过 `server.no_savepoint: true` 禁用。
+- 认证：管理接口可选 BasicAuth；建议在生产环境下通过 TLS 暴露。
 
 ## 配置来源
 
@@ -50,6 +51,7 @@
 
 - 单元测试：`internal/discovery/manager_test.go` 覆盖刷新与通知。
 - 基准测试：`BenchmarkManagerRefresh` 验证大规模指标列表下的性能。
+- 监听测试：`internal/discovery/watch_test.go` 验证文件更改触发刷新与广播通知。
 
 ## 使用建议
 

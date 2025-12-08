@@ -1,16 +1,16 @@
 package tencent
 
 import (
-	"time"
+    "time"
 
-	"multicloud-exporter/internal/config"
-	"multicloud-exporter/internal/logger"
-	"multicloud-exporter/internal/metrics"
+    "multicloud-exporter/internal/config"
+    "multicloud-exporter/internal/logger"
+    "multicloud-exporter/internal/metrics"
 
-	clb "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/clb/v20180317"
-	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
-	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
-	monitor "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/monitor/v20180724"
+    clb "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/clb/v20180317"
+    "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
+    "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
+    monitor "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/monitor/v20180724"
 )
 
 func (t *Collector) listCLBVips(account config.CloudAccount, region string) []string {
@@ -107,29 +107,37 @@ func (t *Collector) fetchCLBMonitor(account config.CloudAccount, region string, 
 				if dp == nil || len(dp.Dimensions) == 0 || len(dp.Values) == 0 {
 					continue
 				}
-				var rid string
-				for _, d := range dp.Dimensions {
-					if d != nil && d.Name != nil && d.Value != nil && *d.Name == "vip" {
-						rid = *d.Value
-						break
-					}
-				}
-				if rid == "" {
-					continue
-				}
+                rid := extractDimension(dp.Dimensions, "vip")
+                if rid == "" {
+                    continue
+                }
 				val := float64(0)
 				if v := dp.Values[len(dp.Values)-1]; v != nil {
 					val = *v
 				}
 				alias := metrics.NamespaceGauge("QCE/CLB", m)
-				scaled := val
-				if scale := metrics.GetMetricScale("QCE/CLB", m); scale != 0 && scale != 1 {
-					scaled = val * scale
-				} else if m == "VipIntraffic" || m == "VipOuttraffic" {
-					scaled = val * 1000000
-				}
-				alias.WithLabelValues("tencent", account.AccountID, region, "lb", rid, "QCE/CLB", m, "").Set(scaled)
-			}
-		}
-	}
+                scaled := scaleCLBMetric(m, val)
+                alias.WithLabelValues("tencent", account.AccountID, region, "lb", rid, "QCE/CLB", m, "").Set(scaled)
+            }
+        }
+    }
+}
+
+func extractDimension(dims []*monitor.Dimension, target string) string {
+    for _, d := range dims {
+        if d != nil && d.Name != nil && d.Value != nil && *d.Name == target {
+            return *d.Value
+        }
+    }
+    return ""
+}
+
+func scaleCLBMetric(metric string, val float64) float64 {
+    if s := metrics.GetMetricScale("QCE/CLB", metric); s != 0 && s != 1 {
+        return val * s
+    }
+    if metric == "VipIntraffic" || metric == "VipOuttraffic" {
+        return val * 1000000
+    }
+    return val
 }

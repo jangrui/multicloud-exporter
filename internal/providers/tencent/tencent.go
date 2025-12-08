@@ -1,6 +1,12 @@
 package tencent
 
 import (
+	"bufio"
+	"hash/fnv"
+	"net"
+	"os"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -43,7 +49,11 @@ func (t *Collector) Collect(account config.CloudAccount) {
 	}
 
 	var wg sync.WaitGroup
+	wTotal, wIndex := clusterConf()
 	for _, region := range regions {
+		if !assignRegion(account.AccountID, region, wTotal, wIndex) {
+			continue
+		}
 		wg.Add(1)
 		go func(r string) {
 			defer wg.Done()
@@ -255,4 +265,86 @@ func classifyTencentError(err error) string {
 		return "network_error"
 	}
 	return "error"
+}
+
+func clusterConf() (int, int) {
+	if os.Getenv("CLUSTER_DISCOVERY") == "headless" {
+		svc := os.Getenv("CLUSTER_SVC")
+		selfIP := os.Getenv("POD_IP")
+		if svc != "" && selfIP != "" {
+			if ips, err := net.LookupIP(svc); err == nil && len(ips) > 0 {
+				var list []string
+				for _, ip := range ips {
+					list = append(list, ip.String())
+				}
+				sort.Strings(list)
+				for i, ip := range list {
+					if ip == selfIP {
+						return len(list), i
+					}
+				}
+			}
+		}
+	}
+	if os.Getenv("CLUSTER_DISCOVERY") == "file" {
+		path := os.Getenv("CLUSTER_FILE")
+		self := os.Getenv("POD_NAME")
+		if self == "" {
+			self = os.Getenv("HOSTNAME")
+		}
+		if path != "" && self != "" {
+			if f, err := os.Open(path); err == nil {
+				defer func() { _ = f.Close() }()
+				var members []string
+				sc := bufio.NewScanner(f)
+				for sc.Scan() {
+					line := strings.TrimSpace(sc.Text())
+					if line != "" {
+						members = append(members, line)
+					}
+				}
+				if len(members) > 0 {
+					sort.Strings(members)
+					for i, m := range members {
+						if m == self {
+							return len(members), i
+						}
+					}
+				}
+			}
+		}
+	}
+	total := 1
+	index := 0
+	if v := os.Getenv("CLUSTER_WORKERS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			total = n
+		}
+	}
+	if v := os.Getenv("CLUSTER_INDEX"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			index = n
+		}
+	}
+	if index >= total {
+		index = index % total
+	}
+	return total, index
+}
+
+func shardOf(s string, n int) int {
+	if n <= 1 {
+		return 0
+	}
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(s))
+	return int(h.Sum32() % uint32(n))
+}
+
+func assignRegion(accountID, region string, total, index int) bool {
+	if total <= 1 {
+		return true
+	}
+	key := accountID + "|" + region
+	return shardOf(key, total) == index
 }

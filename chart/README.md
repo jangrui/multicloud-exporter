@@ -12,13 +12,13 @@ kubectl -n monitoring create secret generic aliyun-accounts \
 
 helm repo add jangrui https://jangrui.com/chart --force-update
 
-helm -n monitoring upgrade -i multicloud-exporter jangrui/multicloud-exporter --version v0.0.1
+helm -n monitoring upgrade -i multicloud-exporter jangrui/multicloud-exporter --version v0.1.6
 
 # 检查
 kubectl -n monitoring get po,svc -l app.kubernetes.io/name=multicloud-exporter
 ```
 
-默认监听 `9101` 端口并创建 `ClusterIP` Service，采集间隔为 `60` 秒。
+默认监听 `9101` 端口并创建 `ClusterIP` Service，采集间隔为 `60s`。
 
 ## 自身监控
 
@@ -42,11 +42,11 @@ Exporter 暴露了 `/metrics` 端点，其中包含自身运行状态指标：
   - `service.type`：Service 类型（默认 `ClusterIP`）
 
 - 环境变量
-  - `env.scrapeInterval`：采集间隔秒数（字符串，默认 `"60"`）
+  - `values.env`：按需覆盖运行环境变量（如 `SCRAPE_INTERVAL`）
 
 - 配置文件
   - `server.yaml`：由 `values.server` 渲染为 ConfigMap 并挂载到容器固定路径
-  - `products.yaml`：可选，受 `values.products.enabled` 控制；禁用时不挂载，Exporter 使用自动发现
+  - `products.yaml`：已废弃；Exporter 采用自动发现机制
   - `accounts.yaml`：由用户预创建 Secret 提供并挂载到容器固定路径
 
 -- 账号 Secret 引用
@@ -72,7 +72,7 @@ Exporter 暴露了 `/metrics` 端点，其中包含自身运行状态指标：
 
 ### 采集频率与数据周期
 
-配置 `env.scrapeInterval` (采集频率) 与云厂商 API 的 `Period` (数据聚合周期) 的关系至关重要。
+配置 `server.scrape_interval` (采集频率) 与云厂商 API 的 `Period` (数据聚合周期) 的关系至关重要。
 
 #### 1. 场景推演
 
@@ -101,4 +101,5 @@ Exporter 暴露了 `/metrics` 端点，其中包含自身运行状态指标：
 ## 备注
 
 - 建议将敏感配置通过 Secret 管理，避免直接提交到版本库。
- - Chart 不再支持 `server.discovery_refresh`；Exporter 通过监听 `accounts.yaml` 的资源集合变化触发发现刷新。
+- Chart 支持以 `v*.*.*` 的版本标签进行安装与升级；请确保 Helm 3.x。
+- Exporter 通过监听 `accounts.yaml` 的资源集合变化触发发现刷新。

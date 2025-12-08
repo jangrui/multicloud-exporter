@@ -102,13 +102,7 @@ func (t *Collector) fetchBWPMonitor(account config.CloudAccount, region string, 
 				if dp == nil || len(dp.Dimensions) == 0 || len(dp.Values) == 0 {
 					continue
 				}
-				var rid string
-				for _, d := range dp.Dimensions {
-					if d != nil && d.Name != nil && d.Value != nil && *d.Name == "bandwidthPackageId" {
-						rid = *d.Value
-						break
-					}
-				}
+				rid := extractDimension(dp.Dimensions, "bandwidthPackageId")
 				if rid == "" {
 					continue
 				}
@@ -117,12 +111,20 @@ func (t *Collector) fetchBWPMonitor(account config.CloudAccount, region string, 
 					val = *v
 				}
 				alias := metrics.NamespaceGauge("QCE/BWP", m)
-				scaled := val
-				if m == "InTraffic" || m == "OutTraffic" {
-					scaled = val * 1000000
-				}
+				scaled := scaleBWPMetric(m, val)
 				alias.WithLabelValues("tencent", account.AccountID, region, "bwp", rid, "QCE/BWP", m, "").Set(scaled)
 			}
 		}
 	}
+}
+
+func scaleBWPMetric(metric string, val float64) float64 {
+	if s := metrics.GetMetricScale("QCE/BWP", metric); s != 0 && s != 1 {
+		return val * s
+	}
+	if metric == "InTraffic" || metric == "OutTraffic" {
+		return val * 1000000
+	}
+	return val
+
 }
