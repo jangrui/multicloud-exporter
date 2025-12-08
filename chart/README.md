@@ -72,7 +72,7 @@ Exporter 暴露了 `/metrics` 端点，其中包含自身运行状态指标：
 
 ### 采集频率与数据周期
 
-配置 `server.scrape_interval` (采集频率) 与云厂商 API 的 `Period` (数据聚合周期) 的关系至关重要。
+配置 `server.scrape_interval` (采集频率) 与云厂商 API 的 `Period` (数据聚合周期) 的关系至关重要。Exporter 在未显式配置时会自动从云侧元数据选择该指标的最小可用 `Period`。
 
 #### 1. 场景推演
 

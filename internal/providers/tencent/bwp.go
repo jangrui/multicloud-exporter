@@ -68,7 +68,11 @@ func (t *Collector) fetchBWPMonitor(account config.CloudAccount, region string, 
 			req := monitor.NewGetMonitorDataRequest()
 			req.Namespace = common.StringPtr("QCE/BWP")
 			req.MetricName = common.StringPtr(m)
-			req.Period = common.Uint64Ptr(uint64(period))
+			per := period
+			if prod.Period == nil && group.Period == nil {
+				per = minPeriodForMetric(region, account, "QCE/BWP", m)
+			}
+			req.Period = common.Uint64Ptr(uint64(per))
 			var inst []*monitor.Instance
 			for _, id := range ids {
 				inst = append(inst, &monitor.Instance{
@@ -78,7 +82,7 @@ func (t *Collector) fetchBWPMonitor(account config.CloudAccount, region string, 
 				})
 			}
 			req.Instances = inst
-			start := time.Now().Add(-time.Duration(period) * time.Second)
+			start := time.Now().Add(-time.Duration(per) * time.Second)
 			end := time.Now()
 			req.StartTime = common.StringPtr(start.UTC().Format("2006-01-02T15:04:05Z"))
 			req.EndTime = common.StringPtr(end.UTC().Format("2006-01-02T15:04:05Z"))

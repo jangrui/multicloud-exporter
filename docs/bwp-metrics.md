@@ -1,5 +1,7 @@
 # 共享带宽（BWP）指标规范与映射
 
+> 更新记录：2025-12-08；修改者：@jangrui；内容：确认腾讯云映射与 Period 自动适配；补充统一单位与实现位置引用。
+
 ## 统一命名
 
 - 前缀：`bwp_`
@@ -36,14 +38,17 @@
 - API 参考：云产品监控指标索引、服务接入点、`DescribeMetricLast`。
 
 ## 腾讯云映射（接入计划）
+ 
+## 腾讯云映射
 
-- 命名空间：共享带宽包（BWP）命名空间以官方文档为准（如 `QCE/BWP`）。
-- 指标与维度：通过 `DescribeBaseMetrics` 获取维度与周期，并映射到统一的 8 项指标名。
+- 命名空间：`QCE/BWP`
+- 指标别名注册：`internal/metrics/tencent/bwp.go:9-18`
+- Period 自动适配：未显式配置时按云侧元数据选择指标最小可用周期；实现见 `internal/providers/tencent/tencent.go:136-197`，调用于 `internal/providers/tencent/bwp.go:75-79`
 - 统一策略：
-  - 若腾讯云提供利用率指标，直接映射到 `bwp_*_utilization_pct`；若仅提供速率与配额，将在采集侧计算利用率。
-  - 速率单位对齐：如云侧单位不一致，优先转换为 bit/s 与 pps。
-  - 丢弃包速率：若云侧有不同含义（限速/错误丢弃），增加标签 `drop_reason` 进行区分（未来可选）。
-- API 参考：`DescribeProductList`、`DescribeBaseMetrics`、`DescribeStatisticData`、`GetMonitorData`。
+  - 若云侧提供利用率指标（如 `IntrafficBwpRatio/OuttrafficBwpRatio`），直接映射到 `bwp_*_utilization_pct`。
+  - 速率单位统一为 bit/s 与 pps；缩放逻辑测试覆盖见 `internal/providers/tencent/scale_test.go:11-15`。
+  - 丢弃包速率（如提供）遵循 `*_drop_pps` 命名；如语义差异，后续可通过标签区分（如 `drop_reason`）。
+ - API 参考：`DescribeBaseMetrics`、`GetMonitorData`。
 
 ## Prometheus 暴露示例
 
@@ -62,4 +67,3 @@ bwp_in_utilization_pct{
 - 指标可读：名称直观、语义明确，减少云厂商差异对使用方的影响。
 - 单位统一：尽量将速率统一到 bit/s 与 pps；过渡期可保留云侧原单位并在文档标注。
 - 渐进接入：先完成阿里云对齐，腾讯云按命名空间与指标文档逐步映射，保持相同行为与标签规范。
-

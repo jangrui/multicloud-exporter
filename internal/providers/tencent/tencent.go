@@ -2,6 +2,7 @@ package tencent
 
 import (
 	"bufio"
+	"encoding/json"
 	"hash/fnv"
 	"net"
 	"os"
@@ -20,6 +21,7 @@ import (
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
 	cvm "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/cvm/v20170312"
+	monitor "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/monitor/v20180724"
 )
 
 type Collector struct {
@@ -265,6 +267,107 @@ func classifyTencentError(err error) string {
 		return "network_error"
 	}
 	return "error"
+}
+
+var (
+	periodMu                sync.RWMutex
+	periodCache             = make(map[string]int64)
+	describeBaseMetricsJSON = func(region, ak, sk, namespace string) ([]byte, error) {
+		cred := common.NewCredential(ak, sk)
+		client, err := monitor.NewClient(cred, region, profile.NewClientProfile())
+		if err != nil {
+			return nil, err
+		}
+		req := monitor.NewDescribeBaseMetricsRequest()
+		req.Namespace = common.StringPtr(namespace)
+		start := time.Now()
+		resp, err := client.DescribeBaseMetrics(req)
+		if err != nil || resp == nil || resp.Response == nil {
+			return nil, err
+		}
+		metrics.RequestTotal.WithLabelValues("tencent", "DescribeBaseMetrics", "success").Inc()
+		metrics.RequestDuration.WithLabelValues("tencent", "DescribeBaseMetrics").Observe(time.Since(start).Seconds())
+		return json.Marshal(resp.Response)
+	}
+)
+
+func minPeriodForMetric(region string, account config.CloudAccount, namespace, metric string) int64 {
+	key := namespace + "|" + metric
+	periodMu.RLock()
+	if v, ok := periodCache[key]; ok && v > 0 {
+		periodMu.RUnlock()
+		return v
+	}
+	periodMu.RUnlock()
+	bs, err := describeBaseMetricsJSON(region, account.AccessKeyID, account.AccessKeySecret, namespace)
+	if err != nil {
+		status := classifyTencentError(err)
+		metrics.RequestTotal.WithLabelValues("tencent", "DescribeBaseMetrics", status).Inc()
+		return 60
+	}
+	var jr struct {
+		MetricSet []struct {
+			MetricName *string `json:"MetricName"`
+			Periods    any     `json:"Periods"`
+			Period     any     `json:"Period"`
+		} `json:"MetricSet"`
+	}
+	_ = json.Unmarshal(bs, &jr)
+	min := int64(0)
+	for _, m := range jr.MetricSet {
+		if m.MetricName == nil || *m.MetricName != metric {
+			continue
+		}
+		switch v := m.Periods.(type) {
+		case []any:
+			for _, p := range v {
+				switch pv := p.(type) {
+				case float64:
+					pi := int64(pv)
+					if pi > 0 && (min == 0 || pi < min) {
+						min = pi
+					}
+				case int64:
+					pi := pv
+					if pi > 0 && (min == 0 || pi < min) {
+						min = pi
+					}
+				case string:
+					if n, err := strconv.Atoi(strings.TrimSpace(pv)); err == nil {
+						pi := int64(n)
+						if pi > 0 && (min == 0 || pi < min) {
+							min = pi
+						}
+					}
+				}
+			}
+		}
+		if min == 0 {
+			switch v := m.Period.(type) {
+			case float64:
+				pi := int64(v)
+				if pi > 0 {
+					min = pi
+				}
+			case int64:
+				if v > 0 {
+					min = v
+				}
+			case string:
+				if n, err := strconv.Atoi(strings.TrimSpace(v)); err == nil && n > 0 {
+					min = int64(n)
+				}
+			}
+		}
+		break
+	}
+	if min == 0 {
+		min = 60
+	}
+	periodMu.Lock()
+	periodCache[key] = min
+	periodMu.Unlock()
+	return min
 }
 
 func clusterConf() (int, int) {

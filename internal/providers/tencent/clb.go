@@ -1,16 +1,16 @@
 package tencent
 
 import (
-    "time"
+	"time"
 
-    "multicloud-exporter/internal/config"
-    "multicloud-exporter/internal/logger"
-    "multicloud-exporter/internal/metrics"
+	"multicloud-exporter/internal/config"
+	"multicloud-exporter/internal/logger"
+	"multicloud-exporter/internal/metrics"
 
-    clb "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/clb/v20180317"
-    "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
-    "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
-    monitor "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/monitor/v20180724"
+	clb "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/clb/v20180317"
+	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
+	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
+	monitor "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/monitor/v20180724"
 )
 
 func (t *Collector) listCLBVips(account config.CloudAccount, region string) []string {
@@ -72,7 +72,11 @@ func (t *Collector) fetchCLBMonitor(account config.CloudAccount, region string, 
 			req := monitor.NewGetMonitorDataRequest()
 			req.Namespace = common.StringPtr("QCE/CLB")
 			req.MetricName = common.StringPtr(m)
-			req.Period = common.Uint64Ptr(uint64(period))
+			per := period
+			if prod.Period == nil && group.Period == nil {
+				per = minPeriodForMetric(region, account, "QCE/CLB", m)
+			}
+			req.Period = common.Uint64Ptr(uint64(per))
 			var inst []*monitor.Instance
 			for _, vip := range vips {
 				inst = append(inst, &monitor.Instance{
@@ -82,7 +86,7 @@ func (t *Collector) fetchCLBMonitor(account config.CloudAccount, region string, 
 				})
 			}
 			req.Instances = inst
-			start := time.Now().Add(-time.Duration(period) * time.Second)
+			start := time.Now().Add(-time.Duration(per) * time.Second)
 			end := time.Now()
 			req.StartTime = common.StringPtr(start.UTC().Format("2006-01-02T15:04:05Z"))
 			req.EndTime = common.StringPtr(end.UTC().Format("2006-01-02T15:04:05Z"))
@@ -107,37 +111,37 @@ func (t *Collector) fetchCLBMonitor(account config.CloudAccount, region string, 
 				if dp == nil || len(dp.Dimensions) == 0 || len(dp.Values) == 0 {
 					continue
 				}
-                rid := extractDimension(dp.Dimensions, "vip")
-                if rid == "" {
-                    continue
-                }
+				rid := extractDimension(dp.Dimensions, "vip")
+				if rid == "" {
+					continue
+				}
 				val := float64(0)
 				if v := dp.Values[len(dp.Values)-1]; v != nil {
 					val = *v
 				}
 				alias := metrics.NamespaceGauge("QCE/CLB", m)
-                scaled := scaleCLBMetric(m, val)
-                alias.WithLabelValues("tencent", account.AccountID, region, "lb", rid, "QCE/CLB", m, "").Set(scaled)
-            }
-        }
-    }
+				scaled := scaleCLBMetric(m, val)
+				alias.WithLabelValues("tencent", account.AccountID, region, "lb", rid, "QCE/CLB", m, "").Set(scaled)
+			}
+		}
+	}
 }
 
 func extractDimension(dims []*monitor.Dimension, target string) string {
-    for _, d := range dims {
-        if d != nil && d.Name != nil && d.Value != nil && *d.Name == target {
-            return *d.Value
-        }
-    }
-    return ""
+	for _, d := range dims {
+		if d != nil && d.Name != nil && d.Value != nil && *d.Name == target {
+			return *d.Value
+		}
+	}
+	return ""
 }
 
 func scaleCLBMetric(metric string, val float64) float64 {
-    if s := metrics.GetMetricScale("QCE/CLB", metric); s != 0 && s != 1 {
-        return val * s
-    }
-    if metric == "VipIntraffic" || metric == "VipOuttraffic" {
-        return val * 1000000
-    }
-    return val
+	if s := metrics.GetMetricScale("QCE/CLB", metric); s != 0 && s != 1 {
+		return val * s
+	}
+	if metric == "VipIntraffic" || metric == "VipOuttraffic" {
+		return val * 1000000
+	}
+	return val
 }

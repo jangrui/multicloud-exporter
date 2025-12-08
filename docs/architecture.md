@@ -1,5 +1,7 @@
 # multicloud-exporter 集群与并行架构设计
 
+> 更新记录：2025-12-08；修改者：@jangrui；内容：补充 Period 自动适配、来源优先级与统一指标映射；校准组件说明与技术选型。
+
 ## 1. 云原生架构（Kubernetes）
 
 ### 1.1 架构图（Mermaid）
@@ -37,6 +39,7 @@ graph LR
 - 反亲和与调度优化：通过 `affinity`/`topologySpreadConstraints`（Chart 可配置）实现跨节点扩散。
 - 健康检查：容器暴露 `GET /healthz`（存活探针）与 `GET /metrics`（就绪探针）。
 - 指标采集与导出：使用 `ServiceMonitor` 或原生注解方式供 Prometheus 抓取。
+- Period 自动适配：未显式配置时，采集器调用云侧元数据接口选择指标的最小可用 `Period`，以与 `server.scrape_interval` 保持一致；实现位置见 `internal/providers/tencent/tencent.go:136-197`，调用点 `internal/providers/tencent/clb.go:79-83`、`internal/providers/tencent/bwp.go:75-79`，阿里云参考 `internal/providers/aliyun/aliyun.go:561-615`。
 
 ### 1.3 Helm 关键配置
 
@@ -62,6 +65,7 @@ graph LR
   - `headless.enabled: true`，并将 `cluster.discovery: headless`，`cluster.svcName` 指向 headless 服务名。
 - 如需强约束调度，配置 `affinity`/`topologySpreadConstraints`。
 - 使用 `ServiceMonitor` 或在 `Service` 上配置抓取注解，完成 Prometheus 集成。
+- 配置 Period 与采集频率：`server.scrape_interval` 推荐与云侧最小 `Period` 一致；Chart 文档与 README 已补充说明。
 
 ## 2. 传统宿主机并行架构
 
@@ -134,6 +138,7 @@ graph LR
   - `request_total` 与 `request_duration_seconds` 在各 provider 中记录云 API 成功/失败与耗时。
   - `rate_limit_total` 统计限流触发次数。
   - 资源指标：统一暴露在 `metrics.NamespaceMetric`/`metrics.ResourceMetric`，示例见 `internal/metrics/*`。
+- 统一命名与映射：通过 `configs/mappings/*.yaml` 与别名函数保持跨云一致（如 LB 与 BWP）；Aliyun SLB 别名函数见 `internal/metrics/aliyun/slb.go:22-46`，BWP 前缀注册见 `internal/metrics/tencent/bwp.go:9-18`。
 
 ### 3.2 自动化部署
 
@@ -198,6 +203,10 @@ graph LR
 - `headless.enabled`, `headless.name`
 - `cluster.discovery`, `cluster.svcName`, `cluster.file`
 - `server.*`（采集并发、日志、周期）
+
+## 版本历史
+
+- 2025-12-08：补充 Period 自动适配、统一指标映射与来源优先级；修改者： @jangrui。
 
 ## 6. 实施清单
 

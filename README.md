@@ -80,6 +80,12 @@ server:
       compress: true
 ```
 
+### 采集周期与 Period 自动适配
+
+- Exporter 在未显式配置 `Product.Period` 或 `MetricGroup.Period` 时，会调用云厂商元数据接口（如腾讯云 `DescribeBaseMetrics`）自动获取该指标支持的 `Periods` 列表，并选择最小值作为请求参数。
+- 建议将 `server.scrape_interval` 与云侧 `Period` 保持一致或略大于等于该值，避免中间数据点丢失。
+- 若需要覆盖默认行为，可在产品或指标组层级显式设置 `Period`。
+
 
 ### accounts.yaml
 

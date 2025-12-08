@@ -35,7 +35,7 @@ func TestWatchAccountsTrigger(t *testing.T) {
 	if err := os.WriteFile(p, []byte("accounts:\n  aliyun:\n    - provider: aliyun\n      resources: [bwp]\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	os.Setenv("ACCOUNTS_PATH", p)
+    _ = os.Setenv("ACCOUNTS_PATH", p)
 	cfg := &config.Config{}
 	m := NewManager(cfg)
 	ctx, cancel := context.WithCancel(context.Background())
