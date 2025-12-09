@@ -101,6 +101,22 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 						metrics = append(metrics, *m.MetricName)
 					}
 				}
+				// 兜底补充常用 CLB 指标，避免云侧元数据缺失导致无法采集
+				fallback := []string{
+					"VipIntraffic", "VipOuttraffic",
+					"VipInpkg", "VipOutpkg",
+					"Vipindroppkts", "Vipoutdroppkts",
+					"IntrafficVipRatio", "OuttrafficVipRatio",
+				}
+				cur := make(map[string]struct{}, len(metrics))
+				for _, m := range metrics {
+					cur[m] = struct{}{}
+				}
+				for _, m := range fallback {
+					if _, ok := cur[m]; !ok {
+						metrics = append(metrics, m)
+					}
+				}
 				if len(metrics) > 0 {
 					prods = append(prods, config.Product{Namespace: "QCE/CLB", AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: metrics}}})
 				}

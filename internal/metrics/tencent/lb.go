@@ -7,12 +7,14 @@ import (
 func init() {
 	metrics.RegisterNamespacePrefix("QCE/CLB", "lb")
 	metrics.RegisterNamespaceMetricAlias("QCE/CLB", map[string]string{
-		"VipIntraffic":   "traffic_rx_bps",
-		"VipOuttraffic":  "traffic_tx_bps",
-		"VipInpkg":       "packet_rx",
-		"VipOutpkg":      "packet_tx",
-		"Vipindroppkts":  "drop_packet_rx",
-		"Vipoutdroppkts": "drop_packet_tx",
+		"VipIntraffic":       "traffic_rx_bps",
+		"VipOuttraffic":      "traffic_tx_bps",
+		"VipInpkg":           "packet_rx",
+		"VipOutpkg":          "packet_tx",
+		"Vipindroppkts":      "drop_packet_rx",
+		"Vipoutdroppkts":     "drop_packet_tx",
+		"IntrafficVipRatio":  "traffic_rx_utilization_pct",
+		"OuttrafficVipRatio": "traffic_tx_utilization_pct",
 	})
 	metrics.RegisterNamespaceHelp("QCE/CLB", func(metric string) string {
 		switch metric {
@@ -28,6 +30,10 @@ func init() {
 			return " - LB 入向丢包速率"
 		case "drop_packet_tx":
 			return " - LB 出向丢包速率"
+		case "traffic_rx_utilization_pct":
+			return " - LB 入向带宽利用率（%）"
+		case "traffic_tx_utilization_pct":
+			return " - LB 出向带宽利用率（%）"
 		}
 		return " - 云产品指标"
 	})

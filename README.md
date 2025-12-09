@@ -87,6 +87,29 @@ server:
 - 建议将 `server.scrape_interval` 与云侧 `Period` 保持一致或略大于等于该值，避免中间数据点丢失。
 - 若需要覆盖默认行为，可在产品或指标组层级显式设置 `Period`。
 
+### 区域枚举（regions="*")
+
+- 当 `accounts.yaml` 中某账号的 `regions` 为空或为 `["*"]` 时，系统将自动调用云厂商区域元数据接口进行枚举：
+  - 阿里云：`DescribeRegions`（ECS），遍历返回的全部 `RegionId`
+  - 腾讯云：`DescribeRegions`（CVM），遍历返回的全部 `Region`
+- 容错与回退：若枚举失败，可通过环境变量 `DEFAULT_REGIONS` 指定逗号分隔的区域作为回退，例如：`DEFAULT_REGIONS=cn-hangzhou,ap-guangzhou`
+- 采集分片：区域参与分片键（`account_id|region`），在多副本部署时仅采集本分片命中区域，避免重复采集。
+
+### LB 指标统一与映射
+
+- 统一映射文件：`configs/mappings/lb.metrics.yaml`（配置驱动，减少硬编码）。包含 canonical 指标与云厂商原始指标、单位与缩放：
+  - 带宽：`lb_traffic_rx_bps` ← Aliyun `TrafficRXNew`；Tencent `VipIntraffic`（`Mbps`→`bit/s`，`scale: 1000000`）
+  - 丢失带宽：`lb_drop_traffic_rx_bps` ← Aliyun `DropTrafficRX`；`lb_drop_traffic_tx_bps` ← Aliyun `DropTrafficTX`
+  - 包速率/丢包：`lb_packet_rx/tx`、`lb_drop_packet_rx/tx`（Aliyun/Tencent 对齐）
+  - 利用率：`lb_traffic_rx_utilization_pct/tx_utilization_pct` ← Tencent `IntrafficVipRatio/OuttrafficVipRatio`
+- 监听维度标签：
+  - 阿里云 SLB：支持动态维度标签 `port/protocol`，并注入标签服务的 `code_name`；维度选择参考命名空间元数据中的 `dimensions`
+  - 腾讯云 CLB：按 `vip` 维度采集；`code_name` 留空
+- 快速验证（本地）：
+  - `curl -s http://localhost:9101/metrics | grep -E '^lb_traffic_(rx|tx)_bps' | head -n 20`
+  - `curl -s http://localhost:9101/metrics | grep -E '^lb_drop_traffic_(rx|tx)_bps' | head -n 20`
+  - `curl -s http://localhost:9101/metrics | grep -E '^lb_traffic_(rx|tx)_utilization_pct$' | head -n 20`
+
 
 ### accounts.yaml
 
@@ -101,7 +124,15 @@ accounts:
       resources:
         - bwp
   huawei: []
-  tencent: []
+  tencent:
+    - provider: tencent
+      account_id: "tencent-prod"
+      access_key_id: "${TENCENT_SECRET_ID}"
+      access_key_secret: "${TENCENT_SECRET_KEY}"
+      regions: ["*"]
+      resources:
+        - lb
+        - bwp
 ```
 
 > regions 配置：
@@ -197,6 +228,7 @@ scrape_configs:
 - `SERVER_PATH`: 指向 `server.yaml`
  
 - `ACCOUNTS_PATH`: 指向 `accounts.yaml`
+- `DEFAULT_REGIONS`: 当云侧区域枚举失败时的回退区域列表（逗号分隔），例如：`DEFAULT_REGIONS=cn-hangzhou,ap-guangzhou`
 
 ## 管理接口认证
 
@@ -211,6 +243,14 @@ server:
 ```
 
 建议在生产环境通过 Ingress/ServiceMesh 终止 TLS，确保认证信息经由 HTTPS 传输。
+
+## 安全与合规
+
+- 账号凭证请使用环境变量注入，不要在仓库中保存明文密钥：
+- 阿里云：`ALIYUN_AK`、`ALIYUN_SK`
+- 腾讯云：`TENCENT_SECRET_ID`、`TENCENT_SECRET_KEY`
+- 建议本地使用 `accounts.example.yaml` 模板并在 `.gitignore` 中忽略个人 `accounts.local.yaml`。
+- 生产环境通过 CI/Secrets 管理凭证并在部署时注入。
 
 ## 版本规范
 

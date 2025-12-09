@@ -56,6 +56,26 @@ canonical:
       metric: Vipoutdroppkts
       unit: pps
       scale: 1
+  drop_traffic_rx_bps:
+    aliyun:
+      metric: DropTrafficRX
+      unit: bit/s
+      scale: 1
+  drop_traffic_tx_bps:
+    aliyun:
+      metric: DropTrafficTX
+      unit: bit/s
+      scale: 1
+  traffic_rx_utilization_pct:
+    tencent:
+      metric: IntrafficVipRatio
+      unit: '%'
+      scale: 1
+  traffic_tx_utilization_pct:
+    tencent:
+      metric: OuttrafficVipRatio
+      unit: '%'
+      scale: 1
 
 aliyun_only:
   qps:
@@ -75,6 +95,9 @@ aliyun_only:
     unit: count/s
   status_code_5xx:
     metric: StatusCode5xx
+    unit: count/s
+  status_code_other:
+    metric: StatusCodeOther
     unit: count/s
   unhealthy_server_count:
     metric: UnhealthyServerCount
@@ -102,6 +125,42 @@ aliyun_only:
     metric: InstanceTrafficTXUtilization
     unit: ratio
     scale_hint: "Grafana 以 % 展示，不强制乘 100"
+  instance_status_code_2xx:
+    metric: InstanceStatusCode2xx
+    unit: count/s
+  instance_status_code_3xx:
+    metric: InstanceStatusCode3xx
+    unit: count/s
+  instance_status_code_4xx:
+    metric: InstanceStatusCode4xx
+    unit: count/s
+  instance_status_code_5xx:
+    metric: InstanceStatusCode5xx
+    unit: count/s
+  instance_status_code_other:
+    metric: InstanceStatusCodeOther
+    unit: count/s
+  instance_upstream_code_4xx:
+    metric: InstanceUpstreamCode4xx
+    unit: count/s
+  instance_upstream_code_5xx:
+    metric: InstanceUpstreamCode5xx
+    unit: count/s
+  instance_upstream_rt:
+    metric: InstanceUpstreamRt
+    unit: ms
+  active_connection:
+    metric: ActiveConnection
+    unit: count
+  inactive_connection:
+    metric: InactiveConnection
+    unit: count
+  new_connection:
+    metric: NewConnection
+    unit: count
+  max_connection:
+    metric: MaxConnection
+    unit: count/s
 
 # 腾讯云特有指标示例：保留原名语义，统一到 lb_tencent_* 前缀（可选）
 # 实际暴露建议：若能等价映射到 canonical，则优先映射；否则以 provider 特有前缀暴露。

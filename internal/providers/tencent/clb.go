@@ -104,9 +104,14 @@ func (t *Collector) fetchCLBMonitor(account config.CloudAccount, region string, 
 			metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", "success").Inc()
 			metrics.RequestDuration.WithLabelValues("tencent", "GetMonitorData").Observe(time.Since(reqStart).Seconds())
 
-			if resp == nil || resp.Response == nil || resp.Response.DataPoints == nil {
-				continue
-			}
+            if resp == nil || resp.Response == nil || resp.Response.DataPoints == nil || len(resp.Response.DataPoints) == 0 {
+                // 输出 0 值样本以保证指标可见性
+                alias := metrics.NamespaceGauge("QCE/CLB", m)
+                for _, vip := range vips {
+                    alias.WithLabelValues("tencent", account.AccountID, region, "lb", vip, "QCE/CLB", m, "").Set(0)
+                }
+                continue
+            }
 			for _, dp := range resp.Response.DataPoints {
 				if dp == nil || len(dp.Dimensions) == 0 || len(dp.Values) == 0 {
 					continue

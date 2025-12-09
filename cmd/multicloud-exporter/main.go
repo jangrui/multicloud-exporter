@@ -16,6 +16,7 @@ import (
 	"multicloud-exporter/internal/logger"
 	"multicloud-exporter/internal/metrics"
 	_ "multicloud-exporter/internal/metrics/aliyun"
+	_ "multicloud-exporter/internal/metrics/tencent"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"

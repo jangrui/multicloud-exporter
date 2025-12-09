@@ -46,8 +46,11 @@ func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
 
 func (t *Collector) Collect(account config.CloudAccount) {
 	regions := account.Regions
-	if len(regions) == 0 {
-		regions = []string{"ap-guangzhou"} // Default region
+	if len(regions) == 0 || (len(regions) == 1 && regions[0] == "*") {
+		regions = t.getAllRegions(account)
+		if len(regions) == 0 {
+			regions = []string{"ap-guangzhou"}
+		}
 	}
 
 	var wg sync.WaitGroup
@@ -63,6 +66,49 @@ func (t *Collector) Collect(account config.CloudAccount) {
 		}(region)
 	}
 	wg.Wait()
+}
+
+// getAllRegions 通过 CVM DescribeRegions 自动枚举腾讯云可用区域
+func (t *Collector) getAllRegions(account config.CloudAccount) []string {
+	credential := common.NewCredential(account.AccessKeyID, account.AccessKeySecret)
+	client, err := cvm.NewClient(credential, "ap-guangzhou", profile.NewClientProfile())
+	if err != nil {
+		return []string{"ap-guangzhou"}
+	}
+	req := cvm.NewDescribeRegionsRequest()
+	start := time.Now()
+	resp, err := client.DescribeRegions(req)
+	if err != nil || resp == nil || resp.Response == nil || resp.Response.RegionSet == nil {
+		status := classifyTencentError(err)
+		metrics.RequestTotal.WithLabelValues("tencent", "DescribeRegions", status).Inc()
+		def := os.Getenv("DEFAULT_REGIONS")
+		if def != "" {
+			parts := strings.Split(def, ",")
+			var out []string
+			for _, p := range parts {
+				p = strings.TrimSpace(p)
+				if p != "" {
+					out = append(out, p)
+				}
+			}
+			if len(out) > 0 {
+				return out
+			}
+		}
+		return []string{"ap-guangzhou"}
+	}
+	metrics.RequestTotal.WithLabelValues("tencent", "DescribeRegions", "success").Inc()
+	metrics.RequestDuration.WithLabelValues("tencent", "DescribeRegions").Observe(time.Since(start).Seconds())
+	var regions []string
+	for _, r := range resp.Response.RegionSet {
+		if r != nil && r.Region != nil {
+			regions = append(regions, *r.Region)
+		}
+	}
+	if len(regions) == 0 {
+		regions = []string{"ap-guangzhou"}
+	}
+	return regions
 }
 
 func (t *Collector) collectRegion(account config.CloudAccount, region string) {

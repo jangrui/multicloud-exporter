@@ -97,6 +97,26 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 			}
 			metrics = append(metrics, name)
 		}
+		if ns == "acs_slb_dashboard" {
+			fallback := []string{
+				"TrafficRXNew", "TrafficTXNew",
+				"DropTrafficRX", "DropTrafficTX",
+				"PacketRX", "PacketTX",
+				"DropPacketRX", "DropPacketTX",
+				"StatusCode2xx", "StatusCode3xx", "StatusCode4xx", "StatusCode5xx",
+				"Qps", "Rt",
+				"UnhealthyServerCount", "HealthyServerCountWithRule",
+			}
+			cur := make(map[string]struct{}, len(metrics))
+			for _, m := range metrics {
+				cur[m] = struct{}{}
+			}
+			for _, m := range fallback {
+				if _, ok := cur[m]; !ok {
+					metrics = append(metrics, m)
+				}
+			}
+		}
 		if len(metrics) == 0 {
 			continue
 		}
