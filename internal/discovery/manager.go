@@ -14,19 +14,25 @@ import (
 )
 
 type Manager struct {
-	cfg         *config.Config
-	mu          sync.RWMutex
-	products    map[string][]config.Product
-	version     int64
-	updatedAt   time.Time
-	subsMu      sync.Mutex
-	subs        map[chan struct{}]struct{}
-	lastAccSig  string
-	lastAccPath string
+	cfg           *config.Config
+	mu            sync.RWMutex
+	products      map[string][]config.Product
+	version       int64
+	updatedAt     time.Time
+	subsMu        sync.Mutex
+	subs          map[chan struct{}]struct{}
+	lastAccSig    string
+	lastAccPath   string
+	watchInterval time.Duration
 }
 
 func NewManager(cfg *config.Config) *Manager {
-	return &Manager{cfg: cfg, products: make(map[string][]config.Product), subs: make(map[chan struct{}]struct{})}
+	return &Manager{
+		cfg:           cfg,
+		products:      make(map[string][]config.Product),
+		subs:          make(map[chan struct{}]struct{}),
+		watchInterval: 3 * time.Second,
+	}
 }
 
 func (m *Manager) Get() map[string][]config.Product {
@@ -137,7 +143,7 @@ func (m *Manager) watchAccounts(ctx context.Context, path string) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(3 * time.Second):
+		case <-time.After(m.watchInterval):
 			fi, err := os.Stat(path)
 			if err != nil {
 				continue

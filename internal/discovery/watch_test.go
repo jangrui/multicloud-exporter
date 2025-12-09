@@ -38,6 +38,7 @@ func TestWatchAccountsTrigger(t *testing.T) {
     _ = os.Setenv("ACCOUNTS_PATH", p)
 	cfg := &config.Config{}
 	m := NewManager(cfg)
+	m.watchInterval = 500 * time.Millisecond
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	m.Start(ctx)
