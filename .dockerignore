@@ -12,14 +12,12 @@ bin/
 build/
 dist/
 !dist/multicloud-exporter-*
-script/
 
 # Tests & coverage
 *.test
 *.out
 *.cov
 coverage/
-configs/products/
 
 # Logs
 *.log
@@ -34,12 +32,6 @@ configs/products/
 *.key
 
 # Local Resources
-accounts.local.yaml
-PRODUCT_PLAN.md
-CHANGELOG.md
-TODO.md
-configs/products.yaml
+local/
 configs/products.auto.yaml
-.github/workflows/ci.yml
 internal/discovery/configs/products.auto.yaml
-plans/
