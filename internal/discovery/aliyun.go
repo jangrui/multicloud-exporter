@@ -106,7 +106,7 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 				"StatusCode2xx", "StatusCode3xx", "StatusCode4xx", "StatusCode5xx", "StatusCodeOther",
 				"Qps", "Rt",
 				"ActiveConnection", "InactiveConnection", "NewConnection", "MaxConnection",
-				// 实例级与 Upstream 指标
+				"UnhealthyServerCount", "HealthyServerCountWithRule",
 				"InstanceQps", "InstanceRt",
 				"InstancePacketRX", "InstancePacketTX",
 				"InstanceTrafficRXUtilization", "InstanceTrafficTXUtilization",

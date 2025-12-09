@@ -277,6 +277,14 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 					if localPeriod == "" && meta.MinPeriod != "" {
 						localPeriod = meta.MinPeriod
 					}
+					if prod.Namespace == "acs_slb_dashboard" && (metricName == "InstanceTrafficRXUtilization" || metricName == "InstanceTrafficTXUtilization") {
+						need := []string{"InstanceId", "port", "protocol"}
+						if len(meta.Dimensions) == 0 {
+							meta.Dimensions = need
+						} else if !hasAnyDim(meta.Dimensions, []string{"instanceId", "InstanceId", "instance_id"}) {
+							meta.Dimensions = append(meta.Dimensions, need...)
+						}
+					}
 					if len(meta.Dimensions) == 0 {
 						baseLog.With("namespace", prod.Namespace, "metric", metricName).Warn("metric skipped (no dimensions)")
 						continue
@@ -441,6 +449,26 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 								}
 								if callErr != nil {
 									ctxLog.Errorf("拉取指标失败 error=%v", callErr)
+									if len(dims) > 0 {
+										for _, dim := range dims {
+											rid := dim[dkey]
+											var codeNameVal string
+											if localTags != nil {
+												codeNameVal = localTags[rid]
+											}
+											var dynamicLabelValues []string
+											for _, dimKey := range dynamicDims {
+												valStr := ""
+												if v, ok := dim[dimKey]; ok {
+													valStr = v
+												}
+												dynamicLabelValues = append(dynamicLabelValues, valStr)
+											}
+											labels := []string{"aliyun", account.AccountID, region, rtype, rid, ns, m, codeNameVal}
+											labels = append(labels, dynamicLabelValues...)
+											metrics.NamespaceGauge(ns, m, dynamicDims...).WithLabelValues(labels...).Set(0)
+										}
+									}
 									break
 								}
 								var points []map[string]interface{}
