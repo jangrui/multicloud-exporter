@@ -19,16 +19,29 @@
 
 ### 阿里云
 - [x] bwp - 共享带宽包
+- [x] slb - 负载均衡
+- [ ] oss - 对象存储
 - [ ] ecs - ECS实例
+- [ ] disk - 云盘
 - [ ] rds - RDS数据库
 - [ ] redis - Redis缓存
-- [ ] slb - 负载均衡
 - [ ] eip - 弹性公网IP
 - [ ] nat - NAT网关
-- [ ] oss - 对象存储
 - [ ] cdn - CDN
 - [ ] vpc - 专有网络
-- [ ] disk - 云盘
+
+### 腾讯云
+- [x] clb - 负载均衡
+- [x] bwp - 共享带宽包
+- [ ] cvm - CVM实例
+- [ ] cdb - 云数据库MySQL
+- [ ] redis - Redis缓存
+- [ ] eip - 弹性公网IP
+- [ ] nat - NAT网关
+- [ ] cos - 对象存储
+- [ ] cdn - CDN
+- [ ] vpc - 私有网络
+- [ ] cbs - 云硬盘
 
 ### 华为云
 - [ ] ecs - ECS实例
@@ -41,18 +54,6 @@
 - [ ] cdn - CDN
 - [ ] vpc - 虚拟私有云
 - [ ] evs - 云硬盘
-
-### 腾讯云
-- [ ] cvm - CVM实例
-- [ ] cdb - 云数据库MySQL
-- [ ] redis - Redis缓存
-- [ ] clb - 负载均衡
-- [ ] eip - 弹性公网IP
-- [ ] nat - NAT网关
-- [ ] cos - 对象存储
-- [ ] cdn - CDN
-- [ ] vpc - 私有网络
-- [ ] cbs - 云硬盘
 
 ## 配置文件
 
