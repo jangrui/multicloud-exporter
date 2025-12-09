@@ -37,6 +37,30 @@ func canonicalizeSLB(metric string) string {
         return "drop_traffic_rx_bps"
     case "drop_traffic_tx":
         return "drop_traffic_tx_bps"
+    case "status_code2xx":
+        return "status_code_2xx"
+    case "status_code3xx":
+        return "status_code_3xx"
+    case "status_code4xx":
+        return "status_code_4xx"
+    case "status_code5xx":
+        return "status_code_5xx"
+    case "status_code_other":
+        return "status_code_other"
+    case "instance_status_code2xx":
+        return "instance_status_code_2xx"
+    case "instance_status_code3xx":
+        return "instance_status_code_3xx"
+    case "instance_status_code4xx":
+        return "instance_status_code_4xx"
+    case "instance_status_code5xx":
+        return "instance_status_code_5xx"
+    case "instance_status_code_other":
+        return "instance_status_code_other"
+    case "instance_upstream_code4xx":
+        return "instance_upstream_code_4xx"
+    case "instance_upstream_code5xx":
+        return "instance_upstream_code_5xx"
     case "instance_traffic_rx_utilization":
         return "instance_traffic_rx_utilization_pct"
     case "instance_traffic_tx_utilization":

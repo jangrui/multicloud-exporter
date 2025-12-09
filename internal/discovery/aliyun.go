@@ -103,9 +103,15 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 				"DropTrafficRX", "DropTrafficTX",
 				"PacketRX", "PacketTX",
 				"DropPacketRX", "DropPacketTX",
-				"StatusCode2xx", "StatusCode3xx", "StatusCode4xx", "StatusCode5xx",
+				"StatusCode2xx", "StatusCode3xx", "StatusCode4xx", "StatusCode5xx", "StatusCodeOther",
 				"Qps", "Rt",
-				"UnhealthyServerCount", "HealthyServerCountWithRule",
+				"ActiveConnection", "InactiveConnection", "NewConnection", "MaxConnection",
+				// 实例级与 Upstream 指标
+				"InstanceQps", "InstanceRt",
+				"InstancePacketRX", "InstancePacketTX",
+				"InstanceTrafficRXUtilization", "InstanceTrafficTXUtilization",
+				"InstanceStatusCode2xx", "InstanceStatusCode3xx", "InstanceStatusCode4xx", "InstanceStatusCode5xx", "InstanceStatusCodeOther",
+				"InstanceUpstreamCode4xx", "InstanceUpstreamCode5xx", "InstanceUpstreamRt",
 			}
 			cur := make(map[string]struct{}, len(metrics))
 			for _, m := range metrics {
