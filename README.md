@@ -18,9 +18,9 @@
 ## 支持的资源类型
 
 ### 阿里云
-- [x] bwp - 共享带宽包
+- [x] cbwp - 共享带宽包
 - [x] slb - 负载均衡
-- [ ] oss - 对象存储
+- [x] oss - 对象存储
 - [ ] ecs - ECS实例
 - [ ] disk - 云盘
 - [ ] rds - RDS数据库
@@ -33,12 +33,7 @@
 ### 腾讯云
 - [x] clb - 负载均衡
 - [x] bwp - 共享带宽包
-- [ ] cvm - CVM实例
-- [ ] cdb - 云数据库MySQL
-- [ ] redis - Redis缓存
-- [ ] eip - 弹性公网IP
-- [ ] nat - NAT网关
-- [ ] cos - 对象存储
+- [x] cos - 对象存储
 - [ ] cdn - CDN
 - [ ] vpc - 私有网络
 - [ ] cbs - 云硬盘
@@ -93,11 +88,44 @@ server:
   - 阿里云：`DescribeRegions`（ECS），遍历返回的全部 `RegionId`
   - 腾讯云：`DescribeRegions`（CVM），遍历返回的全部 `Region`
 - 容错与回退：若枚举失败，可通过环境变量 `DEFAULT_REGIONS` 指定逗号分隔的区域作为回退，例如：`DEFAULT_REGIONS=cn-hangzhou,ap-guangzhou`
-- 采集分片：区域参与分片键（`account_id|region`），在多副本部署时仅采集本分片命中区域，避免重复采集。
 
-### LB 指标统一与映射
+## 部署模式
 
-- 统一映射文件：`configs/mappings/lb.metrics.yaml`（配置驱动，减少硬编码）。包含 canonical 指标与云厂商原始指标、单位与缩放：
+### 1. 单机模式 (Single Instance)
+
+默认模式。适用于资源规模较小（API 请求未达限流瓶颈）的场景。
+- **配置**：无需额外配置。
+- **行为**：单个 Exporter 实例采集 `accounts.yaml` 中定义的所有资源。
+
+### 2. 宿主机集群模式 (Static Sharding)
+
+适用于非 Kubernetes 环境（如 Docker Compose、物理机集群）或网络受限无法使用 DNS 发现的场景。通过环境变量手动指定分片信息。
+
+- **原理**：基于 `fnv32a(AccountID|Region) % Total` 哈希算法，将采集任务按区域分配给不同实例。
+- **配置**：
+  - `EXPORT_SHARD_TOTAL`: 总实例数（如 `3`）
+  - `EXPORT_SHARD_INDEX`: 当前实例索引（从 `0` 开始，如 `0`, `1`, `2`）
+- **示例** (3 节点集群)：
+  - 节点 A: `EXPORT_SHARD_TOTAL=3 EXPORT_SHARD_INDEX=0`
+  - 节点 B: `EXPORT_SHARD_TOTAL=3 EXPORT_SHARD_INDEX=1`
+  - 节点 C: `EXPORT_SHARD_TOTAL=3 EXPORT_SHARD_INDEX=2`
+
+### 3. Kubernetes 集群模式 (Dynamic Sharding)
+
+推荐模式。利用 Kubernetes Headless Service 实现自动发现与动态分片。
+
+- **原理**：Pod 启动时解析 Headless Service 域名获取所有对等节点 IP，按 IP 排序确定自身索引。支持 StatefulSet 或 Deployment。
+- **配置**：
+  - 环境变量 `CLUSTER_DISCOVERY=headless`
+  - 环境变量 `CLUSTER_SVC=<headless-service-name>`
+- **扩缩容**：直接调整 `replicas` 数量，集群会自动重新平衡分片（注意：扩缩容期间可能会有短暂的重复采集或漏采）。
+
+### LB/BWP 指标统一与映射
+
+- 统一映射文件：
+  - `configs/mappings/lb.metrics.yaml`：负载均衡
+  - `configs/mappings/bwp.metrics.yaml`：共享带宽包
+  - `configs/mappings/s3.metrics.yaml`：对象存储 (OSS/COS)
   - 带宽：`lb_traffic_rx_bps` ← Aliyun `TrafficRXNew`；Tencent `VipIntraffic`（`Mbps`→`bit/s`，`scale: 1000000`）
   - 丢失带宽：`lb_drop_traffic_rx_bps` ← Aliyun `DropTrafficRX`；`lb_drop_traffic_tx_bps` ← Aliyun `DropTrafficTX`
   - 包速率/丢包：`lb_packet_rx/tx`、`lb_drop_packet_rx/tx`（Aliyun/Tencent 对齐）
@@ -122,8 +150,10 @@ accounts:
       access_key_secret: "${ALIYUN_SK}"
       regions: ["*"]
       resources:
-        - bwp
-  huawei: []
+        - cbwp
+        - slb
+        - oss
+
   tencent:
     - provider: tencent
       account_id: "tencent-prod"
@@ -131,8 +161,9 @@ accounts:
       access_key_secret: "${TENCENT_SECRET_KEY}"
       regions: ["*"]
       resources:
-        - lb
+        - clb
         - bwp
+        - cos
 ```
 
 > regions 配置：
@@ -141,7 +172,7 @@ accounts:
 
 > resources 配置：
 > - `resources: []` 或 `resources: ["*"]` 采集所有资源类型
-> - 指定如 `resources: ["ecs", "bwp"]` 仅采集列出的资源类型
+> - 指定如 `resources: ["slb", "cbwp"]` 仅采集列出的资源类型
 
 ## 使用方法
 

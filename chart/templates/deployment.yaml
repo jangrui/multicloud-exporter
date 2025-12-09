@@ -61,6 +61,12 @@ spec:
             - name: CLUSTER_FILE
               value: {{ .Values.cluster.file | quote }}
 {{- end }}
+{{- if .Values.cluster.sharding.enabled }}
+            - name: EXPORT_SHARD_TOTAL
+              value: {{ .Values.cluster.sharding.total | quote }}
+            - name: EXPORT_SHARD_INDEX
+              value: {{ .Values.cluster.sharding.index | quote }}
+{{- end }}
             - name: POD_IP
               valueFrom:
                 fieldRef:

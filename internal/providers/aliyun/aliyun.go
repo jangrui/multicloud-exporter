@@ -2,10 +2,7 @@
 package aliyun
 
 import (
-	"bufio"
 	"encoding/json"
-	"hash/fnv"
-	"net"
 	"os"
 	"sort"
 	"strconv"
@@ -35,6 +32,8 @@ type Collector struct {
 	resCache  map[string]resCacheEntry
 	uidCache  map[string]string
 	uidMu     sync.RWMutex
+	ossCache  map[string]ossCacheEntry
+	ossMu     sync.Mutex
 }
 
 // resCacheEntry 缓存资源ID及元数据
@@ -42,6 +41,17 @@ type resCacheEntry struct {
 	IDs       []string
 	Meta      map[string]interface{}
 	UpdatedAt time.Time
+}
+
+// ossCacheEntry 缓存账号级 OSS Bucket 列表
+type ossCacheEntry struct {
+	Buckets   []ossBucketInfo
+	UpdatedAt time.Time
+}
+
+type ossBucketInfo struct {
+	Name     string
+	Location string
 }
 
 // NewCollector 创建阿里云采集器实例
@@ -52,6 +62,7 @@ func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
 		metaCache: make(map[string]metricMeta),
 		resCache:  make(map[string]resCacheEntry),
 		uidCache:  make(map[string]string),
+		ossCache:  make(map[string]ossCacheEntry),
 	}
 }
 
@@ -116,8 +127,9 @@ func (a *Collector) Collect(account config.CloudAccount) {
 	sem := make(chan struct{}, limit)
 	var wg sync.WaitGroup
 	for _, region := range regions {
-		wTotal, wIndex := clusterConf()
-		if !assignRegion(account.AccountID, region, wTotal, wIndex) {
+		wTotal, wIndex := utils.ClusterConfig()
+		key := account.AccountID + "|" + region
+		if !utils.ShouldProcess(key, wTotal, wIndex) {
 			continue
 		}
 		wg.Add(1)
@@ -316,13 +328,11 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 					var tagLabels map[string]string
 					// code_name 标签来源：
 					// - ECS：使用 ListTagResources 过滤 TagKey=="CodeName"，得到实例的业务名称
-					// - BWP：使用 ListTagResources 过滤 TagKey=="CodeName"，得到带宽包的业务名称
+					// - CBWP：使用 ListTagResources 过滤 TagKey=="CodeName"，得到带宽包的业务名称
 					// 其他命名空间当前不提供 code_name，保持为空字符串
 					switch rtype {
-					case "bwp":
+					case "cbwp":
 						tagLabels = a.fetchCBWPTags(account, region, resIDs)
-					case "ecs":
-						tagLabels = a.fetchECSTags(account, region, resIDs)
 					case "lb", "slb":
 						tagLabels = a.fetchSLBTags(account, region, prod.Namespace, metricName, resIDs)
 					}
@@ -342,217 +352,8 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 
 						ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "namespace", ns, "metric", m)
 
-						// Identify dynamic dimensions (excluding main resource ID and userId)
-						var dynamicDims []string
-						for _, d := range metricDims {
-							if !strings.EqualFold(d, dkey) && !strings.EqualFold(d, "userId") {
-								dynamicDims = append(dynamicDims, d)
-							}
-						}
-						hasDynamicDims := len(dynamicDims) > 0
-
-						// 将 tags 传递给闭包使用
-						localTags := tags
-
-						// 构建所有维度的请求对象
-						var allDims []map[string]string
-
-						for _, id := range ids {
-							added := false
-							// 如果存在动态维度（即指标需要除 instanceId 以外的维度，如 port, diskId 等）
-							if hasDynamicDims && meta != nil {
-								if subResources, ok := meta[id]; ok {
-									// meta[id] 预期为 []map[string]string，存储该实例下的子资源列表（如多个监听器、多块磁盘）
-									if list, ok := subResources.([]map[string]string); ok && len(list) > 0 {
-										for _, item := range list {
-											d := make(map[string]string)
-											d[dkey] = id // 始终带上主资源ID
-
-											matchCount := 0
-											for _, dimKey := range dynamicDims {
-												// 在 item 中查找对应的维度值（忽略大小写）
-												for k, v := range item {
-													if strings.EqualFold(k, dimKey) {
-														d[dimKey] = v // API 请求使用 metricDims 定义的 Key
-														matchCount++
-														break
-													}
-												}
-											}
-
-											// 如果找到了匹配的动态维度，说明该子资源与当前指标相关，加入请求列表
-											if matchCount > 0 {
-												allDims = append(allDims, d)
-												added = true
-											}
-										}
-									}
-								}
-							}
-
-							// 如果没有添加任何动态维度组合（可能是指标只需要 instanceId，或者没找到对应的子资源信息）
-							// 则回退到仅使用 instanceId 的单一维度请求
-							if !added {
-								allDims = append(allDims, map[string]string{dkey: id})
-							}
-						}
-
-						for start := 0; start < len(allDims); start += 50 {
-							end := start + 50
-							if end > len(allDims) {
-								end = len(allDims)
-							}
-
-							// 进度日志
-							if (end)%100 == 0 || end == len(allDims) {
-								ctxLog.Debugf("指标采集进度 progress=%d/%d (%.1f%%) tag_count=%d", end, len(allDims), float64(end)/float64(len(allDims))*100, len(localTags))
-							}
-
-							dims := allDims[start:end]
-							dimsJSON, _ := json.Marshal(dims)
-							req := cms.CreateDescribeMetricLastRequest()
-							req.Namespace = ns
-							req.MetricName = m
-							if p != "" {
-								req.Period = p
-							}
-							if a.cfg.Server != nil && a.cfg.Server.PageSize > 0 {
-								req.Length = strconv.Itoa(a.cfg.Server.PageSize)
-							} else if a.cfg.ServerConf != nil && a.cfg.ServerConf.PageSize > 0 {
-								req.Length = strconv.Itoa(a.cfg.ServerConf.PageSize)
-							}
-							req.Dimensions = string(dimsJSON)
-							nextToken := ""
-							ctxLog.Debugf("拉取指标开始 period=%s 维度数=%d", p, len(dims))
-							for {
-								if nextToken != "" {
-									req.NextToken = nextToken
-								}
-								var resp *cms.DescribeMetricLastResponse
-								var callErr error
-								// 带指数退避的重试以抵御暂时性错误与限流
-								for attempt := 0; attempt < 3; attempt++ {
-									startReq := time.Now()
-									resp, callErr = client.DescribeMetricLast(req)
-									if callErr == nil {
-										metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricLast", "success").Inc()
-										metrics.RequestDuration.WithLabelValues("aliyun", "DescribeMetricLast").Observe(time.Since(startReq).Seconds())
-										break
-									}
-									status := classifyAliyunError(callErr)
-									metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricLast", status).Inc()
-									if status == "auth_error" || status == "region_skip" {
-										ctxLog.Warnf("CMS DescribeMetricLast error status=%s: %v", status, callErr)
-										break
-									}
-									time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
-								}
-								if callErr != nil {
-									ctxLog.Errorf("拉取指标失败 error=%v", callErr)
-									if len(dims) > 0 {
-										for _, dim := range dims {
-											rid := dim[dkey]
-											var codeNameVal string
-											if localTags != nil {
-												codeNameVal = localTags[rid]
-											}
-											var dynamicLabelValues []string
-											for _, dimKey := range dynamicDims {
-												valStr := ""
-												if v, ok := dim[dimKey]; ok {
-													valStr = v
-												}
-												dynamicLabelValues = append(dynamicLabelValues, valStr)
-											}
-											labels := []string{"aliyun", account.AccountID, region, rtype, rid, ns, m, codeNameVal}
-											labels = append(labels, dynamicLabelValues...)
-											metrics.NamespaceGauge(ns, m, dynamicDims...).WithLabelValues(labels...).Set(0)
-										}
-									}
-									break
-								}
-								var points []map[string]interface{}
-								if dp := strings.TrimSpace(resp.Datapoints); dp == "" {
-									points = []map[string]interface{}{}
-								} else if err := json.Unmarshal([]byte(dp), &points); err != nil {
-									// 当返回为空或非标准 JSON 时，回退为无数据，但仍暴露 0 值，便于在 /metrics 中检索指标是否存在
-									points = []map[string]interface{}{}
-									ctxLog.Errorf("指标数据解析失败 content=%s error=%v", dp, err)
-								}
-								ctxLog.Debugf("拉取指标成功 返回点数=%d", len(points))
-								if len(points) == 0 {
-									// 无数据时仍输出 0 值样本，让指标可见
-									ctxLog.Debugf("指标无数据填充0值 ids_count=%d", len(dims))
-									for _, dim := range dims {
-										rid := dim[dkey]
-										var codeNameVal string
-										if localTags != nil {
-											codeNameVal = localTags[rid]
-										}
-
-										var dynamicLabelValues []string
-										for _, dimKey := range dynamicDims {
-											valStr := ""
-											if v, ok := dim[dimKey]; ok {
-												valStr = v
-											}
-											dynamicLabelValues = append(dynamicLabelValues, valStr)
-										}
-
-										labels := []string{"aliyun", account.AccountID, region, rtype, rid, ns, m, codeNameVal}
-										labels = append(labels, dynamicLabelValues...)
-
-										metrics.NamespaceGauge(ns, m, dynamicDims...).WithLabelValues(labels...).Set(0)
-									}
-								}
-								for _, pnt := range points {
-									idAny, ok := pnt[dkey]
-									if !ok {
-										continue
-									}
-									rid, _ := idAny.(string)
-									val := pickStatisticValue(pnt, chooseStatistics(stats, group.Statistics))
-									var codeNameVal string
-									if localTags != nil {
-										codeNameVal = localTags[rid]
-									}
-
-									var dynamicLabelValues []string
-									for _, dimKey := range dynamicDims {
-										valStr := ""
-										// 优先从返回点取值
-										if v, ok := pnt[dimKey]; ok {
-											switch s := v.(type) {
-											case string:
-												valStr = s
-											case float64:
-												valStr = strconv.FormatFloat(s, 'f', -1, 64)
-											case int:
-												valStr = strconv.Itoa(s)
-											}
-										}
-										dynamicLabelValues = append(dynamicLabelValues, valStr)
-									}
-
-									// 应用指标缩放（如 bps 转换）
-									if scale := metrics.GetMetricScale(ns, m); scale != 0 && scale != 1 {
-										val *= scale
-									}
-
-									labels := []string{"aliyun", account.AccountID, region, rtype, rid, ns, m, codeNameVal}
-									labels = append(labels, dynamicLabelValues...)
-
-									// NamespaceGauge 的最后一个标签为 code_name，用于展示资源的业务标识
-									metrics.NamespaceGauge(ns, m, dynamicDims...).WithLabelValues(labels...).Set(val)
-								}
-								if resp.NextToken == "" {
-									break
-								}
-								nextToken = resp.NextToken
-								time.Sleep(25 * time.Millisecond)
-							}
-							ctxLog.Debugf("拉取指标完成")
-						}
+						allDims, dynamicDims := a.buildMetricDimensions(ids, dkey, metricDims, meta)
+						a.fetchAndRecordMetrics(client, account, region, ns, m, dkey, rtype, p, allDims, dynamicDims, tags, stats, ctxLog)
 					}(prod.Namespace, metricName, dimKey, rtype, resIDs, tagLabels, localPeriod, meta.Statistics, metaInfo, meta.Dimensions)
 				}
 			}
@@ -601,7 +402,19 @@ func (a *Collector) getMetricMeta(client *cms.Client, namespace, metric string) 
 	req.Namespace = namespace
 	req.MetricName = metric
 	start := time.Now()
-	resp, err := client.DescribeMetricMetaList(req)
+	var resp *cms.DescribeMetricMetaListResponse
+	var err error
+	for attempt := 0; attempt < 3; attempt++ {
+		resp, err = client.DescribeMetricMetaList(req)
+		if err == nil {
+			break
+		}
+		if classifyAliyunError(err) == "limit_error" {
+			time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
+			continue
+		}
+		break
+	}
 	if err != nil {
 		logger.Log.Warnf("Aliyun getMetricMeta error: namespace=%s metric=%s error=%v", namespace, metric, err)
 		return metricMeta{}
@@ -725,10 +538,6 @@ func chooseDimKeyForNamespace(namespace string, dims []string) string {
 		return ""
 	}
 	switch namespace {
-	case "acs_ecs_dashboard":
-		if v := pick("instanceId", "InstanceId", "instance_id"); v != "" {
-			return v
-		}
 	case "acs_bandwidth_package":
 		// 阿里云 BWP 通常使用 InstanceId 作为维度键
 		if v := pick("instanceId", "InstanceId", "instance_id"); v != "" {
@@ -736,6 +545,11 @@ func chooseDimKeyForNamespace(namespace string, dims []string) string {
 		}
 	case "acs_slb_dashboard":
 		if v := pick("instanceId", "InstanceId", "instance_id"); v != "" {
+			return v
+		}
+		return ""
+	case "acs_oss_dashboard":
+		if v := pick("BucketName", "bucketName", "bucket_name"); v != "" {
 			return v
 		}
 		return ""
@@ -773,11 +587,11 @@ func containsResource(list []string, r string) bool {
 func resourceTypeForNamespace(namespace string) string {
 	switch namespace {
 	case "acs_bandwidth_package":
-		return "bwp"
-	case "acs_ecs_dashboard":
-		return "ecs"
+		return "cbwp"
 	case "acs_slb_dashboard":
-		return "lb"
+		return "slb"
+	case "acs_oss_dashboard":
+		return "oss"
 	default:
 		return ""
 	}
@@ -786,13 +600,12 @@ func resourceTypeForNamespace(namespace string) string {
 func (a *Collector) resourceIDsForNamespace(account config.CloudAccount, region string, namespace string) ([]string, string, map[string]interface{}) {
 	switch namespace {
 	case "acs_bandwidth_package":
-		return a.listCBWPIDs(account, region), "bwp", nil
-	case "acs_ecs_dashboard":
-		ids, meta := a.listECSInstanceIDs(account, region)
-		return ids, "ecs", meta
+		return a.listCBWPIDs(account, region), "cbwp", nil
 	case "acs_slb_dashboard":
 		ids, meta := a.listSLBIDs(account, region)
-		return ids, "lb", meta
+		return ids, "slb", meta
+	case "acs_oss_dashboard":
+		return a.listOSSIDs(account, region), "oss", nil
 	default:
 		return []string{}, "", nil
 	}
@@ -834,6 +647,204 @@ func (a *Collector) setCachedIDs(account config.CloudAccount, region, namespace,
 	a.resCache[a.cacheKey(account, region, namespace, rtype)] = resCacheEntry{IDs: ids, Meta: meta, UpdatedAt: time.Now()}
 	a.cacheMu.Unlock()
 }
+func (a *Collector) buildMetricDimensions(ids []string, dkey string, metricDims []string, meta map[string]interface{}) ([]map[string]string, []string) {
+	var dynamicDims []string
+	for _, d := range metricDims {
+		if !strings.EqualFold(d, dkey) && !strings.EqualFold(d, "userId") {
+			dynamicDims = append(dynamicDims, d)
+		}
+	}
+	sort.Strings(dynamicDims)
+	hasDynamicDims := len(dynamicDims) > 0
+
+	var allDims []map[string]string
+
+	for _, id := range ids {
+		added := false
+		if hasDynamicDims && meta != nil {
+			if subResources, ok := meta[id]; ok {
+				if list, ok := subResources.([]map[string]string); ok && len(list) > 0 {
+					for _, item := range list {
+						d := make(map[string]string)
+						d[dkey] = id
+						matchCount := 0
+						for _, dimKey := range dynamicDims {
+							for k, v := range item {
+								if strings.EqualFold(k, dimKey) {
+									d[dimKey] = v
+									matchCount++
+									break
+								}
+							}
+						}
+						if matchCount > 0 {
+							allDims = append(allDims, d)
+							added = true
+						}
+					}
+				}
+			}
+		}
+		if !added {
+			allDims = append(allDims, map[string]string{dkey: id})
+		}
+	}
+	return allDims, dynamicDims
+}
+
+func (a *Collector) fetchAndRecordMetrics(client *cms.Client, account config.CloudAccount, region, ns, m, dkey, rtype, period string, allDims []map[string]string, dynamicDims []string, tags map[string]string, stats []string, ctxLog *logger.ContextLogger) {
+	for start := 0; start < len(allDims); start += 50 {
+		end := start + 50
+		if end > len(allDims) {
+			end = len(allDims)
+		}
+
+		if (end)%100 == 0 || end == len(allDims) {
+			ctxLog.Debugf("指标采集进度 progress=%d/%d (%.1f%%) tag_count=%d", end, len(allDims), float64(end)/float64(len(allDims))*100, len(tags))
+		}
+
+		dims := allDims[start:end]
+		dimsJSON, _ := json.Marshal(dims)
+		req := cms.CreateDescribeMetricLastRequest()
+		req.Namespace = ns
+		req.MetricName = m
+		if period != "" {
+			req.Period = period
+		}
+		if a.cfg.Server != nil && a.cfg.Server.PageSize > 0 {
+			req.Length = strconv.Itoa(a.cfg.Server.PageSize)
+		} else if a.cfg.ServerConf != nil && a.cfg.ServerConf.PageSize > 0 {
+			req.Length = strconv.Itoa(a.cfg.ServerConf.PageSize)
+		}
+		req.Dimensions = string(dimsJSON)
+
+		a.processMetricBatch(client, req, dims, account, region, ns, m, dkey, rtype, dynamicDims, tags, stats, ctxLog)
+	}
+	ctxLog.Debugf("拉取指标完成")
+}
+
+func (a *Collector) processMetricBatch(client *cms.Client, req *cms.DescribeMetricLastRequest, dims []map[string]string, account config.CloudAccount, region, ns, m, dkey, rtype string, dynamicDims []string, tags map[string]string, stats []string, ctxLog *logger.ContextLogger) {
+	nextToken := ""
+	for {
+		if nextToken != "" {
+			req.NextToken = nextToken
+		}
+		var resp *cms.DescribeMetricLastResponse
+		var callErr error
+		for attempt := 0; attempt < 3; attempt++ {
+			startReq := time.Now()
+			resp, callErr = client.DescribeMetricLast(req)
+			if callErr == nil {
+				metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricLast", "success").Inc()
+				metrics.RequestDuration.WithLabelValues("aliyun", "DescribeMetricLast").Observe(time.Since(startReq).Seconds())
+				break
+			}
+			status := classifyAliyunError(callErr)
+			metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricLast", status).Inc()
+			if status == "auth_error" || status == "region_skip" {
+				ctxLog.Warnf("CMS DescribeMetricLast error status=%s: %v", status, callErr)
+				break
+			}
+			time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
+		}
+		if callErr != nil {
+			ctxLog.Errorf("拉取指标失败 error=%v", callErr)
+			if len(dims) > 0 {
+				for _, dim := range dims {
+					rid := dim[dkey]
+					var codeNameVal string
+					if tags != nil {
+						codeNameVal = tags[rid]
+					}
+					var dynamicLabelValues []string
+					for _, dimKey := range dynamicDims {
+						valStr := ""
+						if v, ok := dim[dimKey]; ok {
+							valStr = v
+						}
+						dynamicLabelValues = append(dynamicLabelValues, valStr)
+					}
+					labels := []string{"aliyun", account.AccountID, region, rtype, rid, ns, m, codeNameVal}
+					labels = append(labels, dynamicLabelValues...)
+					metrics.NamespaceGauge(ns, m, dynamicDims...).WithLabelValues(labels...).Set(0)
+				}
+			}
+			break
+		}
+
+		var points []map[string]interface{}
+		if dp := strings.TrimSpace(resp.Datapoints); dp == "" {
+			points = []map[string]interface{}{}
+		} else if err := json.Unmarshal([]byte(dp), &points); err != nil {
+			points = []map[string]interface{}{}
+			ctxLog.Errorf("指标数据解析失败 content=%s error=%v", dp, err)
+		}
+
+		if len(points) == 0 {
+			for _, dim := range dims {
+				rid := dim[dkey]
+				var codeNameVal string
+				if tags != nil {
+					codeNameVal = tags[rid]
+				}
+				var dynamicLabelValues []string
+				for _, dimKey := range dynamicDims {
+					valStr := ""
+					if v, ok := dim[dimKey]; ok {
+						valStr = v
+					}
+					dynamicLabelValues = append(dynamicLabelValues, valStr)
+				}
+				labels := []string{"aliyun", account.AccountID, region, rtype, rid, ns, m, codeNameVal}
+				labels = append(labels, dynamicLabelValues...)
+				metrics.NamespaceGauge(ns, m, dynamicDims...).WithLabelValues(labels...).Set(0)
+			}
+		}
+
+		for _, pnt := range points {
+			idAny, ok := pnt[dkey]
+			if !ok {
+				continue
+			}
+			rid, _ := idAny.(string)
+			val := pickStatisticValue(pnt, stats)
+			var codeNameVal string
+			if tags != nil {
+				codeNameVal = tags[rid]
+			}
+
+			var dynamicLabelValues []string
+			for _, dimKey := range dynamicDims {
+				valStr := ""
+				if v, ok := pnt[dimKey]; ok {
+					switch s := v.(type) {
+					case string:
+						valStr = s
+					case float64:
+						valStr = strconv.FormatFloat(s, 'f', -1, 64)
+					case int:
+						valStr = strconv.Itoa(s)
+					}
+				}
+				dynamicLabelValues = append(dynamicLabelValues, valStr)
+			}
+
+			if scale := metrics.GetMetricScale(ns, m); scale != 0 && scale != 1 {
+				val *= scale
+			}
+
+			labels := []string{"aliyun", account.AccountID, region, rtype, rid, ns, m, codeNameVal}
+			labels = append(labels, dynamicLabelValues...)
+			metrics.NamespaceGauge(ns, m, dynamicDims...).WithLabelValues(labels...).Set(val)
+		}
+		if resp.NextToken == "" {
+			break
+		}
+		nextToken = resp.NextToken
+		time.Sleep(25 * time.Millisecond)
+	}
+}
+
 func classifyAliyunError(err error) string {
 	msg := err.Error()
 	if strings.Contains(msg, "InvalidAccessKeyId") || strings.Contains(msg, "Forbidden") || strings.Contains(msg, "SignatureDoesNotMatch") {
@@ -849,86 +860,4 @@ func classifyAliyunError(err error) string {
 		return "network_error"
 	}
 	return "error"
-}
-
-func clusterConf() (int, int) {
-	if os.Getenv("CLUSTER_DISCOVERY") == "headless" {
-		svc := os.Getenv("CLUSTER_SVC")
-		selfIP := os.Getenv("POD_IP")
-		if svc != "" && selfIP != "" {
-			if ips, err := net.LookupIP(svc); err == nil && len(ips) > 0 {
-				var list []string
-				for _, ip := range ips {
-					list = append(list, ip.String())
-				}
-				sort.Strings(list)
-				for i, ip := range list {
-					if ip == selfIP {
-						return len(list), i
-					}
-				}
-			}
-		}
-	}
-	if os.Getenv("CLUSTER_DISCOVERY") == "file" {
-		path := os.Getenv("CLUSTER_FILE")
-		self := os.Getenv("POD_NAME")
-		if self == "" {
-			self = os.Getenv("HOSTNAME")
-		}
-		if path != "" && self != "" {
-			if f, err := os.Open(path); err == nil {
-				defer func() { _ = f.Close() }()
-				var members []string
-				sc := bufio.NewScanner(f)
-				for sc.Scan() {
-					line := strings.TrimSpace(sc.Text())
-					if line != "" {
-						members = append(members, line)
-					}
-				}
-				if len(members) > 0 {
-					sort.Strings(members)
-					for i, m := range members {
-						if m == self {
-							return len(members), i
-						}
-					}
-				}
-			}
-		}
-	}
-	total := 1
-	index := 0
-	if v := os.Getenv("CLUSTER_WORKERS"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			total = n
-		}
-	}
-	if v := os.Getenv("CLUSTER_INDEX"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
-			index = n
-		}
-	}
-	if index >= total {
-		index = index % total
-	}
-	return total, index
-}
-
-func shardOf(s string, n int) int {
-	if n <= 1 {
-		return 0
-	}
-	h := fnv.New32a()
-	_, _ = h.Write([]byte(s))
-	return int(h.Sum32() % uint32(n))
-}
-
-func assignRegion(accountID, region string, total, index int) bool {
-	if total <= 1 {
-		return true
-	}
-	key := accountID + "|" + region
-	return shardOf(key, total) == index
 }

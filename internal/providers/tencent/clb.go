@@ -14,7 +14,7 @@ import (
 )
 
 func (t *Collector) listCLBVips(account config.CloudAccount, region string) []string {
-	if ids, hit := t.getCachedIDs(account, region, "QCE/CLB", "lb"); hit {
+	if ids, hit := t.getCachedIDs(account, region, "QCE/LB", "lb"); hit {
 		logger.Log.Debugf("Tencent CLB VIPs cache hit account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
 		return ids
 	}
@@ -49,7 +49,7 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 			}
 		}
 	}
-	t.setCachedIDs(account, region, "QCE/CLB", "lb", vips)
+	t.setCachedIDs(account, region, "QCE/LB", "lb", vips)
 	logger.Log.Debugf("Tencent CLB VIPs enumerated account_id=%s region=%s count=%d", account.AccountID, region, len(vips))
 	return vips
 }
@@ -70,11 +70,11 @@ func (t *Collector) fetchCLBMonitor(account config.CloudAccount, region string, 
 		}
 		for _, m := range group.MetricList {
 			req := monitor.NewGetMonitorDataRequest()
-			req.Namespace = common.StringPtr("QCE/CLB")
+			req.Namespace = common.StringPtr("QCE/LB")
 			req.MetricName = common.StringPtr(m)
 			per := period
 			if prod.Period == nil && group.Period == nil {
-				per = minPeriodForMetric(region, account, "QCE/CLB", m)
+				per = minPeriodForMetric(region, account, "QCE/LB", m)
 			}
 			req.Period = common.Uint64Ptr(uint64(per))
 			var inst []*monitor.Instance
@@ -104,14 +104,14 @@ func (t *Collector) fetchCLBMonitor(account config.CloudAccount, region string, 
 			metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", "success").Inc()
 			metrics.RequestDuration.WithLabelValues("tencent", "GetMonitorData").Observe(time.Since(reqStart).Seconds())
 
-            if resp == nil || resp.Response == nil || resp.Response.DataPoints == nil || len(resp.Response.DataPoints) == 0 {
-                // 输出 0 值样本以保证指标可见性
-                alias := metrics.NamespaceGauge("QCE/CLB", m)
-                for _, vip := range vips {
-                    alias.WithLabelValues("tencent", account.AccountID, region, "lb", vip, "QCE/CLB", m, "").Set(0)
-                }
-                continue
-            }
+			if resp == nil || resp.Response == nil || resp.Response.DataPoints == nil || len(resp.Response.DataPoints) == 0 {
+				// 输出 0 值样本以保证指标可见性
+				alias := metrics.NamespaceGauge("QCE/CLB", m)
+				for _, vip := range vips {
+					alias.WithLabelValues("tencent", account.AccountID, region, "lb", vip, "QCE/CLB", m, "").Set(0)
+				}
+				continue
+			}
 			for _, dp := range resp.Response.DataPoints {
 				if dp == nil || len(dp.Dimensions) == 0 || len(dp.Values) == 0 {
 					continue

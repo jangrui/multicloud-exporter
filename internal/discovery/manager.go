@@ -2,8 +2,8 @@ package discovery
 
 import (
 	"context"
-	"encoding/json"
 	"os"
+	"reflect"
 	"sync"
 	"time"
 
@@ -91,9 +91,7 @@ func (m *Manager) Refresh(ctx context.Context) error {
 }
 
 func equalProducts(a, b map[string][]config.Product) bool {
-	aj, _ := json.Marshal(a)
-	bj, _ := json.Marshal(b)
-	return string(aj) == string(bj)
+	return reflect.DeepEqual(a, b)
 }
 
 func (m *Manager) Start(ctx context.Context) {

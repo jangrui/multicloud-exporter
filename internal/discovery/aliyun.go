@@ -36,16 +36,16 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 	for _, acc := range accounts {
 		for _, r := range acc.Resources {
 			switch r {
-			case "ecs":
-				nsSet["acs_ecs_dashboard"] = struct{}{}
-			case "bwp":
+			case "bwp", "cbwp":
 				nsSet["acs_bandwidth_package"] = struct{}{}
-			case "lb":
+			case "lb", "slb":
 				nsSet["acs_slb_dashboard"] = struct{}{}
+			case "oss":
+				nsSet["acs_oss_dashboard"] = struct{}{}
 			case "*":
-				nsSet["acs_ecs_dashboard"] = struct{}{}
 				nsSet["acs_bandwidth_package"] = struct{}{}
 				nsSet["acs_slb_dashboard"] = struct{}{}
+				nsSet["acs_oss_dashboard"] = struct{}{}
 			}
 		}
 	}

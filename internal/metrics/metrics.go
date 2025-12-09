@@ -97,6 +97,10 @@ func GetMetricScale(namespace, metric string) float64 {
 	return 1.0
 }
 
+func GetMetricAlias(namespace, metric string) string {
+	return aliasMetricForNamespace(namespace, metric)
+}
+
 func aliasPrefixForNamespace(namespace string) string {
 	if p, ok := prefixByNamespace[namespace]; ok {
 		return p
@@ -116,6 +120,7 @@ func NamespaceGauge(namespace, metric string, extraLabels ...string) *prometheus
 	defer nsGaugesMu.Unlock()
 	alias := aliasPrefixForNamespace(namespace)
 	metricAlias := aliasMetricForNamespace(namespace, metric)
+
 	useMetric := metric
 	if metricAlias != "" {
 		useMetric = metricAlias
@@ -150,13 +155,13 @@ func NamespaceGauge(namespace, metric string, extraLabels ...string) *prometheus
 }
 
 func aliasMetricForNamespace(namespace, metric string) string {
-	if fn, ok := aliasFuncByNS[namespace]; ok {
-		return fn(metric)
-	}
 	if m, ok := aliasByNamespace[namespace]; ok {
 		if a, ok2 := m[metric]; ok2 {
 			return a
 		}
+	}
+	if fn, ok := aliasFuncByNS[namespace]; ok {
+		return fn(metric)
 	}
 	return ""
 }

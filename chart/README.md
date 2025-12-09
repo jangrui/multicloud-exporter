@@ -29,6 +29,53 @@ Exporter 暴露了 `/metrics` 端点，其中包含自身运行状态指标：
 
 建议在 Prometheus 中配置相应的告警规则（如限流激增、采集超时）。
 
+## 采集分片 (Sharding)
+
+为支持大规模资源采集，Chart 支持两种分片模式：
+
+### 1. 动态分片 (推荐)
+
+利用 Kubernetes Headless Service 进行自动发现与分片。所有 Pod 自动组成集群，无需手动指定索引。
+
+- **配置**：
+  ```yaml
+  replicaCount: 3        # 副本数即分片数
+  headless:
+    enabled: true        # 启用 Headless Service
+  cluster:
+    discovery: headless  # 开启 DNS 自动发现
+    svcName: multicloud-exporter-headless # 对应 Headless Service 名称
+  ```
+- **扩缩容**：直接修改 `replicaCount`，集群会自动重新平衡分片。
+
+### 2. 静态分片
+
+适用于网络受限或无法使用 DNS 发现的场景。需要手动部署多个 Release，每个 Release 负责一个固定的分片索引。
+
+- **配置**：
+  ```yaml
+  cluster:
+    discovery: ""        # 关闭自动发现
+    sharding:
+      enabled: true
+      total: 3           # 总分片数
+      index: 0           # 当前分片索引 (0 ~ total-1)
+  ```
+- **部署示例** (部署 2 个分片)：
+  ```bash
+  # 分片 0
+  helm install exporter-0 jangrui/multicloud-exporter \
+    --set cluster.sharding.enabled=true \
+    --set cluster.sharding.total=2 \
+    --set cluster.sharding.index=0
+
+  # 分片 1
+  helm install exporter-1 jangrui/multicloud-exporter \
+    --set cluster.sharding.enabled=true \
+    --set cluster.sharding.total=2 \
+    --set cluster.sharding.index=1
+  ```
+
 ## 参数
 
 - 镜像
@@ -40,6 +87,14 @@ Exporter 暴露了 `/metrics` 端点，其中包含自身运行状态指标：
 - 服务
   - `service.port`：容器与服务端口（默认 `9101`）
   - `service.type`：Service 类型（默认 `ClusterIP`）
+  - `headless.enabled`：是否启用 Headless Service (用于动态分片)
+
+- 集群与分片
+  - `cluster.discovery`：发现模式 (`headless` / `file` / `""`)
+  - `cluster.svcName`：Headless Service 名称 (当 discovery=headless)
+  - `cluster.sharding.enabled`：是否启用静态分片配置
+  - `cluster.sharding.total`：静态分片总数
+  - `cluster.sharding.index`：静态分片索引
 
 - 环境变量
   - `values.env`：按需覆盖运行环境变量（如 `SCRAPE_INTERVAL`）
@@ -51,6 +106,31 @@ Exporter 暴露了 `/metrics` 端点，其中包含自身运行状态指标：
 
 -- 账号 Secret 引用
   - `accounts.secrets`：分散的每账号 Secret 列表，Chart 会生成 `accounts.yaml` 占位符并注入对应环境变量
+
+    ```yaml
+    accounts:
+      aliyun:
+        - provider: aliyun
+          account_id: "aliyun-prod"
+          access_key_id: "${ALIYUN_AK}"
+          access_key_secret: "${ALIYUN_SK}"
+          regions: ["*"]
+          resources:
+            - cbwp
+            - slb
+            - oss
+
+      tencent:
+        - provider: tencent
+          account_id: "tencent-prod"
+          access_key_id: "${TENCENT_SECRET_ID}"
+          access_key_secret: "${TENCENT_SECRET_KEY}"
+          regions: ["*"]
+          resources:
+            - bwp
+            - clb
+            - cos
+    ```
 
 - 调度与资源
   - `resources`：容器资源限制与请求

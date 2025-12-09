@@ -1,12 +1,8 @@
 package tencent
 
 import (
-	"bufio"
 	"encoding/json"
-	"hash/fnv"
-	"net"
 	"os"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -54,9 +50,10 @@ func (t *Collector) Collect(account config.CloudAccount) {
 	}
 
 	var wg sync.WaitGroup
-	wTotal, wIndex := clusterConf()
+	wTotal, wIndex := utils.ClusterConfig()
 	for _, region := range regions {
-		if !assignRegion(account.AccountID, region, wTotal, wIndex) {
+		key := account.AccountID + "|" + region
+		if !utils.ShouldProcess(key, wTotal, wIndex) {
 			continue
 		}
 		wg.Add(1)
@@ -116,98 +113,26 @@ func (t *Collector) collectRegion(account config.CloudAccount, region string) {
 	for _, resource := range account.Resources {
 		if resource == "*" {
 			// Collect all supported resources
-			t.collectCVM(account, region)
-			t.collectCDB(account, region)
-			t.collectRedis(account, region)
 			t.collectCLB(account, region)
-			t.collectEIP(account, region)
 			t.collectBWP(account, region)
+			t.collectCOS(account, region)
 		} else {
 			switch resource {
-			case "cvm":
-				t.collectCVM(account, region)
-			case "cdb":
-				t.collectCDB(account, region)
-			case "redis":
-				t.collectRedis(account, region)
 			case "clb":
 				t.collectCLB(account, region)
 			case "slb":
 				t.collectCLB(account, region)
-			case "eip":
-				t.collectEIP(account, region)
+			case "lb":
+				t.collectCLB(account, region)
 			case "bwp":
 				t.collectBWP(account, region)
+			case "cos":
+				t.collectCOS(account, region)
 			default:
 				logger.Log.Warnf("Tencent resource type %s not implemented yet", resource)
 			}
 		}
 	}
-}
-
-// collectCVM 采集 CVM 的 CPU、内存等基础信息
-func (t *Collector) collectCVM(account config.CloudAccount, region string) {
-	// Check cache for CVM to avoid frequent DescribeInstances
-	if _, hit := t.getCachedIDs(account, region, "cvm", "cvm"); hit {
-		return
-	}
-
-	credential := common.NewCredential(account.AccessKeyID, account.AccessKeySecret)
-	cpf := profile.NewClientProfile()
-	client, err := cvm.NewClient(credential, region, cpf)
-	if err != nil {
-		logger.Log.Errorf("Tencent CVM client error: %v", err)
-		return
-	}
-
-	request := cvm.NewDescribeInstancesRequest()
-	start := time.Now()
-	response, err := client.DescribeInstances(request)
-	if err != nil {
-		status := classifyTencentError(err)
-		metrics.RequestTotal.WithLabelValues("tencent", "DescribeInstances", status).Inc()
-		logger.Log.Errorf("Tencent CVM describe error: %v", err)
-		return
-	}
-	metrics.RequestTotal.WithLabelValues("tencent", "DescribeInstances", "success").Inc()
-	metrics.RequestDuration.WithLabelValues("tencent", "DescribeInstances").Observe(time.Since(start).Seconds())
-
-	var ids []string
-	if response.Response.InstanceSet != nil {
-		for _, instance := range response.Response.InstanceSet {
-			if instance.InstanceId != nil {
-				ids = append(ids, *instance.InstanceId)
-			}
-			metrics.ResourceMetric.WithLabelValues(
-				"tencent",
-				account.AccountID,
-				region,
-				"cvm",
-				*instance.InstanceId,
-				"cpu_cores",
-			).Set(float64(*instance.CPU))
-
-			metrics.ResourceMetric.WithLabelValues(
-				"tencent",
-				account.AccountID,
-				region,
-				"cvm",
-				*instance.InstanceId,
-				"memory_gb",
-			).Set(float64(*instance.Memory))
-		}
-	}
-	// Cache the discovery result
-	t.setCachedIDs(account, region, "cvm", "cvm", ids)
-	logger.Log.Debugf("Tencent CVM enumerated account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
-}
-
-func (t *Collector) collectCDB(account config.CloudAccount, region string) {
-	logger.Log.Warnf("Collecting Tencent CDB in region %s (not implemented)", region)
-}
-
-func (t *Collector) collectRedis(account config.CloudAccount, region string) {
-	logger.Log.Warnf("Collecting Tencent Redis in region %s (not implemented)", region)
 }
 
 func (t *Collector) collectCLB(account config.CloudAccount, region string) {
@@ -224,7 +149,7 @@ func (t *Collector) collectCLB(account config.CloudAccount, region string) {
 		return
 	}
 	for _, p := range prods {
-		if p.Namespace != "QCE/CLB" {
+		if p.Namespace != "QCE/LB" {
 			continue
 		}
 		vips := t.listCLBVips(account, region)
@@ -233,10 +158,6 @@ func (t *Collector) collectCLB(account config.CloudAccount, region string) {
 		}
 		t.fetchCLBMonitor(account, region, p, vips)
 	}
-}
-
-func (t *Collector) collectEIP(account config.CloudAccount, region string) {
-	logger.Log.Warnf("Collecting Tencent EIP in region %s (not implemented)", region)
 }
 
 func (t *Collector) collectBWP(account config.CloudAccount, region string) {
@@ -414,86 +335,4 @@ func minPeriodForMetric(region string, account config.CloudAccount, namespace, m
 	periodCache[key] = min
 	periodMu.Unlock()
 	return min
-}
-
-func clusterConf() (int, int) {
-	if os.Getenv("CLUSTER_DISCOVERY") == "headless" {
-		svc := os.Getenv("CLUSTER_SVC")
-		selfIP := os.Getenv("POD_IP")
-		if svc != "" && selfIP != "" {
-			if ips, err := net.LookupIP(svc); err == nil && len(ips) > 0 {
-				var list []string
-				for _, ip := range ips {
-					list = append(list, ip.String())
-				}
-				sort.Strings(list)
-				for i, ip := range list {
-					if ip == selfIP {
-						return len(list), i
-					}
-				}
-			}
-		}
-	}
-	if os.Getenv("CLUSTER_DISCOVERY") == "file" {
-		path := os.Getenv("CLUSTER_FILE")
-		self := os.Getenv("POD_NAME")
-		if self == "" {
-			self = os.Getenv("HOSTNAME")
-		}
-		if path != "" && self != "" {
-			if f, err := os.Open(path); err == nil {
-				defer func() { _ = f.Close() }()
-				var members []string
-				sc := bufio.NewScanner(f)
-				for sc.Scan() {
-					line := strings.TrimSpace(sc.Text())
-					if line != "" {
-						members = append(members, line)
-					}
-				}
-				if len(members) > 0 {
-					sort.Strings(members)
-					for i, m := range members {
-						if m == self {
-							return len(members), i
-						}
-					}
-				}
-			}
-		}
-	}
-	total := 1
-	index := 0
-	if v := os.Getenv("CLUSTER_WORKERS"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			total = n
-		}
-	}
-	if v := os.Getenv("CLUSTER_INDEX"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
-			index = n
-		}
-	}
-	if index >= total {
-		index = index % total
-	}
-	return total, index
-}
-
-func shardOf(s string, n int) int {
-	if n <= 1 {
-		return 0
-	}
-	h := fnv.New32a()
-	_, _ = h.Write([]byte(s))
-	return int(h.Sum32() % uint32(n))
-}
-
-func assignRegion(accountID, region string, total, index int) bool {
-	if total <= 1 {
-		return true
-	}
-	key := accountID + "|" + region
-	return shardOf(key, total) == index
 }

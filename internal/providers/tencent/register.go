@@ -8,7 +8,7 @@ import (
 
 // GetDefaultResources 返回腾讯云默认采集的资源类型
 func (t *Collector) GetDefaultResources() []string {
-	return []string{"lb", "bwp"}
+	return []string{"clb", "bwp", "cos"}
 }
 
 func init() {

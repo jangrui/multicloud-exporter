@@ -16,6 +16,8 @@ type MetricDef struct {
 }
 
 type MetricMapping struct {
+	Prefix      string                          `yaml:"prefix"`
+	Namespaces  map[string]string               `yaml:"namespaces"`
 	Canonical   map[string]map[string]MetricDef `yaml:"canonical"`
 	AliyunOnly  map[string]MetricDef            `yaml:"aliyun_only"`
 	TencentOnly map[string]MetricDef            `yaml:"tencent_only"`
@@ -32,10 +34,18 @@ func LoadMetricMappings(path string) error {
 		return fmt.Errorf("error parsing metric mappings: %v", err)
 	}
 
-	// Hardcoded namespaces for now as they are not in the yaml
-	// TODO: Support dynamic namespace mapping or multiple files
-	aliyunNS := "acs_slb_dashboard"
-	tencentNS := "QCE/CLB"
+	// Use configured namespaces
+	aliyunNS := mapping.Namespaces["aliyun"]
+	tencentNS := mapping.Namespaces["tencent"]
+	prefix := mapping.Prefix
+
+	if aliyunNS == "" && tencentNS == "" {
+		return fmt.Errorf("no namespaces defined in mapping file %s", path)
+	}
+
+	if prefix == "" {
+		return fmt.Errorf("no prefix defined in mapping file %s", path)
+	}
 
 	aliyunAliases := make(map[string]string)
 	aliyunScales := make(map[string]float64)
@@ -79,13 +89,17 @@ func LoadMetricMappings(path string) error {
 	}
 
 	// Register
-	metrics.RegisterNamespacePrefix(aliyunNS, "lb")
-	metrics.RegisterNamespaceMetricAlias(aliyunNS, aliyunAliases)
-	metrics.RegisterNamespaceMetricScale(aliyunNS, aliyunScales)
+	if aliyunNS != "" {
+		metrics.RegisterNamespacePrefix(aliyunNS, prefix)
+		metrics.RegisterNamespaceMetricAlias(aliyunNS, aliyunAliases)
+		metrics.RegisterNamespaceMetricScale(aliyunNS, aliyunScales)
+	}
 
-	metrics.RegisterNamespacePrefix(tencentNS, "lb")
-	metrics.RegisterNamespaceMetricAlias(tencentNS, tencentAliases)
-	metrics.RegisterNamespaceMetricScale(tencentNS, tencentScales)
+	if tencentNS != "" {
+		metrics.RegisterNamespacePrefix(tencentNS, prefix)
+		metrics.RegisterNamespaceMetricAlias(tencentNS, tencentAliases)
+		metrics.RegisterNamespaceMetricScale(tencentNS, tencentScales)
+	}
 
 	return nil
 }

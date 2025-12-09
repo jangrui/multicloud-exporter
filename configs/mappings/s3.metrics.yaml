@@ -1,0 +1,67 @@
+# 统一对象存储指标映射关系（Aliyun / Tencent）
+prefix: s3
+namespaces:
+  aliyun: acs_oss_dashboard
+  tencent: QCE/COS
+
+canonical:
+  bucket_size_bytes:
+    aliyun:
+      metric: UserStorage
+      unit: Bytes
+    tencent:
+      metric: StdStorage
+      unit: Bytes
+
+  internet_tx_bytes:
+    aliyun:
+      metric: InternetTraffic
+      unit: Bytes
+    tencent:
+      metric: InternetTraffic
+      unit: Bytes
+
+  intranet_tx_bytes:
+    aliyun:
+      metric: IntranetTraffic
+      unit: Bytes
+
+  cache_recv_bytes:
+    aliyun:
+      metric: CacheRecv
+      unit: Bytes
+
+  cache_send_bytes:
+    aliyun:
+      metric: CacheSend
+      unit: Bytes
+
+  cache_origin_recv_bytes:
+    aliyun:
+      metric: CacheOriginRecv
+      unit: Bytes
+
+  cache_origin_send_bytes:
+    aliyun:
+      metric: CacheOriginSend
+      unit: Bytes
+
+  requests_2xx:
+    tencent:
+      metric: 2xxResponse
+
+  requests_3xx:
+    tencent:
+      metric: 3xxResponse
+
+  requests_4xx:
+    tencent:
+      metric: 4xxResponse
+
+  requests_5xx:
+    tencent:
+      metric: 5xxResponse
+
+  replication_traffic_bytes:
+    tencent:
+      metric: CrossRegionReplicationTraffic

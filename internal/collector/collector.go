@@ -2,14 +2,9 @@
 package collector
 
 import (
-	"bufio"
-	"hash/fnv"
-	"net"
-	"os"
-	"sort"
-	"strconv"
-	"strings"
 	"sync"
+
+	"time"
 
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/discovery"
@@ -20,11 +15,26 @@ import (
 	_ "multicloud-exporter/internal/providers/tencent"
 )
 
+// Status 定义采集器状态
+type Status struct {
+	LastStart   time.Time              `json:"last_start"`
+	LastEnd     time.Time              `json:"last_end"`
+	Duration    string                 `json:"duration"`
+	LastResults map[string]AccountStat `json:"last_results"` // key: provider|account_id
+}
+
+type AccountStat struct {
+	Timestamp time.Time `json:"timestamp"`
+	Status    string    `json:"status"` // "running", "completed"
+}
+
 // Collector 持有配置与各云采集器实例
 type Collector struct {
-	cfg       *config.Config
-	disc      *discovery.Manager
-	providers map[string]providers.Provider
+	cfg        *config.Config
+	disc       *discovery.Manager
+	providers  map[string]providers.Provider
+	status     Status
+	statusLock sync.RWMutex
 }
 
 // NewCollector 创建调度器并初始化各云采集器
@@ -33,6 +43,9 @@ func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
 		cfg:       cfg,
 		disc:      mgr,
 		providers: make(map[string]providers.Provider),
+		status: Status{
+			LastResults: make(map[string]AccountStat),
+		},
 	}
 
 	for _, name := range providers.GetAllProviders() {
@@ -43,8 +56,34 @@ func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
 	return c
 }
 
+// GetStatus 返回当前采集状态
+func (c *Collector) GetStatus() Status {
+	c.statusLock.RLock()
+	defer c.statusLock.RUnlock()
+	// Copy map to avoid race condition
+	res := make(map[string]AccountStat)
+	for k, v := range c.status.LastResults {
+		res[k] = v
+	}
+	return Status{
+		LastStart:   c.status.LastStart,
+		LastEnd:     c.status.LastEnd,
+		Duration:    c.status.Duration,
+		LastResults: res,
+	}
+}
+
+// CollectFiltered 执行带过滤条件的采集
+func (c *Collector) CollectFiltered(filterProvider, filterResource string) {
+	c.collectInternal(filterProvider, filterResource)
+}
+
 // Collect 为每个账号并发执行采集任务
 func (c *Collector) Collect() {
+	c.collectInternal("", "")
+}
+
+func (c *Collector) collectInternal(filterProvider, filterResource string) {
 	c.cfg.Mu.RLock()
 	total := len(c.cfg.AccountsList) + len(c.cfg.AccountsByProvider) + len(c.cfg.AccountsByProviderLegacy)
 	logger.Log.Infof("开始采集，加载账号数量=%d", total)
@@ -68,121 +107,76 @@ func (c *Collector) Collect() {
 	}
 	c.cfg.Mu.RUnlock()
 
-	wTotal, wIndex := clusterConf()
+	// Filter accounts if provider is specified
+	if filterProvider != "" {
+		var filtered []config.CloudAccount
+		for _, acc := range accounts {
+			if acc.Provider == filterProvider {
+				filtered = append(filtered, acc)
+			}
+		}
+		accounts = filtered
+	}
+
+	c.statusLock.Lock()
+	c.status.LastStart = time.Now()
+	c.statusLock.Unlock()
+	start := time.Now()
+
 	var wg sync.WaitGroup
 	for _, account := range accounts {
-		if !assignAccount(account.Provider, account.AccountID, wTotal, wIndex) {
-			continue
+		// Note: We removed account-level sharding here because providers (Aliyun, Tencent)
+		// implement their own fine-grained sharding (e.g. by Region) inside Collect().
+		// If we shard by account here, we might skip an account entirely that contains
+		// regions belonging to this shard, leading to missing data (Double Sharding bug).
+		//
+		// Future optimization: If a provider does NOT support internal sharding,
+		// we should handle it here or enforce them to implement it.
+
+		c.statusLock.Lock()
+		c.status.LastResults[account.Provider+"|"+account.AccountID] = AccountStat{
+			Timestamp: time.Now(),
+			Status:    "running",
 		}
+		c.statusLock.Unlock()
+
 		wg.Add(1)
 		go func(acc config.CloudAccount) {
 			defer wg.Done()
 			logger.Log.Debugf("开始账号采集 provider=%s account_id=%s", acc.Provider, acc.AccountID)
-			c.collectAccount(acc)
+			c.collectAccount(acc, filterResource)
 			logger.Log.Debugf("完成账号采集 provider=%s account_id=%s", acc.Provider, acc.AccountID)
+
+			c.statusLock.Lock()
+			c.status.LastResults[acc.Provider+"|"+acc.AccountID] = AccountStat{
+				Timestamp: time.Now(),
+				Status:    "completed",
+			}
+			c.statusLock.Unlock()
 		}(account)
 	}
 	wg.Wait()
+
+	c.statusLock.Lock()
+	c.status.LastEnd = time.Now()
+	c.status.Duration = time.Since(start).String()
+	c.statusLock.Unlock()
 }
 
 // collectAccount 规范化资源类型并路由到对应云采集器
-func (c *Collector) collectAccount(account config.CloudAccount) {
+func (c *Collector) collectAccount(account config.CloudAccount, filterResource string) {
 	p, ok := c.providers[account.Provider]
 	if !ok {
 		logger.Log.Warnf("Unknown provider: %s", account.Provider)
 		return
 	}
 
-	if len(account.Resources) == 0 || (len(account.Resources) == 1 && account.Resources[0] == "*") {
+	if filterResource != "" {
+		// Only collect specified resource
+		account.Resources = []string{filterResource}
+	} else if len(account.Resources) == 0 || (len(account.Resources) == 1 && account.Resources[0] == "*") {
 		account.Resources = p.GetDefaultResources()
 	}
 
 	p.Collect(account)
-}
-
-func clusterConf() (int, int) {
-	// 优先：Headless Service 动态成员发现（Deployment 多副本）
-	if os.Getenv("CLUSTER_DISCOVERY") == "headless" {
-		svc := os.Getenv("CLUSTER_SVC")
-		selfIP := os.Getenv("POD_IP")
-		if svc != "" && selfIP != "" {
-			if ips, err := net.LookupIP(svc); err == nil && len(ips) > 0 {
-				var list []string
-				for _, ip := range ips {
-					list = append(list, ip.String())
-				}
-				sort.Strings(list)
-				for i, ip := range list {
-					if ip == selfIP {
-						return len(list), i
-					}
-				}
-			}
-		}
-	}
-
-	// 次选：文件成员发现（宿主机共享文件，无中间件）
-	if os.Getenv("CLUSTER_DISCOVERY") == "file" {
-		path := os.Getenv("CLUSTER_FILE")
-		self := os.Getenv("POD_NAME")
-		if self == "" {
-			self = os.Getenv("HOSTNAME")
-		}
-		if path != "" && self != "" {
-			if f, err := os.Open(path); err == nil {
-				defer func() { _ = f.Close() }()
-				var members []string
-				sc := bufio.NewScanner(f)
-				for sc.Scan() {
-					line := strings.TrimSpace(sc.Text())
-					if line != "" {
-						members = append(members, line)
-					}
-				}
-				if len(members) > 0 {
-					sort.Strings(members)
-					for i, m := range members {
-						if m == self {
-							return len(members), i
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// 回退：静态分片参数
-	total := 1
-	index := 0
-	if v := os.Getenv("CLUSTER_WORKERS"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			total = n
-		}
-	}
-	if v := os.Getenv("CLUSTER_INDEX"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
-			index = n
-		}
-	}
-	if index >= total {
-		index = index % total
-	}
-	return total, index
-}
-
-func shardOf(s string, n int) int {
-	if n <= 1 {
-		return 0
-	}
-	h := fnv.New32a()
-	_, _ = h.Write([]byte(s))
-	return int(h.Sum32() % uint32(n))
-}
-
-func assignAccount(provider, accountID string, total, index int) bool {
-	if total <= 1 {
-		return true
-	}
-	key := provider + "|" + accountID
-	return shardOf(key, total) == index
 }

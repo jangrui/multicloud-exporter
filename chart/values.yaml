@@ -57,6 +57,14 @@ cluster:
   discovery: "" # values: headless|file|""
   svcName: ""   # required when discovery=headless
   file: ""      # required when discovery=file
+  
+  # Static sharding configuration (alternative to discovery)
+  # When running in static mode (discovery=""), you can manually assign shards.
+  # This maps to EXPORT_SHARD_TOTAL and EXPORT_SHARD_INDEX env vars.
+  sharding:
+    enabled: false
+    total: 1
+    index: 0
 
 # 环境变量覆盖（按需）：如果设置将覆盖 server.yaml 中的对应配置
 # - EXPORTER_PORT: 监听端口；默认 9101
@@ -105,11 +113,11 @@ accounts:
     aliyun: []
     #   - name: aliyun-acc-0
     #     regions: ["*"]
-    #     resources: ["bwp"]
+    #     resources: ["cbwp", "slb", "oss"]
     tencent: []
     #   - name: tencent-acc-0
     #     regions: ["*"]
-    #     resources: ["bwp"]
+    #     resources: ["clb", "bwp", "cos"]
     huawei: []
     #   - name: huawei-acc-0
     #     regions: ["*"]
@@ -119,11 +127,11 @@ accounts:
   #   - name: accounts-1
   #     provider: aliyun
   #     regions: ["*"]
-  #     resources: ["bwp"]
+  #     resources: ["cbwp", "slb", "oss"]
   #   - name: accounts-2
   #     provider: aliyun
   #     regions: ["*"]
-  #     resources: ["bwp"]
+  #     resources: ["cbwp", "slb", "oss"]
 
 resources: {}
 

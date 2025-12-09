@@ -5,6 +5,7 @@
 ## 统一命名
 
 - 前缀：`bwp_`
+- 配置文件：`configs/mappings/bwp.metrics.yaml`
 - 指标集合（8项）：
   - `bwp_in_utilization_pct`：入方向带宽利用率（百分比）
   - `bwp_out_utilization_pct`：出方向带宽利用率（百分比）
@@ -37,8 +38,6 @@
 - `Period` 建议从指标元数据的 `Min Periods` 读取；如未指定，使用最小可用周期。
 - API 参考：云产品监控指标索引、服务接入点、`DescribeMetricLast`。
 
-## 腾讯云映射（接入计划）
- 
 ## 腾讯云映射
 
 - 命名空间：`QCE/BWP`

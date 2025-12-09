@@ -7,6 +7,11 @@
 ### 1.1 架构图（Mermaid）
 
 ```mermaid
+---
+config:
+  theme: mc
+  layout: elk
+---
 graph LR
   subgraph Kubernetes_Cluster
     subgraph Deployment
@@ -72,6 +77,11 @@ graph LR
 ### 2.1 架构图（Mermaid）
 
 ```mermaid
+---
+config:
+  theme: mc
+  layout: elk
+---
 graph LR
   subgraph Hosts
     I0[Exporter instance 0]
@@ -79,7 +89,6 @@ graph LR
     I2[Exporter instance 2]
     FILE[Shared members file]
     SHARD[Deterministic sharding fnv]
-    HB[Heartbeat TTL cleanup]
     HR[Hot-reload SIGHUP polling]
   end
 
@@ -97,7 +106,6 @@ graph LR
   SHARD --> I1
   SHARD --> I2
 
-  HB --> FILE
   HR --> I0
   HR --> I1
   HR --> I2
@@ -105,18 +113,17 @@ graph LR
 
 ### 2.2 核心算法
 
-- 成员发现（K8s/宿主机通用）：`internal/collector/collector.go:103` 使用 `CLUSTER_DISCOVERY`。
-  - `headless`: 解析 `CLUSTER_SVC` DNS 获取 Pod IP 列表，匹配 `POD_IP` 得到 `(wTotal,wIndex)`。
-  - `file`: 读取 `CLUSTER_FILE` 列表，与 `POD_NAME`/`HOSTNAME` 匹配计算 `(wTotal,wIndex)`。
+- 成员发现（K8s/宿主机通用）：`internal/utils/sharding.go` 的 `ClusterConfig` 函数。
+    - `headless`: 解析 `CLUSTER_SVC` DNS 获取 Pod IP 列表，匹配 `POD_IP` 得到 `(wTotal,wIndex)`。
+    - `file`: 读取 `CLUSTER_FILE` 列表，与 `POD_NAME`/`HOSTNAME` 匹配计算 `(wTotal,wIndex)`。
 
 - 分片与路由：
-  - 账号级分片：`assignAccount` 在 `internal/collector/collector.go:182` 基于 `fnv` 哈希计算分片。
-  - 区域级分片：`assignRegion` 在 `internal/providers/aliyun/aliyun.go:900` 与 `internal/providers/tencent/tencent.go:344`。
-  - 哈希函数：`shardOf` 在 `internal/collector/collector.go:173`，`key` 按 provider/account 或 account/region 组合。
-
-- 心跳与注册：
-  - 轻量化方案：共享文件记录成员，实例周期性刷新自身条目（含时间戳），清理过期记录；无外部中间件。
-  - TTL 建议：30–120s；刷新间隔 10–30s。
+  - 核心算法：集中于 `internal/utils/sharding.go`，提供 `ClusterConfig`（获取总分片数与当前索引）与 `ShouldProcess`（判断是否处理当前 Key）。
+  - 分片策略：
+    - 仅启用**云厂商层级（Provider-level）**分片，由各 Provider 在采集循环内部调用 `ShouldProcess(AccountID|Region)`。
+    - **已移除** Collector 层级的账号分片，以防止跨区域账号被错误地整体跳过（解决 Double Sharding 问题）。
+  - 区域级分片：`internal/providers/aliyun/aliyun.go` 与 `internal/providers/tencent/tencent.go` 在采集时调用 `ShouldProcess`。
+  - 哈希函数：`ShardIndex` 在 `internal/utils/sharding.go`，使用 FNV-32a 算法。
 
 - 配置热更新：
   - K8s：使用 ConfigMap + `stakater/reloader` 注解已集成；Chart 已支持。
@@ -171,7 +178,7 @@ graph LR
 ### 3.3 高可用与故障转移
 
 - K8s：Deployment 多副本 + HPA；探针失败自动重启；Pod 反亲和减少同机失败概率；Prometheus 多 target 抓取容错。
-- 宿主机：多实例并行；成员 TTL 清理避免僵尸；分片哈希稳定，实例宕机后剩余实例仍覆盖其分片（通过总成员变化重算）。
+- 宿主机：多实例并行；外部维护成员列表文件（自动化运维工具更新）；分片哈希稳定，实例宕机后剩余实例仍覆盖其分片（通过总成员变化重算）。
 
 ### 3.4 性能指标与目标
 

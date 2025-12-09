@@ -8,7 +8,7 @@ import (
 
 // GetDefaultResources 返回阿里云默认采集的资源类型
 func (a *Collector) GetDefaultResources() []string {
-	return []string{"ecs", "bwp", "lb"}
+	return []string{"cbwp", "slb", "oss"}
 }
 
 func init() {

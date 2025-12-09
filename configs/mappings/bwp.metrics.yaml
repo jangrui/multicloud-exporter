@@ -1,0 +1,43 @@
+# Unified Bandwidth Package Metrics (Aliyun CBWP / Tencent BWP)
+prefix: bwp
+namespaces:
+  aliyun: acs_bandwidth_package
+  tencent: QCE/BWP
+
+canonical:
+  traffic_rx_bps:
+    aliyun:
+      metric: DownstreamBandwidth
+      unit: bit/s
+      scale: 1
+    tencent:
+      metric: InTraffic
+      unit: Mbps
+      scale: 1000000
+  traffic_tx_bps:
+    aliyun:
+      metric: UpstreamBandwidth
+      unit: bit/s
+      scale: 1
+    tencent:
+      metric: OutTraffic
+      unit: Mbps
+      scale: 1000000
+  packet_rx:
+    aliyun:
+      metric: DownstreamPacket
+      unit: count/s
+      scale: 1
+    tencent:
+      metric: InPkg
+      unit: count/s
+      scale: 1
+  packet_tx:
+    aliyun:
+      metric: UpstreamPacket
+      unit: count/s
+      scale: 1
+    tencent:
+      metric: OutPkg
+      unit: count/s
+      scale: 1

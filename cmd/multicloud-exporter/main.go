@@ -2,13 +2,13 @@
 package main
 
 import (
-    "context"
-    "encoding/json"
-    "net/http"
-    "os"
-    "strconv"
-    "time"
-    "crypto/subtle"
+	"context"
+	"crypto/subtle"
+	"encoding/json"
+	"net/http"
+	"os"
+	"strconv"
+	"time"
 
 	"multicloud-exporter/internal/collector"
 	"multicloud-exporter/internal/config"
@@ -17,6 +17,7 @@ import (
 	"multicloud-exporter/internal/metrics"
 	_ "multicloud-exporter/internal/metrics/aliyun"
 	_ "multicloud-exporter/internal/metrics/tencent"
+	"path/filepath"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -43,13 +44,26 @@ func main() {
 			logger.Log.Infof("Loaded metric mappings from %s", mappingPath)
 		}
 	} else {
-		// 尝试加载默认位置的映射文件
-		defaultPath := "configs/mappings/lb.metrics.yaml"
-		if _, err := os.Stat(defaultPath); err == nil {
-			if err := config.LoadMetricMappings(defaultPath); err != nil {
-				logger.Log.Warnf("Failed to load metric mappings from %s: %v", defaultPath, err)
-			} else {
-				logger.Log.Infof("Loaded metric mappings from %s", defaultPath)
+		// 尝试加载默认位置的所有映射文件
+		mappingDir := "configs/mappings"
+		files, err := filepath.Glob(filepath.Join(mappingDir, "*.yaml"))
+		if err == nil && len(files) > 0 {
+			for _, f := range files {
+				if err := config.LoadMetricMappings(f); err != nil {
+					logger.Log.Warnf("Failed to load metric mappings from %s: %v", f, err)
+				} else {
+					logger.Log.Infof("Loaded metric mappings from %s", f)
+				}
+			}
+		} else {
+			// Fallback to legacy single file check if glob fails or empty (though glob returns nil err on no match usually)
+			defaultPath := "configs/mappings/lb.metrics.yaml"
+			if _, err := os.Stat(defaultPath); err == nil {
+				if err := config.LoadMetricMappings(defaultPath); err != nil {
+					logger.Log.Warnf("Failed to load metric mappings from %s: %v", defaultPath, err)
+				} else {
+					logger.Log.Infof("Loaded metric mappings from %s", defaultPath)
+				}
 			}
 		}
 	}
@@ -136,90 +150,101 @@ func main() {
 		}
 	}()
 
-    http.Handle("/metrics", promhttp.Handler())
-    http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-        w.WriteHeader(http.StatusOK)
-        _, _ = w.Write([]byte("ok"))
-    })
-    wrap := func(h http.HandlerFunc) http.HandlerFunc {
-        enabled := false
-        var pairs []config.BasicAuth
-        if cfg.Server != nil {
-            if cfg.Server.AdminAuthEnabled {
-                enabled = true
-                pairs = cfg.Server.AdminAuth
-            }
-        }
-        if !enabled && cfg.ServerConf != nil {
-            if cfg.ServerConf.AdminAuthEnabled {
-                enabled = true
-                pairs = cfg.ServerConf.AdminAuth
-            }
-        }
-        if !enabled || len(pairs) == 0 {
-            return h
-        }
-        return func(w http.ResponseWriter, r *http.Request) {
-            u, p, ok := r.BasicAuth()
-            if !ok {
-                w.Header().Set("WWW-Authenticate", "Basic realm=restricted")
-                http.Error(w, "unauthorized", http.StatusUnauthorized)
-                return
-            }
-            authed := false
-            for _, pair := range pairs {
-                if subtle.ConstantTimeCompare([]byte(u), []byte(pair.Username)) == 1 && subtle.ConstantTimeCompare([]byte(p), []byte(pair.Password)) == 1 {
-                    authed = true
-                    break
-                }
-            }
-            if !authed {
-                http.Error(w, "forbidden", http.StatusForbidden)
-                return
-            }
-            h(w, r)
-        }
-    }
-    http.HandleFunc("/api/discovery/config", wrap(func(w http.ResponseWriter, r *http.Request) {
-        w.Header().Set("Content-Type", "application/json")
-        data := struct {
-            Version   int64                       `json:"version"`
-            UpdatedAt int64                       `json:"updated_at"`
-            Products  map[string][]config.Product `json:"products"`
-        }{Version: mgr.Version(), UpdatedAt: mgr.UpdatedAt().Unix(), Products: mgr.Get()}
-        _ = json.NewEncoder(w).Encode(data)
-    }))
-    http.HandleFunc("/api/discovery/stream", wrap(func(w http.ResponseWriter, r *http.Request) {
-        w.Header().Set("Content-Type", "text/event-stream")
-        w.Header().Set("Cache-Control", "no-cache")
-        w.Header().Set("Connection", "keep-alive")
-        fl, _ := w.(http.Flusher)
-        ch := mgr.Subscribe()
-        defer mgr.Unsubscribe(ch)
-        _, _ = w.Write([]byte("event: init\n"))
-        _, _ = w.Write([]byte("data: {}\n\n"))
-        if fl != nil {
-            fl.Flush()
-        }
-        for {
-            select {
-            case <-r.Context().Done():
-                return
-            case <-ch:
-                payload := struct {
-                    Version int64 `json:"version"`
-                }{Version: mgr.Version()}
-                bs, _ := json.Marshal(payload)
-                _, _ = w.Write([]byte("event: update\n"))
-                _, _ = w.Write([]byte("data: "))
-                _, _ = w.Write(bs)
-                _, _ = w.Write([]byte("\n\n"))
-                if fl != nil {
-                    fl.Flush()
-                }
-            }
-        }
-    }))
+	http.Handle("/metrics", promhttp.Handler())
+	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	})
+	wrap := func(h http.HandlerFunc) http.HandlerFunc {
+		enabled := false
+		var pairs []config.BasicAuth
+		if cfg.Server != nil {
+			if cfg.Server.AdminAuthEnabled {
+				enabled = true
+				pairs = cfg.Server.AdminAuth
+			}
+		}
+		if !enabled && cfg.ServerConf != nil {
+			if cfg.ServerConf.AdminAuthEnabled {
+				enabled = true
+				pairs = cfg.ServerConf.AdminAuth
+			}
+		}
+		if !enabled || len(pairs) == 0 {
+			return h
+		}
+		return func(w http.ResponseWriter, r *http.Request) {
+			u, p, ok := r.BasicAuth()
+			if !ok {
+				w.Header().Set("WWW-Authenticate", "Basic realm=restricted")
+				http.Error(w, "unauthorized", http.StatusUnauthorized)
+				return
+			}
+			authed := false
+			for _, pair := range pairs {
+				if subtle.ConstantTimeCompare([]byte(u), []byte(pair.Username)) == 1 && subtle.ConstantTimeCompare([]byte(p), []byte(pair.Password)) == 1 {
+					authed = true
+					break
+				}
+			}
+			if !authed {
+				http.Error(w, "forbidden", http.StatusForbidden)
+				return
+			}
+			h(w, r)
+		}
+	}
+	http.HandleFunc("/collect", wrap(func(w http.ResponseWriter, r *http.Request) {
+		provider := r.URL.Query().Get("provider")
+		resource := r.URL.Query().Get("resource")
+		go coll.CollectFiltered(provider, resource)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "triggered", "provider": provider, "resource": resource})
+	}))
+	http.HandleFunc("/status", wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(coll.GetStatus())
+	}))
+	http.HandleFunc("/api/discovery/config", wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		data := struct {
+			Version   int64                       `json:"version"`
+			UpdatedAt int64                       `json:"updated_at"`
+			Products  map[string][]config.Product `json:"products"`
+		}{Version: mgr.Version(), UpdatedAt: mgr.UpdatedAt().Unix(), Products: mgr.Get()}
+		_ = json.NewEncoder(w).Encode(data)
+	}))
+	http.HandleFunc("/api/discovery/stream", wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+		fl, _ := w.(http.Flusher)
+		ch := mgr.Subscribe()
+		defer mgr.Unsubscribe(ch)
+		_, _ = w.Write([]byte("event: init\n"))
+		_, _ = w.Write([]byte("data: {}\n\n"))
+		if fl != nil {
+			fl.Flush()
+		}
+		for {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-ch:
+				payload := struct {
+					Version int64 `json:"version"`
+				}{Version: mgr.Version()}
+				bs, _ := json.Marshal(payload)
+				_, _ = w.Write([]byte("event: update\n"))
+				_, _ = w.Write([]byte("data: "))
+				_, _ = w.Write(bs)
+				_, _ = w.Write([]byte("\n\n"))
+				if fl != nil {
+					fl.Flush()
+				}
+			}
+		}
+	}))
 	logger.Log.Infof("服务启动，端口=%s", port)
 	logger.Log.Fatal(http.ListenAndServe(":"+port, nil))
 }

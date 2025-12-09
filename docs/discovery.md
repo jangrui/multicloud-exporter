@@ -17,7 +17,7 @@
 ## 技术调研
 
 - 文件监听方案：定期轮询 `ACCOUNTS_PATH` 的 `mtime`，变更触发刷新；已实现于 `internal/discovery/manager.go:131-156`。
-- 账户/资源签名：解析 `accounts.yaml` 后生成资源集合签名，避免冗余刷新；对比见 `internal/discovery/manager.go:139-150`。
+- 账户/资源签名：解析 `accounts.yaml` 后生成资源集合签名，避免冗余刷新；对比逻辑优化为 `reflect.DeepEqual` 替代 `json.Marshal` 以提升性能；对比见 `internal/discovery/manager.go:139-150`。
 - 周期策略：Aliyun/Tencent 元数据接口均可返回指标支持的 `Periods`/`Period`；最小值用作默认请求参数（Tencent：`DescribeBaseMetrics`；Aliyun：`DescribeMetricMetaList`）。
 
 ## 可行性评估
@@ -39,7 +39,7 @@
 
 - 模块：`internal/discovery`
   - `manager.go`：管理发现、刷新、存储与通知
-  - `aliyun.go`：阿里云命名空间指标发现（`acs_ecs_dashboard`、`acs_bandwidth_package`、`acs_slb_dashboard`）
+  - `aliyun.go`：阿里云命名空间指标发现（`acs_bandwidth_package`、`acs_slb_dashboard`）
   - `tencent.go`：腾讯云命名空间指标发现（`QCE/BWP`、`QCE/CLB`）
 
 ## 运行时行为
@@ -70,7 +70,7 @@
     "version": 1,
     "updated_at": 1733395200,
     "products": {
-      "aliyun": [ {"namespace": "acs_ecs_dashboard", "auto_discover": true, "metric_info": [{"metric_list": ["CPUUtilization", "DiskReadBPS" ]}] } ],
+      "aliyun": [ {"namespace": "acs_slb_dashboard", "auto_discover": true, "metric_info": [{"metric_list": ["ActiveConnection", "TrafficRX" ]}] } ],
       "tencent": [ {"namespace": "QCE/BWP", "auto_discover": true, "metric_info": [{"metric_list": ["InTraffic", "OutTraffic"]}]} ]
     }
   }
