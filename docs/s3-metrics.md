@@ -51,6 +51,9 @@ s3_bucket_size_bytes{
   account_id="aliyun-prod",
   region="cn-hangzhou",
   resource_type="oss",
-  resource_id="my-bucket"
+  resource_id="my-bucket",
+  namespace="acs_oss_dashboard",
+  metric_name="UserStorage",
+  code_name=""
 } 104857600
 ```

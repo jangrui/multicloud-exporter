@@ -64,6 +64,8 @@ lb_traffic_rx_bps{
   region="cn-hangzhou",
   resource_type="lb",
   resource_id="lb-bp1...",
+  namespace="acs_slb_dashboard",
+  metric_name="TrafficRXNew",
   code_name="my-slb",
   port="80",
   protocol="http"
