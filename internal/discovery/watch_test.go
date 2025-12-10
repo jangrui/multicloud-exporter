@@ -38,18 +38,18 @@ func TestWatchAccountsTrigger(t *testing.T) {
     _ = os.Setenv("ACCOUNTS_PATH", p)
 	cfg := &config.Config{}
 	m := NewManager(cfg)
-	m.watchInterval = 500 * time.Millisecond
+	m.watchInterval = 100 * time.Millisecond // Reduce interval for test
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	m.Start(ctx)
 	ch := m.Subscribe()
-	time.Sleep(300 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond) // Wait for watcher to start
 	if err := os.WriteFile(p, []byte("accounts:\n  aliyun:\n    - provider: aliyun\n      resources: [bwp, slb]\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 	select {
 	case <-ch:
-	case <-time.After(4 * time.Second):
+	case <-time.After(2 * time.Second): // Increase timeout relative to interval
 		t.Fatalf("no refresh signal")
 	}
 }
