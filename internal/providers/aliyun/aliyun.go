@@ -502,6 +502,11 @@ func (a *Collector) checkRequiredDimensions(namespace string, dims []string) boo
 	return false
 }
 
+// chooseStatistics 对所需的统计数据与可用的统计数据进行筛选。
+// 如果没有找到所需的统计数据，则返回可用的统计数据。
+// 注意：此函数目前未使用，但保留以供将来使用。
+// 
+//nolint:unused
 func chooseStatistics(available []string, desired []string) []string {
 	if len(desired) == 0 {
 		return available

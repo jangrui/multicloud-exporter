@@ -74,9 +74,10 @@ func AnnotateCanonical(metas []MetricMeta, mapping config.MetricMapping) []Metri
 func GetProductMetricMeta(provider, region, ak, sk, namespace, mappingPath string) ([]MetricMeta, error) {
 	var metas []MetricMeta
 	var err error
-	if provider == "aliyun" {
+	switch provider {
+	case "aliyun":
 		metas, err = FetchAliyunMetricMeta(region, ak, sk, namespace)
-	} else if provider == "tencent" {
+	case "tencent":
 		metas, err = FetchTencentMetricMeta(region, ak, sk, namespace)
 	}
 	if err != nil {
