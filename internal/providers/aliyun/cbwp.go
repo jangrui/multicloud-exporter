@@ -15,7 +15,7 @@ import (
 func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []string {
 	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region)
 	ctxLog.Debugf("枚举共享带宽包开始")
-	client, err := vpc.NewClientWithAccessKey(region, account.AccessKeyID, account.AccessKeySecret)
+	client, err := a.clientFactory.NewVPCClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
 		return []string{}
 	}
@@ -91,7 +91,7 @@ func (a *Collector) fetchCBWPTags(account config.CloudAccount, region string, id
 	if len(ids) == 0 {
 		return map[string]string{}
 	}
-	client, err := vpc.NewClientWithAccessKey(region, account.AccessKeyID, account.AccessKeySecret)
+	client, err := a.clientFactory.NewVPCClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
 		return map[string]string{}
 	}

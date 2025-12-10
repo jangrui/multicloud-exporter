@@ -21,10 +21,11 @@ import (
 )
 
 type Collector struct {
-	cfg      *config.Config
-	disc     *discovery.Manager
-	resCache map[string]resCacheEntry
-	cacheMu  sync.RWMutex
+	cfg           *config.Config
+	disc          *discovery.Manager
+	resCache      map[string]resCacheEntry
+	cacheMu       sync.RWMutex
+	clientFactory ClientFactory
 }
 
 type resCacheEntry struct {
@@ -34,9 +35,10 @@ type resCacheEntry struct {
 
 func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
 	return &Collector{
-		cfg:      cfg,
-		disc:     mgr,
-		resCache: make(map[string]resCacheEntry),
+		cfg:           cfg,
+		disc:          mgr,
+		resCache:      make(map[string]resCacheEntry),
+		clientFactory: &defaultClientFactory{},
 	}
 }
 
@@ -67,8 +69,7 @@ func (t *Collector) Collect(account config.CloudAccount) {
 
 // getAllRegions 通过 CVM DescribeRegions 自动枚举腾讯云可用区域
 func (t *Collector) getAllRegions(account config.CloudAccount) []string {
-	credential := common.NewCredential(account.AccessKeyID, account.AccessKeySecret)
-	client, err := cvm.NewClient(credential, "ap-guangzhou", profile.NewClientProfile())
+	client, err := t.clientFactory.NewCVMClient("ap-guangzhou", account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
 		return []string{"ap-guangzhou"}
 	}

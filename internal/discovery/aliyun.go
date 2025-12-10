@@ -9,7 +9,13 @@ import (
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/cms"
 )
 
-var newAliyunCMSClient = func(region, ak, sk string) (*cms.Client, error) { return cms.NewClientWithAccessKey(region, ak, sk) }
+type CMSClient interface {
+	DescribeMetricMetaList(request *cms.DescribeMetricMetaListRequest) (response *cms.DescribeMetricMetaListResponse, err error)
+}
+
+var newAliyunCMSClient = func(region, ak, sk string) (CMSClient, error) {
+	return cms.NewClientWithAccessKey(region, ak, sk)
+}
 
 type AliyunDiscoverer struct{}
 

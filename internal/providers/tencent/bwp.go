@@ -8,7 +8,6 @@ import (
 	"multicloud-exporter/internal/metrics"
 
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
-	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
 	monitor "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/monitor/v20180724"
 	vpc "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/vpc/v20170312"
 )
@@ -19,8 +18,7 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 		return ids
 	}
 
-	credential := common.NewCredential(account.AccessKeyID, account.AccessKeySecret)
-	client, err := vpc.NewClient(credential, region, profile.NewClientProfile())
+	client, err := t.clientFactory.NewVPCClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
 		return []string{}
 	}
@@ -51,8 +49,7 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 }
 
 func (t *Collector) fetchBWPMonitor(account config.CloudAccount, region string, prod config.Product, ids []string) {
-	credential := common.NewCredential(account.AccessKeyID, account.AccessKeySecret)
-	client, err := monitor.NewClient(credential, region, profile.NewClientProfile())
+	client, err := t.clientFactory.NewMonitorClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
 		return
 	}
@@ -114,9 +111,13 @@ func (t *Collector) fetchBWPMonitor(account config.CloudAccount, region string, 
 				if v := dp.Values[len(dp.Values)-1]; v != nil {
 					val = *v
 				}
-				alias := metrics.NamespaceGauge("QCE/BWP", m)
+				alias, count := metrics.NamespaceGauge("QCE/BWP", m)
 				scaled := scaleBWPMetric(m, val)
-				alias.WithLabelValues("tencent", account.AccountID, region, "bwp", rid, "QCE/BWP", m, "").Set(scaled)
+				labels := []string{"tencent", account.AccountID, region, "bwp", rid, "QCE/BWP", m, ""}
+				for len(labels) < count {
+					labels = append(labels, "")
+				}
+				alias.WithLabelValues(labels...).Set(scaled)
 			}
 		}
 	}

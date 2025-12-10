@@ -44,11 +44,7 @@ func (a *Collector) listOSSIDs(account config.CloudAccount, region string) []str
 		// Fetch from API
 		// OSS ListBuckets is a global operation, but we need an endpoint.
 		// Using the current region's endpoint is fine.
-		endpoint := "oss-" + region + ".aliyuncs.com"
-		// Use HTTPS
-		endpoint = "https://" + endpoint
-
-		client, err := oss.New(endpoint, account.AccessKeyID, account.AccessKeySecret)
+		client, err := a.clientFactory.NewOSSClient(region, account.AccessKeyID, account.AccessKeySecret)
 		if err != nil {
 			ctxLog.Errorf("Init OSS client error: %v", err)
 			return []string{}

@@ -39,3 +39,28 @@ func TestAccountsSignature(t *testing.T) {
 		t.Fatalf("empty signature")
 	}
 }
+
+func TestManagerSubscription(t *testing.T) {
+	cfg := &config.Config{Server: &config.ServerConf{NoSavepoint: true}}
+	m := NewManager(cfg)
+	ch := m.Subscribe()
+	if ch == nil {
+		t.Fatal("subscribe returned nil")
+	}
+	m.Unsubscribe(ch)
+}
+
+func TestManagerUpdatedAt(t *testing.T) {
+	cfg := &config.Config{Server: &config.ServerConf{NoSavepoint: true}}
+	m := NewManager(cfg)
+	// Initially zero or near zero?
+	_ = m.UpdatedAt()
+	
+	if err := m.Refresh(context.Background()); err != nil {
+		t.Fatalf("refresh err: %v", err)
+	}
+	ts := m.UpdatedAt()
+	if ts.IsZero() {
+		t.Fatal("updatedAt is zero after refresh")
+	}
+}

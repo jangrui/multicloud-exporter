@@ -81,6 +81,21 @@ canonical:
       metric: OuttrafficVipRatio
       unit: '%'
       scale: 1
+  vip_new_connection:
+    tencent:
+      metric: VNewConn
+      unit: count/s
+      scale: 1
+  new_connection:
+    tencent:
+      metric: NewConn
+      unit: count/s
+      scale: 1
+  active_connection:
+    tencent:
+      metric: Connum
+      unit: count
+      scale: 1
 
 aliyun_only:
   qps:

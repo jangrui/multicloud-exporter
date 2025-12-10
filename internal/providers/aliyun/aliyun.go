@@ -24,16 +24,17 @@ import (
 
 // Collector 封装阿里云资源采集逻辑
 type Collector struct {
-	cfg       *config.Config
-	disc      *discovery.Manager
-	metaCache map[string]metricMeta
-	metaMu    sync.RWMutex
-	cacheMu   sync.RWMutex
-	resCache  map[string]resCacheEntry
-	uidCache  map[string]string
-	uidMu     sync.RWMutex
-	ossCache  map[string]ossCacheEntry
-	ossMu     sync.Mutex
+	cfg           *config.Config
+	disc          *discovery.Manager
+	metaCache     map[string]metricMeta
+	metaMu        sync.RWMutex
+	cacheMu       sync.RWMutex
+	resCache      map[string]resCacheEntry
+	uidCache      map[string]string
+	uidMu         sync.RWMutex
+	ossCache      map[string]ossCacheEntry
+	ossMu         sync.Mutex
+	clientFactory ClientFactory
 }
 
 // resCacheEntry 缓存资源ID及元数据
@@ -57,12 +58,13 @@ type ossBucketInfo struct {
 // NewCollector 创建阿里云采集器实例
 func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
 	return &Collector{
-		cfg:       cfg,
-		disc:      mgr,
-		metaCache: make(map[string]metricMeta),
-		resCache:  make(map[string]resCacheEntry),
-		uidCache:  make(map[string]string),
-		ossCache:  make(map[string]ossCacheEntry),
+		cfg:           cfg,
+		disc:          mgr,
+		metaCache:     make(map[string]metricMeta),
+		resCache:      make(map[string]resCacheEntry),
+		uidCache:      make(map[string]string),
+		ossCache:      make(map[string]ossCacheEntry),
+		clientFactory: &defaultClientFactory{},
 	}
 }
 
@@ -81,13 +83,11 @@ func (a *Collector) getAccountUID(account config.CloudAccount, region string) st
 	if region == "" {
 		region = "cn-hangzhou"
 	}
-	client, err := sts.NewClientWithAccessKey(region, account.AccessKeyID, account.AccessKeySecret)
+	client, err := a.clientFactory.NewSTSClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
 		logger.Log.Errorf("Aliyun init STS client error: %v", err)
 		return account.AccountID // 回退到配置ID
 	}
-	// 强制使用 HTTPS
-	client.GetConfig().WithScheme("HTTPS")
 
 	req := sts.CreateGetCallerIdentityRequest()
 	resp, err := client.GetCallerIdentity(req)
@@ -147,7 +147,7 @@ func (a *Collector) Collect(account config.CloudAccount) {
 
 // getAllRegions 通过 DescribeRegions 自动发现全部区域
 func (a *Collector) getAllRegions(account config.CloudAccount) []string {
-	client, err := ecs.NewClientWithAccessKey("cn-hangzhou", account.AccessKeyID, account.AccessKeySecret)
+	client, err := a.clientFactory.NewECSClient("cn-hangzhou", account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
 		logger.Log.Errorf("Aliyun get regions error account_id=%s: %v", account.AccountID, err)
 		return []string{"cn-hangzhou"}
@@ -218,12 +218,11 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 		}
 	}
 
-	client, err := cms.NewClientWithAccessKey(region, ak, sk)
+	client, err := a.clientFactory.NewCMSClient(region, ak, sk)
 	if err != nil {
 		logger.Log.Errorf("Aliyun CMS client error: %v", err)
 		return
 	}
-	client.GetConfig().WithScheme("HTTPS")
 	// Endpoint 使用地域默认配置，如需自定义可在此处扩展
 
 	// 不预先限定 ECS 维度，按具体指标的维度键枚举对应资源
@@ -390,7 +389,7 @@ type metricMeta struct {
 	MinPeriod  string
 }
 
-func (a *Collector) getMetricMeta(client *cms.Client, namespace, metric string) metricMeta {
+func (a *Collector) getMetricMeta(client CMSClient, namespace, metric string) metricMeta {
 	key := namespace + "|" + metric
 	a.metaMu.RLock()
 	m, ok := a.metaCache[key]
@@ -404,13 +403,17 @@ func (a *Collector) getMetricMeta(client *cms.Client, namespace, metric string) 
 	start := time.Now()
 	var resp *cms.DescribeMetricMetaListResponse
 	var err error
-	for attempt := 0; attempt < 3; attempt++ {
+	for attempt := 0; attempt < 5; attempt++ {
 		resp, err = client.DescribeMetricMetaList(req)
 		if err == nil {
 			break
 		}
 		if classifyAliyunError(err) == "limit_error" {
-			time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
+			sleep := time.Duration(200*(1<<attempt)) * time.Millisecond
+			if sleep > 5*time.Second {
+				sleep = 5 * time.Second
+			}
+			time.Sleep(sleep)
 			continue
 		}
 		break
@@ -505,7 +508,7 @@ func (a *Collector) checkRequiredDimensions(namespace string, dims []string) boo
 // chooseStatistics 对所需的统计数据与可用的统计数据进行筛选。
 // 如果没有找到所需的统计数据，则返回可用的统计数据。
 // 注意：此函数目前未使用，但保留以供将来使用。
-// 
+//
 //nolint:unused
 func chooseStatistics(available []string, desired []string) []string {
 	if len(desired) == 0 {
@@ -697,7 +700,16 @@ func (a *Collector) buildMetricDimensions(ids []string, dkey string, metricDims 
 	return allDims, dynamicDims
 }
 
-func (a *Collector) fetchAndRecordMetrics(client *cms.Client, account config.CloudAccount, region, ns, m, dkey, rtype, period string, allDims []map[string]string, dynamicDims []string, tags map[string]string, stats []string, ctxLog *logger.ContextLogger) {
+func (a *Collector) fetchAndRecordMetrics(
+	client CMSClient,
+	account config.CloudAccount,
+	region, ns, m, dkey, rtype, period string,
+	allDims []map[string]string,
+	dynamicDims []string,
+	tags map[string]string,
+	stats []string,
+	ctxLog *logger.ContextLogger,
+) {
 	for start := 0; start < len(allDims); start += 50 {
 		end := start + 50
 		if end > len(allDims) {
@@ -728,7 +740,7 @@ func (a *Collector) fetchAndRecordMetrics(client *cms.Client, account config.Clo
 	ctxLog.Debugf("拉取指标完成")
 }
 
-func (a *Collector) processMetricBatch(client *cms.Client, req *cms.DescribeMetricLastRequest, dims []map[string]string, account config.CloudAccount, region, ns, m, dkey, rtype string, dynamicDims []string, tags map[string]string, stats []string, ctxLog *logger.ContextLogger) {
+func (a *Collector) processMetricBatch(client CMSClient, req *cms.DescribeMetricLastRequest, dims []map[string]string, account config.CloudAccount, region, ns, m, dkey, rtype string, dynamicDims []string, tags map[string]string, stats []string, ctxLog *logger.ContextLogger) {
 	nextToken := ""
 	for {
 		if nextToken != "" {
@@ -736,7 +748,7 @@ func (a *Collector) processMetricBatch(client *cms.Client, req *cms.DescribeMetr
 		}
 		var resp *cms.DescribeMetricLastResponse
 		var callErr error
-		for attempt := 0; attempt < 3; attempt++ {
+		for attempt := 0; attempt < 5; attempt++ {
 			startReq := time.Now()
 			resp, callErr = client.DescribeMetricLast(req)
 			if callErr == nil {
@@ -750,7 +762,13 @@ func (a *Collector) processMetricBatch(client *cms.Client, req *cms.DescribeMetr
 				ctxLog.Warnf("CMS DescribeMetricLast error status=%s: %v", status, callErr)
 				break
 			}
-			time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
+
+			// 指数退避重试
+			sleep := time.Duration(200*(1<<attempt)) * time.Millisecond
+			if sleep > 5*time.Second {
+				sleep = 5 * time.Second
+			}
+			time.Sleep(sleep)
 		}
 		if callErr != nil {
 			ctxLog.Errorf("拉取指标失败 error=%v", callErr)
@@ -771,7 +789,15 @@ func (a *Collector) processMetricBatch(client *cms.Client, req *cms.DescribeMetr
 					}
 					labels := []string{"aliyun", account.AccountID, region, rtype, rid, ns, m, codeNameVal}
 					labels = append(labels, dynamicLabelValues...)
-					metrics.NamespaceGauge(ns, m, dynamicDims...).WithLabelValues(labels...).Set(0)
+					vec, count := metrics.NamespaceGauge(ns, m, dynamicDims...)
+					if len(labels) > count {
+						labels = labels[:count]
+					} else {
+						for len(labels) < count {
+							labels = append(labels, "")
+						}
+					}
+					vec.WithLabelValues(labels...).Set(0)
 				}
 			}
 			break
@@ -802,7 +828,15 @@ func (a *Collector) processMetricBatch(client *cms.Client, req *cms.DescribeMetr
 				}
 				labels := []string{"aliyun", account.AccountID, region, rtype, rid, ns, m, codeNameVal}
 				labels = append(labels, dynamicLabelValues...)
-				metrics.NamespaceGauge(ns, m, dynamicDims...).WithLabelValues(labels...).Set(0)
+				vec, count := metrics.NamespaceGauge(ns, m, dynamicDims...)
+				if len(labels) > count {
+					labels = labels[:count]
+				} else {
+					for len(labels) < count {
+						labels = append(labels, "")
+					}
+				}
+				vec.WithLabelValues(labels...).Set(0)
 			}
 		}
 
@@ -840,7 +874,15 @@ func (a *Collector) processMetricBatch(client *cms.Client, req *cms.DescribeMetr
 
 			labels := []string{"aliyun", account.AccountID, region, rtype, rid, ns, m, codeNameVal}
 			labels = append(labels, dynamicLabelValues...)
-			metrics.NamespaceGauge(ns, m, dynamicDims...).WithLabelValues(labels...).Set(val)
+			vec, count := metrics.NamespaceGauge(ns, m, dynamicDims...)
+			if len(labels) > count {
+				labels = labels[:count]
+			} else {
+				for len(labels) < count {
+					labels = append(labels, "")
+				}
+			}
+			vec.WithLabelValues(labels...).Set(val)
 		}
 		if resp.NextToken == "" {
 			break

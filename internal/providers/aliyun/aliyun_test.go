@@ -1,9 +1,42 @@
 package aliyun
 
 import (
+	"encoding/json"
 	"multicloud-exporter/internal/utils"
 	"testing"
 )
+
+func TestPickStatisticValue(t *testing.T) {
+	// Case 1: float64
+	p1 := map[string]interface{}{"Average": 1.5}
+	if v := pickStatisticValue(p1, []string{"Average"}); v != 1.5 {
+		t.Errorf("expected 1.5, got %f", v)
+	}
+
+	// Case 2: int
+	p2 := map[string]interface{}{"Average": 10}
+	if v := pickStatisticValue(p2, []string{"Average"}); v != 10.0 {
+		t.Errorf("expected 10.0, got %f", v)
+	}
+
+	// Case 3: json.Number
+	p3 := map[string]interface{}{"Average": json.Number("20.5")}
+	if v := pickStatisticValue(p3, []string{"Average"}); v != 20.5 {
+		t.Errorf("expected 20.5, got %f", v)
+	}
+
+	// Case 4: Default order
+	p4 := map[string]interface{}{"Maximum": 30.0}
+	if v := pickStatisticValue(p4, nil); v != 30.0 {
+		t.Errorf("expected 30.0, got %f", v)
+	}
+
+	// Case 5: Missing
+	p5 := map[string]interface{}{"Other": 1.0}
+	if v := pickStatisticValue(p5, []string{"Average"}); v != 0 {
+		t.Errorf("expected 0, got %f", v)
+	}
+}
 
 func TestChooseDimKeyForNamespace(t *testing.T) {
 	if v := chooseDimKeyForNamespace("acs_bandwidth_package", []string{"instance_id"}); v == "" {

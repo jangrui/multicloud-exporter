@@ -101,3 +101,82 @@ prefix: test
 		t.Fatal("expected error for missing namespaces, got nil")
 	}
 }
+
+func TestParseMetricMappings(t *testing.T) {
+	content := []byte(`
+prefix: test
+namespaces:
+  aliyun: acs_test
+canonical:
+  test_metric:
+    aliyun:
+      metric: AliyunMetric
+`)
+	tmpfile, err := os.CreateTemp("", "mapping_parse.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Remove(tmpfile.Name()) }()
+	if _, err := tmpfile.Write(content); err != nil {
+		t.Fatal(err)
+	}
+	_ = tmpfile.Close()
+
+	mapping, err := ParseMetricMappings(tmpfile.Name())
+	if err != nil {
+		t.Fatalf("ParseMetricMappings failed: %v", err)
+	}
+	if mapping.Prefix != "test" {
+		t.Errorf("expected prefix test, got %s", mapping.Prefix)
+	}
+}
+
+func TestParseMetricMappings_Error(t *testing.T) {
+	// Test file not found
+	_, err := ParseMetricMappings("non_existent_file.yaml")
+	if err == nil {
+		t.Error("expected error for non-existent file, got nil")
+	}
+
+	// Test invalid YAML
+	content := []byte(`invalid_yaml: : :`)
+	tmpfile, err := os.CreateTemp("", "mapping_invalid_parse.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Remove(tmpfile.Name()) }()
+	if _, err := tmpfile.Write(content); err != nil {
+		t.Fatal(err)
+	}
+	_ = tmpfile.Close()
+
+	_, err = ParseMetricMappings(tmpfile.Name())
+	if err == nil {
+		t.Error("expected error for invalid YAML, got nil")
+	}
+}
+
+func TestLoadMetricMappings_FileError(t *testing.T) {
+	// Test file not found
+	err := LoadMetricMappings("non_existent_file.yaml")
+	if err == nil {
+		t.Error("expected error for non-existent file, got nil")
+	}
+
+	// Test invalid YAML
+	content := []byte(`invalid_yaml: : :`)
+	tmpfile, err := os.CreateTemp("", "mapping_invalid_load.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Remove(tmpfile.Name()) }()
+	if _, err := tmpfile.Write(content); err != nil {
+		t.Fatal(err)
+	}
+	_ = tmpfile.Close()
+
+	err = LoadMetricMappings(tmpfile.Name())
+	if err == nil {
+		t.Error("expected error for invalid YAML, got nil")
+	}
+}

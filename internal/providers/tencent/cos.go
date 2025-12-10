@@ -2,8 +2,6 @@ package tencent
 
 import (
 	"context"
-	"net/http"
-	"net/url"
 	"time"
 
 	"multicloud-exporter/internal/config"
@@ -11,9 +9,7 @@ import (
 	"multicloud-exporter/internal/metrics"
 
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
-	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
 	monitor "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/monitor/v20180724"
-	"github.com/tencentyun/cos-go-sdk-v5"
 )
 
 func (t *Collector) collectCOS(account config.CloudAccount, region string) {
@@ -53,18 +49,16 @@ func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) [
 	// We can pass nil or a dummy URL? Let's try passing a dummy URL with the correct region.
 
 	// Construct a dummy bucket URL for the region.
-	u, _ := url.Parse("https://cos." + region + ".myqcloud.com")
-	b := &cos.BaseURL{BucketURL: u}
-	c := cos.NewClient(b, &http.Client{
-		Transport: &cos.AuthorizationTransport{
-			SecretID:  account.AccessKeyID,
-			SecretKey: account.AccessKeySecret,
-		},
-	})
+	// We use the factory now.
+	client, err := t.clientFactory.NewCOSClient(region, account.AccessKeyID, account.AccessKeySecret)
+	if err != nil {
+		logger.Log.Errorf("Tencent COS client error: %v", err)
+		return []string{}
+	}
 
 	start := time.Now()
 	// Get Service lists all buckets
-	s, _, err := c.Service.Get(context.Background())
+	s, _, err := client.GetService(context.Background())
 	if err != nil {
 		metrics.RequestTotal.WithLabelValues("tencent", "ListBuckets", "error").Inc()
 		logger.Log.Errorf("Tencent ListBuckets error: %v", err)
@@ -88,8 +82,7 @@ func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) [
 }
 
 func (t *Collector) fetchCOSMonitor(account config.CloudAccount, region string, prod config.Product, buckets []string) {
-	credential := common.NewCredential(account.AccessKeyID, account.AccessKeySecret)
-	client, err := monitor.NewClient(credential, region, profile.NewClientProfile())
+	client, err := t.clientFactory.NewMonitorClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
 		logger.Log.Errorf("Tencent Monitor client error: %v", err)
 		return
@@ -176,9 +169,12 @@ func (t *Collector) fetchCOSMonitor(account config.CloudAccount, region string, 
 					// Use the latest value
 					val := *point.Values[len(point.Values)-1]
 
-					metrics.NamespaceGauge("QCE/COS", m).
-						WithLabelValues("tencent", account.AccountID, region, "cos", bucketName, "QCE/COS", m, bucketName).
-						Set(val)
+					vec, count := metrics.NamespaceGauge("QCE/COS", m)
+					labels := []string{"tencent", account.AccountID, region, "cos", bucketName, "QCE/COS", m, bucketName}
+					for len(labels) < count {
+						labels = append(labels, "")
+					}
+					vec.WithLabelValues(labels...).Set(val)
 				}
 				// Avoid rate limit
 				time.Sleep(50 * time.Millisecond)

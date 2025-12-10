@@ -12,7 +12,11 @@ import (
 	monitor "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/monitor/v20180724"
 )
 
-var newTencentMonitorClient = func(region, ak, sk string) (*monitor.Client, error) {
+type MonitorClient interface {
+	DescribeBaseMetrics(request *monitor.DescribeBaseMetricsRequest) (response *monitor.DescribeBaseMetricsResponse, err error)
+}
+
+var newTencentMonitorClient = func(region, ak, sk string) (MonitorClient, error) {
 	cred := common.NewCredential(ak, sk)
 	return monitor.NewClient(cred, region, profile.NewClientProfile())
 }
@@ -170,12 +174,12 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 				}
 				// 兜底补充常用 COS 指标
 				fallback := []string{
-					"StdStorage", "InfrequentStorage", "ArchiveStorage", "StandardIAStorage",
-					"DeepArchiveStorage", "IntelligentStorage",
+					"StdStorage", "SiaStorage", "ArcStorage", "DeepArcStorage",
+					"ItFreqStorage", "ItInfreqStorage",
 					"InternetTraffic", "InternalTraffic", "CdnOriginTraffic",
-					"Requests", "GetRequests", "PutRequests",
-					"4xxErrors", "5xxErrors",
-					"2xxResponse", "3xxResponse", "4xxResponse", "5xxResponse",
+					"TotalRequests", "GetRequests", "PutRequests",
+					"4xxResponse", "5xxResponse",
+					"2xxResponse", "3xxResponse",
 					"CrossRegionReplicationTraffic",
 				}
 				cur := make(map[string]struct{}, len(metrics))

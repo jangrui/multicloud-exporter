@@ -57,8 +57,13 @@ var (
 
 var (
 	nsGaugesMu sync.Mutex
-	nsGauges   = make(map[string]*prometheus.GaugeVec)
+	nsGauges   = make(map[string]gaugeInfo)
 )
+
+type gaugeInfo struct {
+	vec   *prometheus.GaugeVec
+	count int
+}
 
 var (
 	prefixByNamespace = make(map[string]string)
@@ -112,10 +117,11 @@ func sanitizeName(name string) string {
 	n := strings.ToLower(name)
 	n = strings.ReplaceAll(n, "-", "_")
 	n = strings.ReplaceAll(n, ".", "_")
+	n = strings.ReplaceAll(n, "/", "_") // Replace slash with underscore
 	return n
 }
 
-func NamespaceGauge(namespace, metric string, extraLabels ...string) *prometheus.GaugeVec {
+func NamespaceGauge(namespace, metric string, extraLabels ...string) (*prometheus.GaugeVec, int) {
 	nsGaugesMu.Lock()
 	defer nsGaugesMu.Unlock()
 	alias := aliasPrefixForNamespace(namespace)
@@ -132,8 +138,8 @@ func NamespaceGauge(namespace, metric string, extraLabels ...string) *prometheus
 		name = sanitizeName(namespace + "_" + useMetric)
 	}
 	key := name
-	if g, ok := nsGauges[key]; ok {
-		return g
+	if info, ok := nsGauges[key]; ok {
+		return info.vec, info.count
 	}
 	help := metricHelpForNamespace(namespace, useMetric)
 	// 统一命名空间指标的标签集合：
@@ -150,8 +156,8 @@ func NamespaceGauge(namespace, metric string, extraLabels ...string) *prometheus
 		labels,
 	)
 	prometheus.MustRegister(g)
-	nsGauges[key] = g
-	return g
+	nsGauges[key] = gaugeInfo{vec: g, count: len(labels)}
+	return g, len(labels)
 }
 
 func aliasMetricForNamespace(namespace, metric string) string {
@@ -179,7 +185,7 @@ func Reset() {
 	NamespaceMetric.Reset()
 	nsGaugesMu.Lock()
 	defer nsGaugesMu.Unlock()
-	for _, g := range nsGauges {
-		g.Reset()
+	for _, info := range nsGauges {
+		info.vec.Reset()
 	}
 }

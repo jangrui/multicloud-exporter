@@ -10,6 +10,9 @@ import (
 	"strings"
 )
 
+// lookupIPFunc is used for mocking net.LookupIP in tests
+var lookupIPFunc = net.LookupIP
+
 // ClusterConfig returns the total number of workers and the current worker's index.
 // It supports discovery via Headless Service (DNS), File, or Static env vars.
 func ClusterConfig() (int, int) {
@@ -18,7 +21,7 @@ func ClusterConfig() (int, int) {
 		svc := os.Getenv("CLUSTER_SVC")
 		selfIP := os.Getenv("POD_IP")
 		if svc != "" && selfIP != "" {
-			if ips, err := net.LookupIP(svc); err == nil && len(ips) > 0 {
+			if ips, err := lookupIPFunc(svc); err == nil && len(ips) > 0 {
 				var list []string
 				for _, ip := range ips {
 					list = append(list, ip.String())

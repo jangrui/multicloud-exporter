@@ -9,7 +9,6 @@ import (
 
 	clb "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/clb/v20180317"
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
-	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common/profile"
 	monitor "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/monitor/v20180724"
 )
 
@@ -19,8 +18,7 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 		return ids
 	}
 
-	credential := common.NewCredential(account.AccessKeyID, account.AccessKeySecret)
-	client, err := clb.NewClient(credential, region, profile.NewClientProfile())
+	client, err := t.clientFactory.NewCLBClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
 		return []string{}
 	}
@@ -55,8 +53,7 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 }
 
 func (t *Collector) fetchCLBMonitor(account config.CloudAccount, region string, prod config.Product, vips []string) {
-	credential := common.NewCredential(account.AccessKeyID, account.AccessKeySecret)
-	client, err := monitor.NewClient(credential, region, profile.NewClientProfile())
+	client, err := t.clientFactory.NewMonitorClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
 		return
 	}
@@ -106,9 +103,13 @@ func (t *Collector) fetchCLBMonitor(account config.CloudAccount, region string, 
 
 			if resp == nil || resp.Response == nil || resp.Response.DataPoints == nil || len(resp.Response.DataPoints) == 0 {
 				// 输出 0 值样本以保证指标可见性
-				alias := metrics.NamespaceGauge("QCE/CLB", m)
+				alias, count := metrics.NamespaceGauge("QCE/CLB", m)
 				for _, vip := range vips {
-					alias.WithLabelValues("tencent", account.AccountID, region, "lb", vip, "QCE/CLB", m, "").Set(0)
+					labels := []string{"tencent", account.AccountID, region, "lb", vip, "QCE/CLB", m, ""}
+					for len(labels) < count {
+						labels = append(labels, "")
+					}
+					alias.WithLabelValues(labels...).Set(0)
 				}
 				continue
 			}
@@ -124,9 +125,13 @@ func (t *Collector) fetchCLBMonitor(account config.CloudAccount, region string, 
 				if v := dp.Values[len(dp.Values)-1]; v != nil {
 					val = *v
 				}
-				alias := metrics.NamespaceGauge("QCE/CLB", m)
+				alias, count := metrics.NamespaceGauge("QCE/CLB", m)
 				scaled := scaleCLBMetric(m, val)
-				alias.WithLabelValues("tencent", account.AccountID, region, "lb", rid, "QCE/CLB", m, "").Set(scaled)
+				labels := []string{"tencent", account.AccountID, region, "lb", rid, "QCE/CLB", m, ""}
+				for len(labels) < count {
+					labels = append(labels, "")
+				}
+				alias.WithLabelValues(labels...).Set(scaled)
 			}
 		}
 	}
