@@ -244,14 +244,24 @@ func (m *Manager) accountsSignatureLocked() string {
 		}
 		mset[key{provider: a.Provider, resources: res}] = struct{}{}
 	}
-	sig := ""
-	i := 0
+	keys := make([]key, 0, len(mset))
 	for k := range mset {
+		keys = append(keys, k)
+	}
+	// sort keys to ensure deterministic signature
+	for i := 0; i < len(keys); i++ {
+		for j := i + 1; j < len(keys); j++ {
+			if keys[i].provider > keys[j].provider || (keys[i].provider == keys[j].provider && keys[i].resources > keys[j].resources) {
+				keys[i], keys[j] = keys[j], keys[i]
+			}
+		}
+	}
+	sig := ""
+	for i, k := range keys {
 		if i > 0 {
 			sig += "|"
 		}
 		sig += k.provider + "#" + k.resources
-		i++
 	}
 	return sig
 }

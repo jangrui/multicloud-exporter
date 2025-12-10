@@ -43,10 +43,14 @@ func TestManager_Watch(t *testing.T) {
 		err := os.WriteFile(configPath, []byte(content), 0644)
 		require.NoError(t, err)
 
-		// Force mtime forward to ensure fsnotify/polling catches it
-		// even if it happens within the same tick.
-		now := time.Now().Add(time.Second)
-		err = os.Chtimes(configPath, now, now)
+		// Read current stats to ensure we base our new time on what fs sees
+		fi, err := os.Stat(configPath)
+		require.NoError(t, err)
+
+		// Force mtime forward to ensure fsnotify/polling catches it.
+		// Use a large enough delta (2s) to overcome potential 1s resolution filesystems.
+		newTime := fi.ModTime().Add(2 * time.Second)
+		err = os.Chtimes(configPath, newTime, newTime)
 		require.NoError(t, err)
 	}
 
@@ -97,7 +101,7 @@ func TestManager_Watch(t *testing.T) {
 		select {
 		case <-ch:
 			// Success
-		case <-time.After(2 * time.Second):
+		case <-time.After(5 * time.Second):
 			t.Fatal("Timeout waiting for config refresh")
 		}
 
