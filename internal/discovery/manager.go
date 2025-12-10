@@ -146,7 +146,7 @@ func (m *Manager) watchAccounts(ctx context.Context, path string) {
 			if err != nil {
 				continue
 			}
-			mt := fi.ModTime().Unix()
+			mt := fi.ModTime().UnixNano()
 			if mt != lastMod {
 				lastMod = mt
 				sig := m.reloadAccounts(path)
