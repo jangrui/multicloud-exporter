@@ -47,10 +47,6 @@ spec:
             failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
 {{- end }}
           env:
-            - name: EXPORTER_PORT
-              value: {{ .Values.service.port | quote }}
-            - name: SERVER_PATH
-              value: "/app/configs/server.yaml"
             - name: CLUSTER_DISCOVERY
               value: {{ .Values.cluster.discovery | quote }}
 {{- if .Values.cluster.svcName }}
@@ -156,10 +152,12 @@ spec:
                   key: access_key_secret
 {{- end }}
 {{- end }}
+{{- if .Values.security.adminSecretName }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.security.adminSecretName }}
+{{- end }}
           volumeMounts:
-            - name: server
-              mountPath: "/app/configs/server.yaml"
-              subPath: server.yaml
 {{- if and .Values.accounts (or .Values.accounts.secrets .Values.accounts.grouped) }}
             - name: accounts
               mountPath: "/app/configs/accounts.yaml"
@@ -167,9 +165,6 @@ spec:
 {{- end }}
           resources: {{- toYaml .Values.resources | nindent 12 }}
       volumes:
-        - name: server
-          configMap:
-            name: {{ default "multicloud-exporter" .Values.fullname }}-config
 {{- if and .Values.accounts (or .Values.accounts.secrets .Values.accounts.grouped) }}
         - name: accounts
           configMap:

@@ -16,23 +16,22 @@ type MetricDef struct {
 }
 
 type MetricMapping struct {
-	Prefix      string                          `yaml:"prefix"`
-	Namespaces  map[string]string               `yaml:"namespaces"`
-	Canonical   map[string]map[string]MetricDef `yaml:"canonical"`
-	AliyunOnly  map[string]MetricDef            `yaml:"aliyun_only"`
-	TencentOnly map[string]MetricDef            `yaml:"tencent_only"`
+    Prefix      string                          `yaml:"prefix"`
+    Namespaces  map[string]string               `yaml:"namespaces"`
+    Canonical   map[string]map[string]MetricDef `yaml:"canonical"`
+    AliyunOnly  map[string]MetricDef            `yaml:"aliyun_only"`
+    TencentOnly map[string]MetricDef            `yaml:"tencent_only"`
 }
 
 func LoadMetricMappings(path string) error {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("failed to read metric mappings from %s: %v", path, err)
-	}
-
-	var mapping MetricMapping
-	if err := yaml.Unmarshal(data, &mapping); err != nil {
-		return fmt.Errorf("error parsing metric mappings: %v", err)
-	}
+    data, err := os.ReadFile(path)
+    if err != nil {
+        return fmt.Errorf("failed to read metric mappings from %s: %v", path, err)
+    }
+    var mapping MetricMapping
+    if err := yaml.Unmarshal(data, &mapping); err != nil {
+        return fmt.Errorf("error parsing metric mappings: %v", err)
+    }
 
 	// Use configured namespaces
 	aliyunNS := mapping.Namespaces["aliyun"]
@@ -101,5 +100,17 @@ func LoadMetricMappings(path string) error {
 		metrics.RegisterNamespaceMetricScale(tencentNS, tencentScales)
 	}
 
-	return nil
+    return nil
+}
+
+func ParseMetricMappings(path string) (MetricMapping, error) {
+    data, err := os.ReadFile(path)
+    if err != nil {
+        return MetricMapping{}, fmt.Errorf("failed to read metric mappings from %s: %v", path, err)
+    }
+    var mapping MetricMapping
+    if err := yaml.Unmarshal(data, &mapping); err != nil {
+        return MetricMapping{}, fmt.Errorf("error parsing metric mappings: %v", err)
+    }
+    return mapping, nil
 }

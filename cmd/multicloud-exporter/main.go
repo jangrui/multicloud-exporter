@@ -16,8 +16,9 @@ import (
 	"multicloud-exporter/internal/logger"
 	"multicloud-exporter/internal/metrics"
 	_ "multicloud-exporter/internal/metrics/aliyun"
-	_ "multicloud-exporter/internal/metrics/tencent"
-	"path/filepath"
+    _ "multicloud-exporter/internal/metrics/tencent"
+    "path/filepath"
+    "strings"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -155,24 +156,52 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
-	wrap := func(h http.HandlerFunc) http.HandlerFunc {
-		enabled := false
-		var pairs []config.BasicAuth
-		if cfg.Server != nil {
-			if cfg.Server.AdminAuthEnabled {
-				enabled = true
-				pairs = cfg.Server.AdminAuth
-			}
-		}
-		if !enabled && cfg.ServerConf != nil {
-			if cfg.ServerConf.AdminAuthEnabled {
-				enabled = true
-				pairs = cfg.ServerConf.AdminAuth
-			}
-		}
-		if !enabled || len(pairs) == 0 {
-			return h
-		}
+    wrap := func(h http.HandlerFunc) http.HandlerFunc {
+        enabled := false
+        var pairs []config.BasicAuth
+        if ev := os.Getenv("ADMIN_AUTH_ENABLED"); ev != "" {
+            if ev == "1" || strings.EqualFold(ev, "true") || strings.EqualFold(ev, "yes") {
+                enabled = true
+            }
+        }
+        if enabled {
+            if raw := os.Getenv("ADMIN_AUTH"); raw != "" {
+                var xs []config.BasicAuth
+                if json.Unmarshal([]byte(raw), &xs) == nil && len(xs) > 0 {
+                    pairs = xs
+                } else {
+                    for _, seg := range strings.Split(raw, ",") {
+                        kv := strings.SplitN(strings.TrimSpace(seg), ":", 2)
+                        if len(kv) == 2 && kv[0] != "" {
+                            pairs = append(pairs, config.BasicAuth{Username: kv[0], Password: kv[1]})
+                        }
+                    }
+                }
+            }
+            // 支持从 ADMIN_USERNAME/ADMIN_PASSWORD 构造单个账号
+            u := os.Getenv("ADMIN_USERNAME")
+            p := os.Getenv("ADMIN_PASSWORD")
+            if u != "" && p != "" {
+                pairs = append(pairs, config.BasicAuth{Username: u, Password: p})
+            }
+        }
+        if !enabled {
+            if cfg.Server != nil {
+                if cfg.Server.AdminAuthEnabled {
+                    enabled = true
+                    pairs = cfg.Server.AdminAuth
+                }
+            }
+            if !enabled && cfg.ServerConf != nil {
+                if cfg.ServerConf.AdminAuthEnabled {
+                    enabled = true
+                    pairs = cfg.ServerConf.AdminAuth
+                }
+            }
+        }
+        if !enabled || len(pairs) == 0 {
+            return h
+        }
 		return func(w http.ResponseWriter, r *http.Request) {
 			u, p, ok := r.BasicAuth()
 			if !ok {

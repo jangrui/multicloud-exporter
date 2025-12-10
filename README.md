@@ -263,14 +263,48 @@ scrape_configs:
 
 ## 管理接口认证
 
-可为 `/api/discovery/*` 启用 BasicAuth 认证，通过 `server.yaml` 配置：
+可为 `/api/discovery/*` 启用 BasicAuth 认证，推荐使用环境变量与 Kubernetes Secret 管理凭据，避免在 `values.yaml` 或 ConfigMap 中出现明文。
+
+方式一（推荐，Kubernetes 环境）：
+
+1) 创建 Secret，仅包含用户名与密码键：
+
+```bash
+kubectl -n monitoring create secret generic multicloud-exporter-admin \
+  --from-literal=ADMIN_USERNAME=admin \
+  --from-literal=ADMIN_PASSWORD='<secure-password>'
+```
+
+2) 在 Helm 值中启用认证并引用该 Secret：
 
 ```yaml
-server:
-  admin_auth_enabled: true
-  admin_auth:
-    - username: admin
-      password: changeme
+env:
+  ADMIN_AUTH_ENABLED: "true"
+
+security:
+  adminSecretName: "multicloud-exporter-admin"
+```
+
+方式二（本地或临时场景）：
+
+```bash
+export ADMIN_AUTH_ENABLED=true
+export ADMIN_USERNAME=admin
+export ADMIN_PASSWORD='<secure-password>'
+```
+
+可选：支持通过 `ADMIN_AUTH` 注入多账号，JSON 或逗号分隔均可：
+
+```bash
+export ADMIN_AUTH='[{"username":"admin","password":"<secure>"}]'
+# 或
+export ADMIN_AUTH='admin:<secure>,ops:<secure2>'
+```
+
+访问示例：
+
+```bash
+curl -u admin:<secure-password> http://<host>:9101/api/discovery/config
 ```
 
 建议在生产环境通过 Ingress/ServiceMesh 终止 TLS，确保认证信息经由 HTTPS 传输。

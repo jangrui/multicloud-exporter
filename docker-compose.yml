@@ -3,15 +3,14 @@ services:
     container_name: multicloud-exporter
     image: ghcr.io/jangrui/multicloud-exporter:latest
     pull_policy: always
-    environment:
-      - EXPORTER_PORT=9101
-      - SERVER_PATH=/app/configs/server.yaml
+    # environment:
+      # - SERVER_PATH=/app/configs/server.yaml
       # 可选：若提供账号配置文件
       # - ACCOUNTS_PATH=/app/configs/accounts.yaml
     volumes:
-      - ./configs/server.yaml:/app/configs/server.yaml:ro
+      # - ./configs/server.yaml:/app/configs/server.yaml:ro
       # 可选：若提供账号配置文件
       - ./configs/accounts.yaml:/app/configs/accounts.yaml:ro
     ports:
-      - "9101:9101"
+      - "${EXPORTER_PORT:-9101}:${EXPORTER_PORT:-9101}"
     restart: unless-stopped

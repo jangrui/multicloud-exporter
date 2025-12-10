@@ -73,39 +73,8 @@ env: {}
 #  EXPORTER_PORT: "9101"
 #  SCRAPE_INTERVAL: "60s"
 
-server:
-  port: 9101
-  page_size: 1000
-  discovery_ttl: "24h"
-  # 采集间隔：主循环执行云资源指标采集的频率（默认 60s）
-  scrape_interval: "60s"
-  # 区域级并发：同一账号下并行采集的地域数量（建议 1-8）
-  region_concurrency: 4
-  # 指标级并发：同一地域、同一产品下并行处理的指标批次（建议 1-10）
-  metric_concurrency: 5
-  # 产品级并发：同一地域下并行处理的命名空间数量（建议 1-4）
-  product_concurrency: 2
-  # 注意：并发数过高可能导致云厂商 API 限流（Throttling），请根据实际账号配额谨慎调整。
-
-  # Log configuration
-  log:
-    level: info
-    format: json # json or console
-    output: stdout # stdout, file, or both
-    # file:
-    #   path: logs/exporter.log
-    #   max_size: 100 # MB
-    #   max_backups: 3
-    #   max_age: 28 # days
-    #   compress: true
-
-  # 管理接口认证（可选）：保护 /api/discovery/*
-  # admin_auth_enabled: true 启用 BasicAuth；默认 false
-  # admin_auth: 用户名/密码对列表，用于只读访问管理接口
-  admin_auth_enabled: false
-  admin_auth: []
-  # - username: admin
-  #   password: changeme
+security:
+  adminSecretName: ""
 
 accounts:
   # 分组式账号（推荐）：按云平台拆分，模板将生成 grouped 结构的 accounts.yaml

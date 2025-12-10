@@ -2,6 +2,7 @@ package discovery
 
 import (
 	"context"
+	"encoding/json"
 
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/logger"
@@ -197,4 +198,77 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 
 func init() {
 	Register("tencent", &TencentDiscoverer{})
+}
+
+func FetchTencentMetricMeta(region, ak, sk, namespace string) ([]MetricMeta, error) {
+	client, err := newTencentMonitorClient(region, ak, sk)
+	if err != nil {
+		return nil, err
+	}
+	req := monitor.NewDescribeBaseMetricsRequest()
+	req.Namespace = common.StringPtr(namespace)
+	resp, err := client.DescribeBaseMetrics(req)
+	if err != nil || resp == nil || resp.Response == nil || resp.Response.MetricSet == nil {
+		return nil, err
+	}
+	var out []MetricMeta
+	for _, m := range resp.Response.MetricSet {
+		if m == nil || m.MetricName == nil {
+			continue
+		}
+		var dims []string
+		if m.Dimensions != nil {
+			// 尝试通过 JSON 泛化解析可能的字段形态
+			if b, e := json.Marshal(m.Dimensions); e == nil {
+				var xs []map[string]interface{}
+				if je := json.Unmarshal(b, &xs); je == nil {
+					for _, item := range xs {
+						// 常见字段：Name / Key
+						if v, ok := item["Name"].(string); ok && v != "" {
+							dims = append(dims, v)
+							continue
+						}
+						if v, ok := item["Key"].(string); ok && v != "" {
+							dims = append(dims, v)
+							continue
+						}
+						// 有的结构会提供 Dimensions: ["vip", "loadBalancerId"]
+						if arr, ok := item["Dimensions"].([]interface{}); ok {
+							for _, d := range arr {
+								if sv, ok := d.(string); ok && sv != "" {
+									dims = append(dims, sv)
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		// 兜底：根据默认资源维度映射补充可能的主键
+		if len(dims) == 0 {
+			defaults := config.DefaultResourceDimMapping()
+			key := "tencent." + namespace
+			if req, ok := defaults[key]; ok {
+				dims = append(dims, req...)
+			}
+		}
+		desc := ""
+		if m.Meaning != nil && m.Meaning.Zh != nil {
+			desc = *m.Meaning.Zh
+		}
+		unit := ""
+		if m.Unit != nil {
+			unit = *m.Unit
+		}
+		mm := MetricMeta{
+			Provider:    "tencent",
+			Namespace:   namespace,
+			Name:        *m.MetricName,
+			Unit:        unit,
+			Dimensions:  dims,
+			Description: desc,
+		}
+		out = append(out, mm)
+	}
+	return out, nil
 }

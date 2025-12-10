@@ -1,29 +1,27 @@
 server:
-  port: 9101
-  page_size: 1000
+  port: "${EXPORTER_PORT:-9101}"
+  page_size: "${PAGE_SIZE:-1000}"
   # Log configuration
   log:
-    level: ${LOG_LEVEL}
-    format: json # json or console
-    output: stdout # stdout, file, or both
+    level: "${LOG_LEVEL:-info}"
+    format: "${LOG_FORMAT:-json}" # json or console
+    output: "${LOG_OUTPUT:-stdout}" # stdout, file, or both
     file:
-      path: logs/exporter.log
-      max_size: 100 # MB
-      max_backups: 3
-      max_age: 28 # days
-      compress: true
+      path: "${LOG_FILE:-logs/exporter.log}"
+      max_size: "${LOG_MAX_SIZE:-100}" # MB
+      max_backups: "${LOG_MAX_BACKUPS:-3}"
+      max_age: "${LOG_MAX_AGE:-28}" # days
+      compress: "${LOG_COMPRESS:-true}"
   # 资源发现缓存生命周期
   # 支持单位：s(秒), m(分), h(时), d(天, 1d=24h)
-  discovery_ttl: "1d"
+  discovery_ttl: "${DISCOVERY_TTL:-1d}"
   # 采集间隔：主循环执行云资源指标采集的频率（默认 60s）
-  scrape_interval: "60s"
+  scrape_interval: "${SCRAPE_INTERVAL:-60s}"
   # 区域级并发：同一账号下并行采集的地域数量（建议 1-8）
-  region_concurrency: 4
+  region_concurrency: "${REGION_CONCURRENCY:-4}"
   # 指标级并发：同一地域、同一产品下并行处理的指标批次（建议 1-10）
-  metric_concurrency: 5
+  metric_concurrency: "${METRIC_CONCURRENCY:-5}"
   # 产品级并发：同一地域下并行处理的命名空间数量（建议 1-4）
-  product_concurrency: 2
-  admin_auth_enabled: true
-  admin_auth:
-    - username: "admin"
-      password: "changeme"
+  product_concurrency: "${PRODUCT_CONCURRENCY:-2}"
+  admin_auth_enabled: "${ADMIN_AUTH_ENABLED:-false}"
+  admin_auth: []

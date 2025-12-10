@@ -11,12 +11,13 @@ WORKDIR /app
 RUN apk add --no-cache ca-certificates tzdata
 COPY --from=builder /app/multicloud-exporter .
 COPY --from=builder /app/configs/mappings/lb.metrics.yaml ./configs/mappings/lb.metrics.yaml
+COPY --from=builder /app/configs/server.yaml ./configs/server.yaml
 
-ENV EXPORTER_PORT=9101
-ENV SCRAPE_INTERVAL=60
 ENV SERVER_PATH=/app/configs/server.yaml
 ENV PRODUCTS_PATH=/app/configs/products.yaml
+ENV EXPORTER_PORT=${EXPORTER_PORT}
 
-EXPOSE 9101
+EXPOSE ${EXPORTER_PORT}
+
 USER 65532:65532
 ENTRYPOINT ["./multicloud-exporter"]

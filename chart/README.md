@@ -96,11 +96,14 @@ Exporter 暴露了 `/metrics` 端点，其中包含自身运行状态指标：
   - `cluster.sharding.total`：静态分片总数
   - `cluster.sharding.index`：静态分片索引
 
-- 环境变量
-  - `values.env`：按需覆盖运行环境变量（如 `SCRAPE_INTERVAL`）
+ - 环境变量
+   - `values.env`：按需覆盖运行环境变量（如 `SCRAPE_INTERVAL`）
+ 
+ - 安全配置
+   - `security.adminSecretName`：管理认证 Secret 名称；若设置，将以 `envFrom.secretRef` 注入 Secret 中的键（如 `ADMIN_USERNAME`、`ADMIN_PASSWORD`）
 
-- 配置文件
-  - `server.yaml`：由 `values.server` 渲染为 ConfigMap 并挂载到容器固定路径
+ - 配置文件
+   - `server.yaml`：默认使用镜像内置配置；如需覆盖，提供 `values.server`，Chart 将渲染为 ConfigMap 并挂载到容器固定路径
   - `products.yaml`：已废弃；Exporter 采用自动发现机制
   - `accounts.yaml`：由用户预创建 Secret 提供并挂载到容器固定路径
 
@@ -152,7 +155,37 @@ Exporter 暴露了 `/metrics` 端点，其中包含自身运行状态指标：
 
 ### 采集频率与数据周期
 
-配置 `server.scrape_interval` (采集频率) 与云厂商 API 的 `Period` (数据聚合周期) 的关系至关重要。Exporter 在未显式配置时会自动从云侧元数据选择该指标的最小可用 `Period`。
+ 配置 `server.scrape_interval` (采集频率) 与云厂商 API 的 `Period` (数据聚合周期) 的关系至关重要。Exporter 在未显式配置时会自动从云侧元数据选择该指标的最小可用 `Period`。
+
+### 管理接口认证（安全）
+
+为 `/api/discovery/*` 启用 BasicAuth 时，推荐通过环境变量开关 + Secret 管理凭据：
+
+```bash
+kubectl -n monitoring create secret generic multicloud-exporter-admin \
+  --from-literal=ADMIN_USERNAME=admin \
+  --from-literal=ADMIN_PASSWORD='<secure-password>'
+```
+
+Helm 值示例：
+
+```yaml
+env:
+  ADMIN_AUTH_ENABLED: "true"
+
+security:
+  adminSecretName: "multicloud-exporter-admin"
+```
+
+本地或临时场景可直接设置环境变量：
+
+```bash
+export ADMIN_AUTH_ENABLED=true
+export ADMIN_USERNAME=admin
+export ADMIN_PASSWORD='<secure-password>'
+```
+
+如需多个账号，支持 `ADMIN_AUTH`（JSON 或 `user:pass,user2:pass2`）。
 
 #### 1. 场景推演
 

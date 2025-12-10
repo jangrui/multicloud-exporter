@@ -68,36 +68,46 @@ func LoadConfig() (*Config, error) {
 		}
 	}
 
-	// 新版拆分：server.yaml
-	if serverPath := os.Getenv("SERVER_PATH"); serverPath != "" {
-		data, err := os.ReadFile(serverPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read server config: %v", err)
-		}
-		expanded := os.ExpandEnv(string(data))
-		var s struct {
-			Server *ServerConf `yaml:"server"`
-		}
-		if err := yaml.Unmarshal([]byte(expanded), &s); err != nil {
-			return nil, fmt.Errorf("failed to parse server config: %v", err)
-		}
-		if s.Server != nil {
-			cfg.Server = s.Server
-			cfg.ServerConf = s.Server
-			// 初始化默认维度映射
-			if cfg.Server.ResourceDimMapping == nil {
-				cfg.Server.ResourceDimMapping = DefaultResourceDimMapping()
-			} else {
-				// 合并默认配置（优先使用用户配置，缺失的补充默认）
-				def := DefaultResourceDimMapping()
-				for k, v := range def {
-					if _, ok := cfg.Server.ResourceDimMapping[k]; !ok {
-						cfg.Server.ResourceDimMapping[k] = v
-					}
-				}
-			}
-		}
-	}
+    // 新版拆分：server.yaml
+    serverPath := os.Getenv("SERVER_PATH")
+    if serverPath == "" {
+        // 默认回退路径：优先容器挂载路径，其次本地开发路径
+        for _, p := range []string{"/app/configs/server.yaml", "./configs/server.yaml"} {
+            if _, err := os.Stat(p); err == nil {
+                serverPath = p
+                break
+            }
+        }
+    }
+    if serverPath != "" {
+        data, err := os.ReadFile(serverPath)
+        if err != nil {
+            return nil, fmt.Errorf("failed to read server config: %v", err)
+        }
+        expanded := os.ExpandEnv(string(data))
+        var s struct {
+            Server *ServerConf `yaml:"server"`
+        }
+        if err := yaml.Unmarshal([]byte(expanded), &s); err != nil {
+            return nil, fmt.Errorf("failed to parse server config: %v", err)
+        }
+        if s.Server != nil {
+            cfg.Server = s.Server
+            cfg.ServerConf = s.Server
+            // 初始化默认维度映射
+            if cfg.Server.ResourceDimMapping == nil {
+                cfg.Server.ResourceDimMapping = DefaultResourceDimMapping()
+            } else {
+                // 合并默认配置（优先使用用户配置，缺失的补充默认）
+                def := DefaultResourceDimMapping()
+                for k, v := range def {
+                    if _, ok := cfg.Server.ResourceDimMapping[k]; !ok {
+                        cfg.Server.ResourceDimMapping[k] = v
+                    }
+                }
+            }
+        }
+    }
 
 	// 手工产品配置已废弃：Exporter 全面采用自动发现生成产品与指标配置
 
