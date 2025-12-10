@@ -10,7 +10,7 @@ ARG TARGETARCH
 
 # Copy the pre-built binary matching the target platform
 COPY dist/multicloud-exporter-${TARGETOS}-${TARGETARCH} ./multicloud-exporter
-COPY configs/mappings/lb.metrics.yaml ./configs/mappings/lb.metrics.yaml
+COPY configs/mappings ./configs/mappings
 COPY configs/server.yaml ./configs/server.yaml
 
 # Environment variables matching the original Dockerfile

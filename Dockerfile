@@ -10,7 +10,7 @@ FROM alpine:latest
 WORKDIR /app
 RUN apk add --no-cache ca-certificates tzdata
 COPY --from=builder /app/multicloud-exporter .
-COPY --from=builder /app/configs/mappings/lb.metrics.yaml ./configs/mappings/lb.metrics.yaml
+COPY --from=builder /app/configs/mappings ./configs/mappings
 COPY --from=builder /app/configs/server.yaml ./configs/server.yaml
 
 ENV SERVER_PATH=/app/configs/server.yaml

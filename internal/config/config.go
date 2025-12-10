@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 
 	"gopkg.in/yaml.v3"
@@ -17,6 +18,22 @@ type CloudAccount struct {
 	AccessKeySecret string   `yaml:"access_key_secret"`
 	Regions         []string `yaml:"regions"`
 	Resources       []string `yaml:"resources"`
+}
+
+// expandEnv replaces ${var} or $var in the string according to the values
+// of the current environment variables. It supports default values using
+// the ${var:-default} syntax.
+func expandEnv(s string) string {
+	return os.Expand(s, func(key string) string {
+		// Handle ${VAR:-default}
+		if k, def, cut := strings.Cut(key, ":-"); cut {
+			if v, ok := os.LookupEnv(k); ok && v != "" {
+				return v
+			}
+			return def
+		}
+		return os.Getenv(key)
+	})
 }
 
 // Config 汇总所有云账号配置
@@ -61,53 +78,53 @@ func LoadConfig() (*Config, error) {
 	// 可选：兼容旧版单文件配置
 	if configPath := os.Getenv("CONFIG_PATH"); configPath != "" {
 		if data, err := os.ReadFile(configPath); err == nil {
-			expanded := os.ExpandEnv(string(data))
+			expanded := expandEnv(string(data))
 			_ = yaml.Unmarshal([]byte(expanded), &cfg)
 		} else {
 			return nil, fmt.Errorf("CONFIG_PATH not loaded: %v", err)
 		}
 	}
 
-    // 新版拆分：server.yaml
-    serverPath := os.Getenv("SERVER_PATH")
-    if serverPath == "" {
-        // 默认回退路径：优先容器挂载路径，其次本地开发路径
-        for _, p := range []string{"/app/configs/server.yaml", "./configs/server.yaml"} {
-            if _, err := os.Stat(p); err == nil {
-                serverPath = p
-                break
-            }
-        }
-    }
-    if serverPath != "" {
-        data, err := os.ReadFile(serverPath)
-        if err != nil {
-            return nil, fmt.Errorf("failed to read server config: %v", err)
-        }
-        expanded := os.ExpandEnv(string(data))
-        var s struct {
-            Server *ServerConf `yaml:"server"`
-        }
-        if err := yaml.Unmarshal([]byte(expanded), &s); err != nil {
-            return nil, fmt.Errorf("failed to parse server config: %v", err)
-        }
-        if s.Server != nil {
-            cfg.Server = s.Server
-            cfg.ServerConf = s.Server
-            // 初始化默认维度映射
-            if cfg.Server.ResourceDimMapping == nil {
-                cfg.Server.ResourceDimMapping = DefaultResourceDimMapping()
-            } else {
-                // 合并默认配置（优先使用用户配置，缺失的补充默认）
-                def := DefaultResourceDimMapping()
-                for k, v := range def {
-                    if _, ok := cfg.Server.ResourceDimMapping[k]; !ok {
-                        cfg.Server.ResourceDimMapping[k] = v
-                    }
-                }
-            }
-        }
-    }
+	// 新版拆分：server.yaml
+	serverPath := os.Getenv("SERVER_PATH")
+	if serverPath == "" {
+		// 默认回退路径：优先容器挂载路径，其次本地开发路径
+		for _, p := range []string{"/app/configs/server.yaml", "./configs/server.yaml"} {
+			if _, err := os.Stat(p); err == nil {
+				serverPath = p
+				break
+			}
+		}
+	}
+	if serverPath != "" {
+		data, err := os.ReadFile(serverPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read server config: %v", err)
+		}
+		expanded := expandEnv(string(data))
+		var s struct {
+			Server *ServerConf `yaml:"server"`
+		}
+		if err := yaml.Unmarshal([]byte(expanded), &s); err != nil {
+			return nil, fmt.Errorf("failed to parse server config: %v", err)
+		}
+		if s.Server != nil {
+			cfg.Server = s.Server
+			cfg.ServerConf = s.Server
+			// 初始化默认维度映射
+			if cfg.Server.ResourceDimMapping == nil {
+				cfg.Server.ResourceDimMapping = DefaultResourceDimMapping()
+			} else {
+				// 合并默认配置（优先使用用户配置，缺失的补充默认）
+				def := DefaultResourceDimMapping()
+				for k, v := range def {
+					if _, ok := cfg.Server.ResourceDimMapping[k]; !ok {
+						cfg.Server.ResourceDimMapping[k] = v
+					}
+				}
+			}
+		}
+	}
 
 	// 手工产品配置已废弃：Exporter 全面采用自动发现生成产品与指标配置
 
@@ -117,7 +134,7 @@ func LoadConfig() (*Config, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to read accounts: %v", err)
 		}
-		accExpanded := os.ExpandEnv(string(accData))
+		accExpanded := expandEnv(string(accData))
 		var accCfg struct {
 			AccountsByProvider       map[string][]CloudAccount `yaml:"accounts"`
 			AccountsByProviderLegacy map[string][]CloudAccount `yaml:"accounts_by_provider"`
