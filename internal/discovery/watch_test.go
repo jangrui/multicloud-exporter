@@ -41,15 +41,6 @@ func TestWatchAccountsTrigger(t *testing.T) {
 	m.watchInterval = 100 * time.Millisecond // Reduce interval for test
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	// Set initial file mod time in manager before starting watcher
-	// This ensures the first check in watcher loop sees the initial state
-	// and subsequent file write triggers a change.
-	if _, err := os.Stat(p); err == nil {
-		// We manually set a past time to ensure the next write is seen as newer
-		// even if it happens very quickly. However, os.Chtimes might not be supported
-		// or have enough precision on all FS.
-		// Instead, we rely on manager reading the file on Start.
-	}
 
 	m.Start(ctx)
 	ch := m.Subscribe()
