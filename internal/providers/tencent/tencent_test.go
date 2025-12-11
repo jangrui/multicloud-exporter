@@ -66,8 +66,10 @@ func TestGetAllRegions(t *testing.T) {
 	assert.Equal(t, []string{"ap-guangzhou"}, regions)
 
 	// Case 3: Error with ENV
-	os.Setenv("DEFAULT_REGIONS", "ap-nanjing, ap-chengdu")
-	defer os.Unsetenv("DEFAULT_REGIONS")
+    if err := os.Setenv("DEFAULT_REGIONS", "ap-nanjing, ap-chengdu"); err != nil {
+        t.Fatal(err)
+    }
+    defer func() { _ = os.Unsetenv("DEFAULT_REGIONS") }()
 	regions = collector.getAllRegions(account)
 	assert.Equal(t, []string{"ap-nanjing", "ap-chengdu"}, regions)
 
@@ -246,8 +248,9 @@ func TestGetCachedIDs(t *testing.T) {
 	}
 	collector.setCachedIDs(account, region, ns, rtype, ids)
 	time.Sleep(2 * time.Millisecond)
-	cached, ok = collector.getCachedIDs(account, region, ns, rtype)
-	assert.False(t, ok)
+    cached, ok = collector.getCachedIDs(account, region, ns, rtype)
+    assert.False(t, ok)
+    assert.Nil(t, cached)
 
 	// Test TTL Config (Server)
 	collector.cfg.ServerConf = nil
@@ -256,8 +259,9 @@ func TestGetCachedIDs(t *testing.T) {
 	}
 	collector.setCachedIDs(account, region, ns, rtype, ids)
 	time.Sleep(2 * time.Millisecond)
-	cached, ok = collector.getCachedIDs(account, region, ns, rtype)
-	assert.False(t, ok)
+    cached, ok = collector.getCachedIDs(account, region, ns, rtype)
+    assert.False(t, ok)
+    assert.Nil(t, cached)
 }
 
 func TestClassifyTencentError(t *testing.T) {

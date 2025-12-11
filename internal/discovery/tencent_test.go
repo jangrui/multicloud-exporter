@@ -54,28 +54,29 @@ func TestTencentDiscoverer_Discover(t *testing.T) {
 		return &mockMonitorClient{
 			DescribeBaseMetricsFunc: func(request *monitor.DescribeBaseMetricsRequest) (*monitor.DescribeBaseMetricsResponse, error) {
 				resp := monitor.NewDescribeBaseMetricsResponse()
-				if *request.Namespace == "QCE/BWP" {
-					metricName := "OutTraffic"
-					resp.Response = &monitor.DescribeBaseMetricsResponseParams{
-						MetricSet: []*monitor.MetricSet{
-							{MetricName: &metricName},
-						},
-					}
-				} else if *request.Namespace == "QCE/LB" {
-					metricName := "ClientConnum"
-					resp.Response = &monitor.DescribeBaseMetricsResponseParams{
-						MetricSet: []*monitor.MetricSet{
-							{MetricName: &metricName},
-						},
-					}
-				} else if *request.Namespace == "QCE/COS" {
-					metricName := "Requests"
-					resp.Response = &monitor.DescribeBaseMetricsResponseParams{
-						MetricSet: []*monitor.MetricSet{
-							{MetricName: &metricName},
-						},
-					}
-				}
+                switch ns := *request.Namespace; ns {
+                case "QCE/BWP":
+                    metricName := "OutTraffic"
+                    resp.Response = &monitor.DescribeBaseMetricsResponseParams{
+                        MetricSet: []*monitor.MetricSet{
+                            {MetricName: &metricName},
+                        },
+                    }
+                case "QCE/LB":
+                    metricName := "ClientConnum"
+                    resp.Response = &monitor.DescribeBaseMetricsResponseParams{
+                        MetricSet: []*monitor.MetricSet{
+                            {MetricName: &metricName},
+                        },
+                    }
+                case "QCE/COS":
+                    metricName := "Requests"
+                    resp.Response = &monitor.DescribeBaseMetricsResponseParams{
+                        MetricSet: []*monitor.MetricSet{
+                            {MetricName: &metricName},
+                        },
+                    }
+                }
 				return resp, nil
 			},
 		}, nil

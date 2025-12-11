@@ -59,20 +59,21 @@ func TestListCBWPIDs(t *testing.T) {
 		DescribeCommonBandwidthPackagesFunc: func(request *vpc.DescribeCommonBandwidthPackagesRequest) (*vpc.DescribeCommonBandwidthPackagesResponse, error) {
 			callCount++
 			resp := vpc.CreateDescribeCommonBandwidthPackagesResponse()
-			if callCount == 1 {
+			switch callCount {
+			case 1:
 				resp.TotalCount = 2
 				resp.PageNumber = 1
 				resp.PageSize = 1
 				resp.CommonBandwidthPackages.CommonBandwidthPackage = []vpc.CommonBandwidthPackage{
 					{BandwidthPackageId: "cbwp-1"},
 				}
-			} else if callCount == 2 {
+			case 2:
 				resp.TotalCount = 2
 				resp.PageNumber = 2
 				resp.CommonBandwidthPackages.CommonBandwidthPackage = []vpc.CommonBandwidthPackage{
 					{BandwidthPackageId: "cbwp-2"},
 				}
-			} else {
+			default:
 				// Stop the loop
 				resp.TotalCount = 2
 				resp.PageNumber = 3
@@ -335,8 +336,10 @@ func TestGetAllRegions(t *testing.T) {
 	assert.Equal(t, "cn-hangzhou", regions[0])
 
 	// Case 3: Error with Env
-	os.Setenv("DEFAULT_REGIONS", "cn-shanghai, cn-shenzhen")
-	defer os.Unsetenv("DEFAULT_REGIONS")
+	if err := os.Setenv("DEFAULT_REGIONS", "cn-shanghai, cn-shenzhen"); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Unsetenv("DEFAULT_REGIONS") }()
 	regions = c.getAllRegions(acc)
 	assert.Len(t, regions, 2)
 	assert.Contains(t, regions, "cn-shanghai")

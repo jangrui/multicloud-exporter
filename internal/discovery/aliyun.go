@@ -83,26 +83,45 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 		if err != nil || resp == nil || resp.Resources.Resource == nil {
 			continue
 		}
-		var metrics []string
-		for _, r := range resp.Resources.Resource {
-			name := strings.TrimSpace(r.MetricName)
-			if name == "" {
-				continue
-			}
-			dims := strings.Split(strings.TrimSpace(r.Dimensions), ",")
-			has := false
-			for _, d := range dims {
-				ld := strings.ToLower(strings.TrimSpace(d))
-				if ld == "instanceid" || ld == "instance_id" {
-					has = true
-					break
-				}
-			}
-			if !has {
-				continue
-			}
-			metrics = append(metrics, name)
-		}
+        var metrics []string
+        mapping := config.DefaultResourceDimMapping()
+        key := "aliyun." + ns
+        required := mapping[key]
+        for _, r := range resp.Resources.Resource {
+            name := strings.TrimSpace(r.MetricName)
+            if name == "" {
+                continue
+            }
+            dims := strings.Split(strings.TrimSpace(r.Dimensions), ",")
+            has := false
+            if len(required) > 0 {
+                lower := make(map[string]struct{}, len(dims))
+                for _, d := range dims {
+                    ld := strings.ToLower(strings.TrimSpace(d))
+                    if ld != "" {
+                        lower[ld] = struct{}{}
+                    }
+                }
+                for _, k := range required {
+                    if _, ok := lower[strings.ToLower(k)]; ok {
+                        has = true
+                        break
+                    }
+                }
+            } else {
+                for _, d := range dims {
+                    ld := strings.ToLower(strings.TrimSpace(d))
+                    if ld == "instanceid" || ld == "instance_id" {
+                        has = true
+                        break
+                    }
+                }
+            }
+            if !has {
+                continue
+            }
+            metrics = append(metrics, name)
+        }
 		if ns == "acs_slb_dashboard" {
 			fallback := []string{
 				"TrafficRXNew", "TrafficTXNew",

@@ -534,34 +534,42 @@ func chooseDimKeyForNamespace(namespace string, dims []string) string {
 	if len(dims) == 0 {
 		return ""
 	}
-	pick := func(candidates ...string) string {
+	pick := func(candidates []string) string {
 		for _, want := range candidates {
-			lw := strings.ToLower(want)
+			lw := strings.ToLower(strings.TrimSpace(want))
 			for _, d := range dims {
-				if strings.ToLower(d) == lw {
+				if strings.ToLower(strings.TrimSpace(d)) == lw {
 					return d
 				}
 			}
 		}
 		return ""
 	}
+	// 使用默认映射表中的候选维度键
+	var candidates []string
+	defaults := config.DefaultResourceDimMapping()
+	if req, ok := defaults["aliyun."+namespace]; ok {
+		candidates = append(candidates, req...)
+	}
+	if v := pick(candidates); v != "" {
+		return v
+	}
+	// 兼容旧逻辑的兜底（防止云侧返回大小写/别名差异）
 	switch namespace {
 	case "acs_bandwidth_package":
-		// 阿里云 BWP 使用 BandwidthPackageId/sharebandwidthpackages 作为维度键
-		if v := pick("BandwidthPackageId", "bandwidthPackageId", "sharebandwidthpackages"); v != "" {
+		if v := pick([]string{"BandwidthPackageId", "bandwidthPackageId", "sharebandwidthpackages"}); v != "" {
 			return v
 		}
 	case "acs_slb_dashboard":
-		if v := pick("instanceId", "InstanceId", "instance_id"); v != "" {
+		if v := pick([]string{"instanceId", "InstanceId", "instance_id"}); v != "" {
 			return v
 		}
-		return ""
 	case "acs_oss_dashboard":
-		if v := pick("BucketName", "bucketName", "bucket_name"); v != "" {
+		if v := pick([]string{"BucketName", "bucketName", "bucket_name"}); v != "" {
 			return v
 		}
-		return ""
 	}
+	// 最后回退到第一个维度（保持原始行为）
 	return dims[0]
 }
 

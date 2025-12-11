@@ -89,7 +89,7 @@ func TestClusterConfig_File(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(tmpfile.Name())
+    defer func() { _ = os.Remove(tmpfile.Name()) }()
 
 	content := "pod-0\npod-1\npod-2\n"
 	if _, err := tmpfile.Write([]byte(content)); err != nil {

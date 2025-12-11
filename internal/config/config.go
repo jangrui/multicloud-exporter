@@ -62,6 +62,7 @@ func DefaultResourceDimMapping() map[string][]string {
 		"aliyun.acs_ecs_dashboard":     {"InstanceId", "instanceId", "instance_id"},
 		"aliyun.acs_slb_dashboard":     {"InstanceId", "instanceId", "instance_id"},
 		"aliyun.acs_bandwidth_package": {"BandwidthPackageId", "bandwidthPackageId", "sharebandwidthpackages"},
+		"aliyun.acs_oss_dashboard":     {"BucketName", "bucketName", "bucket_name"},
 		// Tencent
 		"tencent.QCE/CVM": {"InstanceId"},
 		"tencent.QCE/LB":  {"LoadBalancerId", "vip"},

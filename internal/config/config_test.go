@@ -56,9 +56,11 @@ func TestExpandEnv(t *testing.T) {
 			for k, v := range tt.env {
 				t.Setenv(k, v)
 			}
-			if tt.env == nil {
-				os.Unsetenv("VAR")
-			}
+            if tt.env == nil {
+                if err := os.Unsetenv("VAR"); err != nil {
+                    t.Fatal(err)
+                }
+            }
 
 			got := expandEnv(tt.input)
 			if got != tt.expected {
@@ -74,7 +76,7 @@ func TestLoadConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+    defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// 1. Create server.yaml
 	serverYaml := `
@@ -131,7 +133,7 @@ func TestLoadConfig_Legacy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+    defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	configYaml := `
 server:

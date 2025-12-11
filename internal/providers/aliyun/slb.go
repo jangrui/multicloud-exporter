@@ -217,11 +217,7 @@ func (a *Collector) fetchSLBTags(account config.CloudAccount, region, namespace,
 								out[id] = v
 							}
 						}
-					} else {
-						// 尝试直接获取 (jrB 格式)
-						// 字段名不确定，暂时注释掉直接获取逻辑，依赖 Tags 列表
-						// k := tr.TagKey ...
-					}
+                    }
 				}
 			} else {
 				content := resp.GetHttpContentBytes()
