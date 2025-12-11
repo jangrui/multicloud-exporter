@@ -80,48 +80,59 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 		req := cms.CreateDescribeMetricMetaListRequest()
 		req.Namespace = ns
 		resp, err := client.DescribeMetricMetaList(req)
+		var metrics []string
 		if err != nil || resp == nil || resp.Resources.Resource == nil {
-			continue
+			if ns == "acs_bandwidth_package" {
+				metrics = []string{
+					"DownstreamBandwidth", "UpstreamBandwidth",
+					"DownstreamPacket", "UpstreamPacket",
+					"net_rx.rate", "net_tx.rate",
+					"net_rx.Pkgs", "net_tx.Pkgs",
+					"in_bandwidth_utilization", "out_bandwidth_utilization",
+					"in_ratelimit_drop_pps", "out_ratelimit_drop_pps",
+				}
+			} else {
+				continue
+			}
 		}
-        var metrics []string
-        mapping := config.DefaultResourceDimMapping()
-        key := "aliyun." + ns
-        required := mapping[key]
-        for _, r := range resp.Resources.Resource {
-            name := strings.TrimSpace(r.MetricName)
-            if name == "" {
-                continue
-            }
-            dims := strings.Split(strings.TrimSpace(r.Dimensions), ",")
-            has := false
-            if len(required) > 0 {
-                lower := make(map[string]struct{}, len(dims))
-                for _, d := range dims {
-                    ld := strings.ToLower(strings.TrimSpace(d))
-                    if ld != "" {
-                        lower[ld] = struct{}{}
-                    }
-                }
-                for _, k := range required {
-                    if _, ok := lower[strings.ToLower(k)]; ok {
-                        has = true
-                        break
-                    }
-                }
-            } else {
-                for _, d := range dims {
-                    ld := strings.ToLower(strings.TrimSpace(d))
-                    if ld == "instanceid" || ld == "instance_id" {
-                        has = true
-                        break
-                    }
-                }
-            }
-            if !has {
-                continue
-            }
-            metrics = append(metrics, name)
-        }
+		mapping := config.DefaultResourceDimMapping()
+		key := "aliyun." + ns
+		required := mapping[key]
+		for _, r := range resp.Resources.Resource {
+			name := strings.TrimSpace(r.MetricName)
+			if name == "" {
+				continue
+			}
+			dims := strings.Split(strings.TrimSpace(r.Dimensions), ",")
+			has := false
+			if len(required) > 0 {
+				lower := make(map[string]struct{}, len(dims))
+				for _, d := range dims {
+					ld := strings.ToLower(strings.TrimSpace(d))
+					if ld != "" {
+						lower[ld] = struct{}{}
+					}
+				}
+				for _, k := range required {
+					if _, ok := lower[strings.ToLower(k)]; ok {
+						has = true
+						break
+					}
+				}
+			} else {
+				for _, d := range dims {
+					ld := strings.ToLower(strings.TrimSpace(d))
+					if ld == "instanceid" || ld == "instance_id" {
+						has = true
+						break
+					}
+				}
+			}
+			if !has {
+				continue
+			}
+			metrics = append(metrics, name)
+		}
 		if ns == "acs_slb_dashboard" {
 			fallback := []string{
 				"TrafficRXNew", "TrafficTXNew",
@@ -157,43 +168,43 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 }
 
 func init() {
-    Register("aliyun", &AliyunDiscoverer{})
+	Register("aliyun", &AliyunDiscoverer{})
 }
 
 func FetchAliyunMetricMeta(region, ak, sk, namespace string) ([]MetricMeta, error) {
-    client, err := newAliyunCMSClient(region, ak, sk)
-    if err != nil {
-        return nil, err
-    }
-    req := cms.CreateDescribeMetricMetaListRequest()
-    req.Namespace = namespace
-    resp, err := client.DescribeMetricMetaList(req)
-    if err != nil || resp == nil || resp.Resources.Resource == nil {
-        return nil, err
-    }
-    var out []MetricMeta
-    for _, r := range resp.Resources.Resource {
-        name := strings.TrimSpace(r.MetricName)
-        if name == "" {
-            continue
-        }
-        dims := strings.Split(strings.TrimSpace(r.Dimensions), ",")
-        var ndims []string
-        for _, d := range dims {
-            ld := strings.TrimSpace(d)
-            if ld != "" {
-                ndims = append(ndims, ld)
-            }
-        }
-        mm := MetricMeta{
-            Provider:   "aliyun",
-            Namespace:  namespace,
-            Name:       name,
-            Unit:       strings.TrimSpace(r.Unit),
-            Dimensions: ndims,
-            Description: strings.TrimSpace(r.Description),
-        }
-        out = append(out, mm)
-    }
-    return out, nil
+	client, err := newAliyunCMSClient(region, ak, sk)
+	if err != nil {
+		return nil, err
+	}
+	req := cms.CreateDescribeMetricMetaListRequest()
+	req.Namespace = namespace
+	resp, err := client.DescribeMetricMetaList(req)
+	if err != nil || resp == nil || resp.Resources.Resource == nil {
+		return nil, err
+	}
+	var out []MetricMeta
+	for _, r := range resp.Resources.Resource {
+		name := strings.TrimSpace(r.MetricName)
+		if name == "" {
+			continue
+		}
+		dims := strings.Split(strings.TrimSpace(r.Dimensions), ",")
+		var ndims []string
+		for _, d := range dims {
+			ld := strings.TrimSpace(d)
+			if ld != "" {
+				ndims = append(ndims, ld)
+			}
+		}
+		mm := MetricMeta{
+			Provider:    "aliyun",
+			Namespace:   namespace,
+			Name:        name,
+			Unit:        strings.TrimSpace(r.Unit),
+			Dimensions:  ndims,
+			Description: strings.TrimSpace(r.Description),
+		}
+		out = append(out, mm)
+	}
+	return out, nil
 }

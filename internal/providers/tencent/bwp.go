@@ -96,7 +96,16 @@ func (t *Collector) fetchBWPMonitor(account config.CloudAccount, region string, 
 			metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", "success").Inc()
 			metrics.RequestDuration.WithLabelValues("tencent", "GetMonitorData").Observe(time.Since(reqStart).Seconds())
 
-			if resp == nil || resp.Response == nil || resp.Response.DataPoints == nil {
+			if resp == nil || resp.Response == nil || resp.Response.DataPoints == nil || len(resp.Response.DataPoints) == 0 {
+				// 输出 0 值样本以保证指标可见性
+				alias, count := metrics.NamespaceGauge("QCE/BWP", m)
+				for _, id := range ids {
+					labels := []string{"tencent", account.AccountID, region, "bwp", id, "QCE/BWP", m, ""}
+					for len(labels) < count {
+						labels = append(labels, "")
+					}
+					alias.WithLabelValues(labels...).Set(0)
+				}
 				continue
 			}
 			for _, dp := range resp.Response.DataPoints {
