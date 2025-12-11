@@ -77,7 +77,16 @@ func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) [
 	}
 
 	t.setCachedIDs(account, region, "QCE/COS", "cos", buckets)
-	logger.Log.Debugf("Tencent COS buckets enumerated account_id=%s region=%s count=%d", account.AccountID, region, len(buckets))
+	if len(buckets) > 0 {
+		max := 5
+		if len(buckets) < max {
+			max = len(buckets)
+		}
+		preview := buckets[:max]
+		logger.Log.Infof("Tencent COS buckets enumerated account_id=%s region=%s count=%d preview=%v", account.AccountID, region, len(buckets), preview)
+	} else {
+		logger.Log.Infof("Tencent COS buckets enumerated account_id=%s region=%s count=%d", account.AccountID, region, len(buckets))
+	}
 	return buckets
 }
 

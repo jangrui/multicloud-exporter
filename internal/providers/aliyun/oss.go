@@ -95,6 +95,15 @@ func (a *Collector) listOSSIDs(account config.CloudAccount, region string) []str
 		}
 	}
 
-	ctxLog.Debugf("枚举OSS存储桶完成 数量=%d (Cached: %v)", len(regionBuckets), valid)
-	return regionBuckets
+    if len(regionBuckets) > 0 {
+        max := 5
+        if len(regionBuckets) < max {
+            max = len(regionBuckets)
+        }
+        preview := regionBuckets[:max]
+        ctxLog.Infof("枚举OSS存储桶完成 数量=%d 预览=%v (Cached: %v)", len(regionBuckets), preview, valid)
+    } else {
+        ctxLog.Infof("枚举OSS存储桶完成 数量=%d (Cached: %v)", len(regionBuckets), valid)
+    }
+    return regionBuckets
 }
