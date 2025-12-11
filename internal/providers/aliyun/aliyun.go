@@ -436,6 +436,20 @@ func (a *Collector) getMetricMeta(client CMSClient, namespace, metric string) me
 			}
 		}
 		out.Dimensions = ds
+		if len(out.Dimensions) == 0 {
+			key := "aliyun." + namespace
+			if a.cfg != nil && a.cfg.ServerConf != nil {
+				if req, ok := a.cfg.ServerConf.ResourceDimMapping[key]; ok && len(req) > 0 {
+					out.Dimensions = append(out.Dimensions, req...)
+				}
+			}
+			if len(out.Dimensions) == 0 {
+				defaults := config.DefaultResourceDimMapping()
+				if req, ok := defaults[key]; ok && len(req) > 0 {
+					out.Dimensions = append(out.Dimensions, req...)
+				}
+			}
+		}
 		if r.Statistics != "" {
 			parts := strings.Split(r.Statistics, ",")
 			for i := range parts {
@@ -460,6 +474,20 @@ func (a *Collector) getMetricMeta(client CMSClient, namespace, metric string) me
 			} else {
 				// fallback
 				out.MinPeriod = strings.TrimSpace(r.Periods)
+			}
+		}
+	}
+	if len(out.Dimensions) == 0 {
+		key := "aliyun." + namespace
+		if a.cfg != nil && a.cfg.ServerConf != nil {
+			if req, ok := a.cfg.ServerConf.ResourceDimMapping[key]; ok && len(req) > 0 {
+				out.Dimensions = append(out.Dimensions, req...)
+			}
+		}
+		if len(out.Dimensions) == 0 {
+			defaults := config.DefaultResourceDimMapping()
+			if req, ok := defaults[key]; ok && len(req) > 0 {
+				out.Dimensions = append(out.Dimensions, req...)
 			}
 		}
 	}
