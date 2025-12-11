@@ -547,8 +547,8 @@ func chooseDimKeyForNamespace(namespace string, dims []string) string {
 	}
 	switch namespace {
 	case "acs_bandwidth_package":
-		// 阿里云 BWP 通常使用 InstanceId 作为维度键
-		if v := pick("instanceId", "InstanceId", "instance_id"); v != "" {
+		// 阿里云 BWP 使用 BandwidthPackageId/sharebandwidthpackages 作为维度键
+		if v := pick("BandwidthPackageId", "bandwidthPackageId", "sharebandwidthpackages"); v != "" {
 			return v
 		}
 	case "acs_slb_dashboard":

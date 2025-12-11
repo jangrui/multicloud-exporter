@@ -16,6 +16,10 @@ func init() {
 		"net_tx.Pkgs":               "out_pps",
 		"in_ratelimit_drop_pps":     "in_drop_pps",
 		"out_ratelimit_drop_pps":    "out_drop_pps",
+		"DownstreamBandwidth":       "in_bps",
+		"UpstreamBandwidth":         "out_bps",
+		"DownstreamPacket":          "in_pps",
+		"UpstreamPacket":            "out_pps",
 	})
 	metrics.RegisterNamespaceHelp("acs_bandwidth_package", help.BWPHelp)
 }
