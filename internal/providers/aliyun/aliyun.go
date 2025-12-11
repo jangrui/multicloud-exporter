@@ -288,6 +288,10 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 					if localPeriod == "" && meta.MinPeriod != "" {
 						localPeriod = meta.MinPeriod
 					}
+					if localPeriod == "" && prod.Namespace == "acs_bandwidth_package" {
+						// Fallback: 当元数据不可用时，为共享带宽设置保守的默认周期
+						localPeriod = "60"
+					}
 					if prod.Namespace == "acs_slb_dashboard" && (metricName == "InstanceTrafficRXUtilization" || metricName == "InstanceTrafficTXUtilization") {
 						need := []string{"InstanceId", "port", "protocol"}
 						if len(meta.Dimensions) == 0 {
@@ -500,11 +504,13 @@ func (a *Collector) getMetricMeta(client CMSClient, namespace, metric string) me
 //
 
 func (a *Collector) checkRequiredDimensions(namespace string, dims []string) bool {
-	// 使用配置驱动的映射
+	// 优先使用配置驱动的映射；若不匹配，继续尝试默认与兜底逻辑
 	if a.cfg != nil && a.cfg.ServerConf != nil && len(a.cfg.ServerConf.ResourceDimMapping) > 0 {
 		key := "aliyun." + namespace
 		if req, ok := a.cfg.ServerConf.ResourceDimMapping[key]; ok && len(req) > 0 {
-			return hasAnyDim(dims, req)
+			if hasAnyDim(dims, req) {
+				return true
+			}
 		}
 	}
 
@@ -512,23 +518,15 @@ func (a *Collector) checkRequiredDimensions(namespace string, dims []string) boo
 	defaults := config.DefaultResourceDimMapping()
 	key := "aliyun." + namespace
 	if req, ok := defaults[key]; ok {
-		return hasAnyDim(dims, req)
+		if hasAnyDim(dims, req) {
+			return true
+		}
 	}
 
-	// 针对 SLB 的特殊处理：如果包含 instanceId 且包含 port，也认为是匹配的（组合维度）
-	// 但实际上，只要有 instanceId，我们就认为可以尝试（具体是否需要扩展维度，在采集时判断）
-	// 此处仅判断是否"完全无关"
-	// 例如：如果指标只支持 [userId, groupId]，而我们只有 instanceId，则应返回 false
-	// 如果指标支持 [userId, instanceId, port, protocol]，我们有 instanceId，则返回 true
-	//
-	// 统一逻辑：只要当前资源的主键（如 instanceId）存在于指标支持的维度列表中，即认为可采集。
-	// 具体的维度组合（如 instanceId+port）由采集逻辑中的 dynamicDims 自动补全。
+	// 兜底：存在通用主键 instanceId 时允许尝试采集（SLB/部分 CBWP 场景）
 	if hasAnyDim(dims, []string{"instanceId", "InstanceId", "instance_id"}) {
 		return true
 	}
-
-	// 对于 BWP 等其他资源，主键可能略有不同，但通常都包含 instanceId
-	// 如果未来有特殊资源主键（如 diskId），需在此处补充
 
 	return false
 }
@@ -833,8 +831,8 @@ func (a *Collector) processMetricBatch(client CMSClient, req *cms.DescribeMetric
 							labels = append(labels, "")
 						}
 					}
-                vec.WithLabelValues(labels...).Set(0)
-                metrics.IncSampleCount(ns, 1)
+					vec.WithLabelValues(labels...).Set(0)
+					metrics.IncSampleCount(ns, 1)
 				}
 			}
 			break
@@ -919,8 +917,8 @@ func (a *Collector) processMetricBatch(client CMSClient, req *cms.DescribeMetric
 					labels = append(labels, "")
 				}
 			}
-            vec.WithLabelValues(labels...).Set(val)
-            metrics.IncSampleCount(ns, 1)
+			vec.WithLabelValues(labels...).Set(val)
+			metrics.IncSampleCount(ns, 1)
 		}
 		if resp.NextToken == "" {
 			break

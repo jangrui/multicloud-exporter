@@ -85,46 +85,57 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 		if err != nil || resp == nil || resp.Resources.Resource == nil {
 			if ns == "acs_bandwidth_package" {
 				logger.Log.Infof("Aliyun discovery fallback enabled namespace=%s reason=meta_unavailable", ns)
-			}
-			continue
-		}
-		mapping := config.DefaultResourceDimMapping()
-		key := "aliyun." + ns
-		required := mapping[key]
-		for _, r := range resp.Resources.Resource {
-			name := strings.TrimSpace(r.MetricName)
-			if name == "" {
-				continue
-			}
-			dims := strings.Split(strings.TrimSpace(r.Dimensions), ",")
-			has := false
-			if len(required) > 0 {
-				lower := make(map[string]struct{}, len(dims))
-				for _, d := range dims {
-					ld := strings.ToLower(strings.TrimSpace(d))
-					if ld != "" {
-						lower[ld] = struct{}{}
-					}
-				}
-				for _, k := range required {
-					if _, ok := lower[strings.ToLower(k)]; ok {
-						has = true
-						break
-					}
+				metrics = []string{
+					"DownstreamBandwidth", "UpstreamBandwidth",
+					"DownstreamPacket", "UpstreamPacket",
+					"in_bandwidth_utilization", "out_bandwidth_utilization",
+					"net_rx.rate", "net_tx.rate",
+					"net_rx.Pkgs", "net_tx.Pkgs",
+					"in_ratelimit_drop_pps", "out_ratelimit_drop_pps",
 				}
 			} else {
-				for _, d := range dims {
-					ld := strings.ToLower(strings.TrimSpace(d))
-					if ld == "instanceid" || ld == "instance_id" {
-						has = true
-						break
-					}
-				}
-			}
-			if !has {
 				continue
 			}
-			metrics = append(metrics, name)
+		}
+		if err == nil && resp != nil && resp.Resources.Resource != nil {
+			mapping := config.DefaultResourceDimMapping()
+			key := "aliyun." + ns
+			required := mapping[key]
+			for _, r := range resp.Resources.Resource {
+				name := strings.TrimSpace(r.MetricName)
+				if name == "" {
+					continue
+				}
+				dims := strings.Split(strings.TrimSpace(r.Dimensions), ",")
+				has := false
+				if len(required) > 0 {
+					lower := make(map[string]struct{}, len(dims))
+					for _, d := range dims {
+						ld := strings.ToLower(strings.TrimSpace(d))
+						if ld != "" {
+							lower[ld] = struct{}{}
+						}
+					}
+					for _, k := range required {
+						if _, ok := lower[strings.ToLower(k)]; ok {
+							has = true
+							break
+						}
+					}
+				} else {
+					for _, d := range dims {
+						ld := strings.ToLower(strings.TrimSpace(d))
+						if ld == "instanceid" || ld == "instance_id" {
+							has = true
+							break
+						}
+					}
+				}
+				if !has {
+					continue
+				}
+				metrics = append(metrics, name)
+			}
 		}
 		if ns == "acs_slb_dashboard" {
 			fallback := []string{
@@ -154,7 +165,18 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 			logger.Log.Infof("Aliyun discovery appended slb fallback metrics added=%d", len(metrics)-len(cur))
 		}
 		if len(metrics) == 0 {
-			continue
+			if ns == "acs_bandwidth_package" {
+				metrics = []string{
+					"DownstreamBandwidth", "UpstreamBandwidth",
+					"DownstreamPacket", "UpstreamPacket",
+					"in_bandwidth_utilization", "out_bandwidth_utilization",
+					"net_rx.rate", "net_tx.rate",
+					"net_rx.Pkgs", "net_tx.Pkgs",
+					"in_ratelimit_drop_pps", "out_ratelimit_drop_pps",
+				}
+			} else {
+				continue
+			}
 		}
 		prods = append(prods, config.Product{Namespace: ns, AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: metrics}}})
 	}
