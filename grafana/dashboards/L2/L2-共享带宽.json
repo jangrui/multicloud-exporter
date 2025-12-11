@@ -21,6 +21,19 @@
   "links": [],
   "panels": [
     {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 11,
+      "panels": [],
+      "title": "$region 区域总览",
+      "type": "row"
+    },
+    {
       "datasource": {
         "type": "prometheus",
         "uid": "$datasource"
@@ -134,7 +147,7 @@
         "h": 6,
         "w": 3,
         "x": 0,
-        "y": 0
+        "y": 1
       },
       "id": 1,
       "maxPerRow": 2,
@@ -204,7 +217,7 @@
           "refId": "E"
         }
       ],
-      "title": "📊 全局总览",
+      "title": "📊 区域总览",
       "type": "stat"
     },
     {
@@ -286,7 +299,7 @@
         "h": 3,
         "w": 21,
         "x": 3,
-        "y": 0
+        "y": 1
       },
       "id": 3,
       "options": {
@@ -419,7 +432,7 @@
         "h": 3,
         "w": 21,
         "x": 3,
-        "y": 3
+        "y": 4
       },
       "id": 4,
       "options": {
@@ -658,6 +671,74 @@
                 "value": 200
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "入方向24h最大使用率"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green"
+                    },
+                    {
+                      "color": "red",
+                      "value": 80
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "valueDisplayMode": "color"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "出方向24h最大使用率"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              },
+              {
+                "id": "thresholds",
+                "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    {
+                      "color": "green"
+                    },
+                    {
+                      "color": "red",
+                      "value": 80
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "custom.cellOptions",
+                "value": {
+                  "type": "gauge",
+                  "valueDisplayMode": "color"
+                }
+              }
+            ]
           }
         ]
       },
@@ -665,7 +746,7 @@
         "h": 13,
         "w": 24,
         "x": 0,
-        "y": 6
+        "y": 7
       },
       "id": 2,
       "options": {
@@ -679,12 +760,7 @@
           "show": false
         },
         "showHeader": true,
-        "sortBy": [
-          {
-            "desc": true,
-            "displayName": "入方向使用率"
-          }
-        ]
+        "sortBy": []
       },
       "pluginVersion": "11.6.1",
       "targets": [
@@ -761,6 +837,36 @@
           "legendFormat": "出方向丢包",
           "range": false,
           "refId": "F"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "max by(cloud_provider,account_id,region,resource_id,code_name) (max_over_time(bwp_in_utilization_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}))",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "入方向最大使用率",
+          "range": false,
+          "refId": "G"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "$datasource"
+          },
+          "editorMode": "code",
+          "exemplar": false,
+          "expr": "max by(cloud_provider,account_id,region,resource_id,code_name) (max_over_time(bwp_out_utilization_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}))",
+          "format": "table",
+          "hide": false,
+          "instant": true,
+          "legendFormat": "出方向最大使用率",
+          "range": false,
+          "refId": "H"
         }
       ],
       "title": "Panel Title",
@@ -790,6 +896,14 @@
                 "operation": "groupby"
               },
               "Value #F": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "Value #G": {
+                "aggregations": [],
+                "operation": "groupby"
+              },
+              "Value #H": {
                 "aggregations": [],
                 "operation": "groupby"
               },
@@ -855,15 +969,17 @@
             "includeByName": {},
             "indexByName": {
               "Value #A": 2,
-              "Value #B": 3,
-              "Value #C": 5,
-              "Value #D": 6,
-              "Value #E": 4,
-              "Value #F": 7,
-              "account_id": 9,
-              "cloud_provider": 10,
+              "Value #B": 4,
+              "Value #C": 6,
+              "Value #D": 8,
+              "Value #E": 5,
+              "Value #F": 9,
+              "Value #G": 3,
+              "Value #H": 7,
+              "account_id": 11,
+              "cloud_provider": 12,
               "code_name": 0,
-              "region": 8,
+              "region": 10,
               "resource_id": 1
             },
             "renameByName": {
@@ -873,6 +989,8 @@
               "Value #D": "出方向流量",
               "Value #E": "入方向丢包",
               "Value #F": "出方向丢包",
+              "Value #G": "入方向24h最大使用率",
+              "Value #H": "出方向24h最大使用率",
               "account_id": "账号 ID",
               "cloud_provider": "云厂商",
               "code_name": "CodeName",
@@ -949,7 +1067,7 @@
         "h": 7,
         "w": 4,
         "x": 0,
-        "y": 19
+        "y": 20
       },
       "id": 10,
       "options": {
@@ -1042,7 +1160,7 @@
         "h": 7,
         "w": 4,
         "x": 4,
-        "y": 19
+        "y": 20
       },
       "id": 6,
       "options": {
@@ -1135,7 +1253,7 @@
         "h": 7,
         "w": 4,
         "x": 8,
-        "y": 19
+        "y": 20
       },
       "id": 5,
       "options": {
@@ -1226,7 +1344,7 @@
         "h": 7,
         "w": 4,
         "x": 12,
-        "y": 19
+        "y": 20
       },
       "id": 7,
       "options": {
@@ -1317,7 +1435,7 @@
         "h": 7,
         "w": 4,
         "x": 16,
-        "y": 19
+        "y": 20
       },
       "id": 9,
       "options": {
@@ -1408,7 +1526,7 @@
         "h": 7,
         "w": 4,
         "x": 20,
-        "y": 19
+        "y": 20
       },
       "id": 8,
       "options": {
@@ -1561,12 +1679,12 @@
     ]
   },
   "time": {
-    "from": "now-1h",
+    "from": "now-24h",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "",
-  "title": "共享带宽 (BWP)",
+  "title": "L2-共享带宽 (BWP)",
   "uid": "bwp",
   "version": ""
 }

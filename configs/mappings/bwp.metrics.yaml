@@ -6,82 +6,126 @@ namespaces:
 
 canonical:
   traffic_rx_bps:
+    description: "入网流量"
     aliyun:
-      metric: DownstreamBandwidth
+      metric: net_rx.rate
+      dimensions:
+        - userId
+        - instanceId
       unit: bit/s
       scale: 1
     tencent:
       metric: InTraffic
+      dimensions:
+        - bandwidthPackageId
       unit: Mbps
       scale: 1000000
   traffic_tx_bps:
+    description: "出网流量"
     aliyun:
-      metric: UpstreamBandwidth
+      metric: net_tx.rate
+      dimensions:
+        - userId
+        - instanceId
       unit: bit/s
       scale: 1
     tencent:
       metric: OutTraffic
+      dimensions:
+        - bandwidthPackageId
       unit: Mbps
       scale: 1000000
   packet_rx:
+    description: "入网包速率"
     aliyun:
-      metric: DownstreamPacket
+      metric: net_rx.Pkgs
+      dimensions:
+        - userId
+        - instanceId
       unit: count/s
       scale: 1
     tencent:
       metric: InPkg
+      dimensions:
+        - bandwidthPackageId
       unit: count/s
       scale: 1
   packet_tx:
+    description: "出网包速率"
     aliyun:
-      metric: UpstreamPacket
+      metric: net_tx.Pkgs
+      dimensions:
+        - userId
+        - instanceId
       unit: count/s
       scale: 1
     tencent:
       metric: OutPkg
+      dimensions:
+        - bandwidthPackageId
       unit: count/s
       scale: 1
   utilization_rx_pct:
+    description: "入网带宽利用率"
     aliyun:
       metric: in_bandwidth_utilization
+      dimensions:
+        - userId
+        - instanceId
       unit: percent
       scale: 1
     tencent:
       metric: IntrafficBwpRatio
+      dimensions:
+        - bandwidthPackageId
       unit: percent
       scale: 1
   utilization_tx_pct:
+    description: "出网带宽利用率"
     aliyun:
       metric: out_bandwidth_utilization
+      dimensions:
+        - userId
+        - instanceId
       unit: percent
       scale: 1
     tencent:
       metric: OuttrafficBwpRatio
+      dimensions:
+        - bandwidthPackageId
       unit: percent
       scale: 1
 
 aliyun_only:
-  traffic_rx_bps:
-    metric: net_rx.rate
-    unit: bit/s
-    scale: 1
-  traffic_tx_bps:
-    metric: net_tx.rate
-    unit: bit/s
-    scale: 1
-  packet_rx:
-    metric: net_rx.Pkgs
-    unit: count/s
-    scale: 1
-  packet_tx:
-    metric: net_tx.Pkgs
-    unit: count/s
-    scale: 1
   drop_rx_pps:
     metric: in_ratelimit_drop_pps
+    dimensions:
+      - userId
+      - instanceId
     unit: count/s
     scale: 1
   drop_tx_pps:
     metric: out_ratelimit_drop_pps
+    dimensions:
+      - userId
+      - instanceId
     unit: count/s
     scale: 1
+  # ratePercent seems redundant if we have utilization, but keeping if users want raw API value
+  rx_rate_percent:
+    metric: net_rx.ratePercent
+    dimensions:
+      - userId
+      - instanceId
+    unit: percent
+    scale: 1
+  tx_rate_percent:
+    metric: net_tx.ratePercent
+    dimensions:
+      - userId
+      - instanceId
+    unit: percent
+    scale: 1
+
+tencent_only:
+  # Tencent BWP metrics are all covered in canonical

@@ -1,67 +1,337 @@
-# 统一对象存储指标映射关系（Aliyun / Tencent）
+# Unified Object Storage Metrics (Aliyun OSS / Tencent COS)
 prefix: s3
 namespaces:
   aliyun: acs_oss_dashboard
   tencent: QCE/COS
 
 canonical:
-  bucket_size_bytes:
+  # Storage Usage
+  storage_usage_bytes:
+    description: "存储空间使用量"
     aliyun:
       metric: UserStorage
+      dimensions:
+        - userId
+        - BucketName
       unit: Bytes
+      scale: 1
     tencent:
-      metric: StdStorage
+      metric: StdStorage # Approximation: Tencent separates storage types, Std is most common
+      dimensions:
+        - bucket
       unit: Bytes
+      scale: 1
 
-  internet_tx_bytes:
+  # Traffic (Bytes) - Preferred for accuracy
+  traffic_internet_rx_bytes:
+    description: "公网入流量 (上传)"
     aliyun:
-      metric: InternetTraffic
+      metric: InternetRecv
+      dimensions:
+        - userId
+        - BucketName
       unit: Bytes
+      scale: 1
     tencent:
-      metric: InternetTraffic
+      metric: InternetTrafficUp # Upload to Cloud
+      dimensions:
+        - bucket
       unit: Bytes
-
-  intranet_tx_bytes:
+      scale: 1
+  traffic_internet_tx_bytes:
+    description: "公网出流量 (下载)"
     aliyun:
-      metric: IntranetTraffic
+      metric: InternetSend
+      dimensions:
+        - userId
+        - BucketName
       unit: Bytes
-
-  cache_recv_bytes:
-    aliyun:
-      metric: CacheRecv
-      unit: Bytes
-
-  cache_send_bytes:
-    aliyun:
-      metric: CacheSend
-      unit: Bytes
-
-  cache_origin_recv_bytes:
-    aliyun:
-      metric: CacheOriginRecv
-      unit: Bytes
-
-  cache_origin_send_bytes:
-    aliyun:
-      metric: CacheOriginSend
-      unit: Bytes
-
-  requests_2xx:
+      scale: 1
     tencent:
-      metric: 2xxResponse
-
-  requests_3xx:
+      metric: InternetTrafficDown # Download from Cloud
+      dimensions:
+        - bucket
+      unit: Bytes
+      scale: 1
+  traffic_intranet_rx_bytes:
+    description: "内网入流量 (上传)"
+    aliyun:
+      metric: IntranetRecv
+      dimensions:
+        - userId
+        - BucketName
+      unit: Bytes
+      scale: 1
     tencent:
-      metric: 3xxResponse
-
-  requests_4xx:
+      metric: InternalTrafficUp
+      dimensions:
+        - bucket
+      unit: Bytes
+      scale: 1
+  traffic_intranet_tx_bytes:
+    description: "内网出流量 (下载)"
+    aliyun:
+      metric: IntranetSend
+      dimensions:
+        - userId
+        - BucketName
+      unit: Bytes
+      scale: 1
     tencent:
-      metric: 4xxResponse
+      metric: InternalTrafficDown
+      dimensions:
+        - bucket
+      unit: Bytes
+      scale: 1
+  traffic_cdn_rx_bytes:
+    description: "CDN 回源入流量"
+    aliyun:
+      metric: UserCdnRecv
+      dimensions:
+        - userId
+        - BucketName
+      unit: Bytes
+      scale: 1
+    tencent:
+      metric: CdnOriginTraffic # Assuming exists based on pattern, or omit if unsure
+      dimensions:
+        - bucket
+      unit: Bytes
+      scale: 1
+  traffic_cdn_tx_bytes:
+    description: "CDN 回源出流量"
+    aliyun:
+      metric: UserCdnSend
+      dimensions:
+        - userId
+        - BucketName
+      unit: Bytes
+      scale: 1
+    tencent:
+      metric: CdnTrafficDown
+      dimensions:
+        - bucket
+      unit: Bytes
+      scale: 1
 
-  requests_5xx:
+  # Requests
+  requests_total:
+    description: "总请求数"
+    aliyun:
+      metric: TotalRequestCount
+      dimensions:
+        - userId
+        - BucketName
+      unit: count
+      scale: 1
+    tencent:
+      metric: TotalRequests
+      dimensions:
+        - bucket
+      unit: count
+      scale: 1
+  requests_get:
+    description: "GET 请求数"
+    aliyun:
+      metric: GetObjectCount
+      dimensions:
+        - userId
+        - BucketName
+      unit: count
+      scale: 1
+    tencent:
+      metric: GetRequests
+      dimensions:
+        - bucket
+      unit: count
+      scale: 1
+  requests_put:
+    description: "PUT 请求数"
+    aliyun:
+      metric: PutObjectCount
+      dimensions:
+        - userId
+        - BucketName
+      unit: count
+      scale: 1
+    tencent:
+      metric: PutRequests
+      dimensions:
+        - bucket
+      unit: count
+      scale: 1
+  requests_head:
+    description: "HEAD 请求数"
+    aliyun:
+      metric: HeadObjectCount
+      dimensions:
+        - userId
+        - BucketName
+      unit: count
+      scale: 1
+    tencent:
+      metric: HeadRequests
+      dimensions:
+        - bucket
+      unit: count
+      scale: 1
+
+  # Availability & Errors
+  availability_pct:
+    description: "可用性/成功率"
+    aliyun:
+      metric: UserAvailability
+      dimensions:
+        - userId
+        - BucketName
+      unit: percent
+      scale: 1
+    tencent:
+      metric: RequestsSuccessRate
+      dimensions:
+        - bucket
+      unit: percent
+      scale: 1
+  response_server_error_count:
+    description: "服务端错误数"
+    aliyun:
+      metric: ServerErrorCount
+      dimensions:
+        - userId
+        - BucketName
+      unit: count
+      scale: 1
     tencent:
       metric: 5xxResponse
+      dimensions:
+        - bucket
+      unit: count
+      scale: 1
 
-  replication_traffic_bytes:
-    tencent:
-      metric: CrossRegionReplicationTraffic
+aliyun_only:
+  # Latency
+  latency_e2e_get:
+    metric: GetObjectE2eLatency
+    dimensions:
+      - userId
+      - BucketName
+    unit: ms
+  latency_server_get:
+    metric: GetObjectServerLatency
+    dimensions:
+      - userId
+      - BucketName
+    unit: ms
+  latency_e2e_put:
+    metric: PutObjectE2eLatency
+    dimensions:
+      - userId
+      - BucketName
+    unit: ms
+  latency_server_put:
+    metric: PutObjectServerLatency
+    dimensions:
+      - userId
+      - BucketName
+    unit: ms
+  
+  # Bandwidth (If users prefer bps over Bytes)
+  bandwidth_internet_rx:
+    metric: InternetRecvBandwidth
+    dimensions:
+      - userId
+      - BucketName
+    unit: bit/s
+  bandwidth_internet_tx:
+    metric: InternetSendBandwidth
+    dimensions:
+      - userId
+      - BucketName
+    unit: bit/s
+  bandwidth_intranet_rx:
+    metric: IntranetRecvBandwidth
+    dimensions:
+      - userId
+      - BucketName
+    unit: bit/s
+  bandwidth_intranet_tx:
+    metric: IntranetSendBandwidth
+    dimensions:
+      - userId
+      - BucketName
+    unit: bit/s
+
+  # Cache
+  cache_recv_bytes:
+    metric: CacheRecv
+    dimensions:
+      - userId
+      - instanceId
+      - BucketName
+    unit: Bytes
+  cache_send_bytes:
+    metric: CacheSend
+    dimensions:
+      - userId
+      - instanceId
+      - BucketName
+    unit: Bytes
+  cache_origin_recv_bytes:
+    metric: CacheOriginRecv
+    dimensions:
+      - userId
+      - instanceId
+      - BucketName
+    unit: Bytes
+  cache_origin_send_bytes:
+    metric: CacheOriginSend
+    dimensions:
+      - userId
+      - instanceId
+      - BucketName
+    unit: Bytes
+
+  # Objects
+  object_count:
+    metric: ObjectCount # Check if exists, usually "ObjectCount" or similar
+    dimensions:
+      - userId
+      - BucketName
+    unit: count
+
+tencent_only:
+  # Detailed Response Codes
+  response_2xx_count:
+    metric: 2xxResponse
+    dimensions:
+      - bucket
+    unit: count
+  response_3xx_count:
+    metric: 3xxResponse
+    dimensions:
+      - bucket
+    unit: count
+  response_4xx_count:
+    metric: 4xxResponse
+    dimensions:
+      - bucket
+    unit: count
+  
+  # Storage Classes
+  storage_ia_bytes:
+    metric: IaStorage
+    dimensions:
+      - bucket
+    unit: Bytes
+  storage_archive_bytes:
+    metric: DeepArcStorage
+    dimensions:
+      - bucket
+    unit: Bytes
+  
+  # Replication
+  traffic_replication_bytes:
+    metric: CrossRegionReplicationTraffic
+    dimensions:
+      - bucket
+    unit: Bytes

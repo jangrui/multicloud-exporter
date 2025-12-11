@@ -1,0 +1,153 @@
+# 统一 GWLB 指标映射关系（Aliyun / Tencent）
+# 说明：canonical 指代统一后的 `gwlb_*` 名称；各云平台原始指标在 providers 下声明，并给出单位与查询层的缩放建议。
+
+prefix: gwlb
+namespaces:
+  aliyun: acs_gwlb
+  tencent: qce/gwlb
+
+canonical:
+  # 连接类指标
+  active_connection:
+    description: "活跃连接数"
+    aliyun:
+      metric: ActiveConnection
+      dimensions:
+        - userId
+        - regionId
+        - availableZone
+        - instanceId
+        - addressIpVersion
+      unit: count
+    tencent:
+      metric: ConcurConn
+      dimensions:
+        - AppId
+        - gwLoadBalancerId
+      unit: count
+  new_connection:
+    description: "新建连接数"
+    aliyun:
+      metric: NewConnection
+      dimensions:
+        - userId
+        - regionId
+        - availableZone
+        - instanceId
+        - addressIpVersion
+      unit: count/s
+    tencent:
+      metric: NewConn
+      dimensions:
+        - AppId
+        - gwLoadBalancerId
+      unit: count/s
+
+  # 流量类指标
+  traffic_rx_bps:
+    description: "入网流量"
+    aliyun:
+      metric: TrafficRX
+      dimensions:
+        - userId
+        - regionId
+        - availableZone
+        - instanceId
+        - addressIpVersion
+      unit: bit/s
+      scale: 1
+    tencent:
+      metric: InTraffic
+      dimensions:
+        - AppId
+        - gwLoadBalancerId
+      unit: Mbps
+      scale: 1000000
+  traffic_tx_bps:
+    description: "出网流量"
+    aliyun:
+      metric: TrafficTX
+      dimensions:
+        - userId
+        - regionId
+        - availableZone
+        - instanceId
+        - addressIpVersion
+      unit: bit/s
+      scale: 1
+    tencent:
+      metric: OutTraffic
+      dimensions:
+        - AppId
+        - gwLoadBalancerId
+      unit: Mbps
+      scale: 1000000
+
+  # 包转发类
+  packet_rx:
+    description: "入网包速率"
+    aliyun:
+      metric: PacketRX
+      dimensions:
+        - userId
+        - regionId
+        - availableZone
+        - instanceId
+        - addressIpVersion
+      unit: count/s
+      scale: 1
+    # Tencent GWLB 暂无包转发指标
+  packet_tx:
+    description: "出网包速率"
+    aliyun:
+      metric: PacketTX
+      dimensions:
+        - userId
+        - regionId
+        - availableZone
+        - instanceId
+        - addressIpVersion
+      unit: count/s
+      scale: 1
+    # Tencent GWLB 暂无包转发指标
+
+  # 健康检查指标
+  unhealthy_server_count:
+    description: "异常后端服务数"
+    aliyun:
+      metric: ServerGroupUnhealthyHostCount
+      dimensions:
+        - userId
+        - regionId
+        - availableZone
+        - instanceId
+        - listenerId
+        - serverGroupId
+      unit: count
+    tencent:
+      metric: Unhealthyrscount
+      dimensions:
+        - AppId
+        - targetGroupId
+      unit: count
+  healthy_server_count:
+    description: "健康后端服务数"
+    aliyun:
+      metric: ServerGroupHealthyHostCount
+      dimensions:
+        - userId
+        - regionId
+        - availableZone
+        - instanceId
+        - listenerId
+        - serverGroupId
+      unit: count
+    # Tencent GWLB 暂无健康服务器计数指标
+
+# 阿里云特有指标
+aliyun_only:
+  # 如果有阿里云GWLB特有指标，可以在这里定义
+
+# 腾讯云特有指标
+tencent_only:
+  # 如果有腾讯云GWLB特有指标，可以在这里定义

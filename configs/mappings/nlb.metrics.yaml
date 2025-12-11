@@ -1,0 +1,434 @@
+# 统一 NLB 指标映射关系（Aliyun / Tencent）
+# 说明：canonical 指代统一后的 `nlb_*` 名称；各云平台原始指标在 providers 下声明，并给出单位与查询层的缩放建议。
+
+prefix: nlb
+namespaces:
+  aliyun: acs_nlb
+  tencent: qce/lb_private
+
+canonical:
+  # 连接类指标
+  active_connection:
+    description: "活跃连接数"
+    aliyun:
+      metric: InstanceActiveConnection
+      dimensions:
+        - userId
+        - instanceId
+      unit: count
+    tencent:
+      metric: VConnum
+      dimensions:
+        - loadBalancerId
+      unit: count
+  new_connection:
+    description: "新建连接数"
+    aliyun:
+      metric: InstanceNewConnection
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+    tencent:
+      metric: VNewConn
+      dimensions:
+        - loadBalancerId
+      unit: count/s
+  dropped_connection:
+    description: "丢弃连接数"
+    aliyun:
+      metric: DropConnection
+      dimensions:
+        - userId
+        - instanceId
+        - zone
+      unit: count/s
+    tencent:
+      metric: drop_conn
+      dimensions:
+        - loadBalancerId
+      unit: count/s
+
+  # 流量类指标
+  traffic_rx_bps:
+    description: "入网流量"
+    aliyun:
+      metric: InstanceTrafficRX
+      dimensions:
+        - userId
+        - instanceId
+      unit: bit/s
+      scale: 1
+    tencent:
+      metric: Intraffic
+      dimensions:
+        - loadBalancerId
+      unit: Mbps
+      scale: 1000000
+  traffic_tx_bps:
+    description: "出网流量"
+    aliyun:
+      metric: InstanceTrafficTX
+      dimensions:
+        - userId
+        - instanceId
+      unit: bit/s
+      scale: 1
+    tencent:
+      metric: Outtraffic
+      dimensions:
+        - loadBalancerId
+      unit: Mbps
+      scale: 1000000
+  drop_packet_rx:
+    description: "入网丢包速率"
+    aliyun:
+      metric: InstanceDropPacketRX
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+      scale: 1
+    tencent:
+      metric: InDropPkts
+      dimensions:
+        - loadBalancerId
+      unit: count/s
+      scale: 1
+  drop_packet_tx:
+    description: "出网丢包速率"
+    aliyun:
+      metric: InstanceDropPacketTX
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+      scale: 1
+    tencent:
+      metric: OutDropPkts
+      dimensions:
+        - loadBalancerId
+      unit: count/s
+      scale: 1
+  
+  # 包转发类
+  packet_rx:
+    description: "入网包速率"
+    aliyun:
+      metric: InstancePacketRX
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+      scale: 1
+    tencent:
+      metric: Inpkg
+      dimensions:
+        - loadBalancerId
+      unit: count/s
+      scale: 1
+  packet_tx:
+    description: "出网包速率"
+    aliyun:
+      metric: InstancePacketTX
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+      scale: 1
+    tencent:
+      metric: Outpkg
+      dimensions:
+        - loadBalancerId
+      unit: count/s
+      scale: 1
+  
+  # 实例带宽利用率 (Aliyun NLB 未直接提供百分比，需计算或使用 BandwidthUtilization 如果存在? Grep 未显示)
+  bandwidth_utilization_pct:
+    description: "带宽利用率"
+    tencent:
+      metric: BandwidthUtilization
+      dimensions:
+        - loadBalancerId
+      unit: '%'
+
+# 阿里云特有指标
+aliyun_only:
+  drop_packet_rx:
+    metric: DropPacketRX
+    dimensions:
+      - userId
+      - instanceId
+      - listenerPort
+      - listenerProtocol
+    unit: count/s
+  drop_packet_tx:
+    metric: DropPacketTX
+    dimensions:
+      - userId
+      - instanceId
+      - listenerPort
+      - listenerProtocol
+    unit: count/s
+  drop_traffic_rx:
+    metric: DropTrafficRX
+    dimensions:
+      - userId
+      - instanceId
+      - listenerPort
+      - listenerProtocol
+    unit: bit/s
+  drop_traffic_tx:
+    metric: DropTrafficTX
+    dimensions:
+      - userId
+      - instanceId
+      - listenerPort
+      - listenerProtocol
+    unit: bit/s
+  inactive_connection:
+    metric: InactiveConnection
+    dimensions:
+      - userId
+      - instanceId
+      - listenerPort
+      - listenerProtocol
+    unit: count
+  instance_active_connection:
+    metric: InstanceActiveConnection
+    dimensions:
+      - userId
+      - instanceId
+    unit: count
+  instance_drop_connection:
+    metric: InstanceDropConnection
+    dimensions:
+      - userId
+      - instanceId
+    unit: count/s
+  instance_drop_packet_rx:
+    metric: InstanceDropPacketRX
+    dimensions:
+      - userId
+      - instanceId
+    unit: count/s
+  instance_drop_packet_tx:
+    metric: InstanceDropPacketTX
+    dimensions:
+      - userId
+      - instanceId
+    unit: count/s
+  instance_drop_traffic_rx:
+    metric: InstanceDropTrafficRX
+    dimensions:
+      - userId
+      - instanceId
+    unit: bit/s
+  instance_drop_traffic_tx:
+    metric: InstanceDropTrafficTX
+    dimensions:
+      - userId
+      - instanceId
+    unit: bit/s
+  instance_inactive_connection:
+    metric: InstanceInactiveConnection
+    dimensions:
+      - userId
+      - instanceId
+    unit: count
+  instance_max_connection:
+    metric: InstanceMaxConnection
+    dimensions:
+      - userId
+      - instanceId
+    unit: count
+  instance_new_connection:
+    metric: InstanceNewConnection
+    dimensions:
+      - userId
+      - instanceId
+    unit: count/s
+  instance_packet_rx:
+    metric: InstancePacketRX
+    dimensions:
+      - userId
+      - instanceId
+    unit: count/s
+  instance_packet_tx:
+    metric: InstancePacketTX
+    dimensions:
+      - userId
+      - instanceId
+    unit: count/s
+  instance_traffic_rx:
+    metric: InstanceTrafficRX
+    dimensions:
+      - userId
+      - instanceId
+    unit: bit/s
+  instance_traffic_tx:
+    metric: InstanceTrafficTX
+    dimensions:
+      - userId
+      - instanceId
+    unit: bit/s
+  instance_unhealthy_server_count:
+    metric: InstanceUnhealthyServerCount
+    dimensions:
+      - userId
+      - instanceId
+    unit: count
+  listener_healthy_server_count:
+    metric: ListenerHeathyServerCount
+    dimensions:
+      - userId
+      - instanceId
+      - listenerPort
+      - listenerProtocol
+    unit: count
+  listener_packet_rx:
+    metric: ListenerPacketRX
+    dimensions:
+      - userId
+      - instanceId
+      - listenerPort
+      - listenerProtocol
+    unit: count/s
+  listener_packet_tx:
+    metric: ListenerPacketTX
+    dimensions:
+      - userId
+      - instanceId
+      - listenerPort
+      - listenerProtocol
+    unit: count/s
+  listener_unhealthy_server_count:
+    metric: ListenerUnhealthyServerCount
+    dimensions:
+      - userId
+      - instanceId
+      - listenerPort
+      - listenerProtocol
+    unit: count
+  max_connection:
+    metric: MaxConnection
+    dimensions:
+      - userId
+      - instanceId
+      - listenerPort
+      - listenerProtocol
+    unit: count
+  nlb_instance_healthy_server_count:
+    metric: NlbInstanceHeathyServerCount
+    dimensions:
+      - userId
+      - instanceId
+    unit: count
+  real_server_reset_packet:
+    metric: RealServerResetPacket
+    dimensions:
+      - userId
+      - instanceId
+      - vip
+    unit: count/s
+  vip_active_connection:
+    metric: VipActiveConnection
+    dimensions:
+      - userId
+      - instanceId
+      - vip
+    unit: count
+  vip_client_reset_packet:
+    metric: VipClientResetPacket
+    dimensions:
+      - userId
+      - instanceId
+      - vip
+    unit: count/s
+  vip_drop_connection:
+    metric: VipDropConnection
+    dimensions:
+      - userId
+      - instanceId
+      - vip
+    unit: count/s
+  vip_drop_packet_rx:
+    metric: VipDropPacketRX
+    dimensions:
+      - userId
+      - instanceId
+      - vip
+    unit: count/s
+  vip_drop_packet_tx:
+    metric: VipDropPacketTX
+    dimensions:
+      - userId
+      - instanceId
+      - vip
+    unit: count/s
+  vip_drop_traffic_rx:
+    metric: VipDropTrafficRX
+    dimensions:
+      - userId
+      - instanceId
+      - vip
+    unit: bit/s
+  vip_drop_traffic_tx:
+    metric: VipDropTrafficTX
+    dimensions:
+      - userId
+      - instanceId
+      - vip
+    unit: bit/s
+  vip_inactive_connection:
+    metric: VipInactiveConnection
+    dimensions:
+      - userId
+      - instanceId
+      - vip
+    unit: count
+  vip_max_connection:
+    metric: VipMaxConnection
+    dimensions:
+      - userId
+      - instanceId
+      - vip
+    unit: count
+  vip_new_connection:
+    metric: VipNewConnection
+    dimensions:
+      - userId
+      - instanceId
+      - vip
+    unit: count/s
+  vip_packet_rx:
+    metric: VipPacketRX
+    dimensions:
+      - userId
+      - instanceId
+      - vip
+    unit: count/s
+  vip_packet_tx:
+    metric: VipPacketTX
+    dimensions:
+      - userId
+      - instanceId
+      - vip
+    unit: count/s
+  vip_traffic_rx:
+    metric: VipTrafficRX
+    dimensions:
+      - userId
+      - instanceId
+      - vip
+    unit: bit/s
+  vip_traffic_tx:
+    metric: VipTrafficTX
+    dimensions:
+      - userId
+      - instanceId
+      - vip
+    unit: bit/s
+
+tencent_only:
+  # 如果有腾讯云NLB特有指标，可以在这里定义
