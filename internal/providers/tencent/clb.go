@@ -14,7 +14,7 @@ import (
 
 func (t *Collector) listCLBVips(account config.CloudAccount, region string) []string {
 	if ids, hit := t.getCachedIDs(account, region, "QCE/LB", "lb"); hit {
-		logger.Log.Debugf("Tencent CLB VIPs cache hit account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
+		logger.Log.Infof("Tencent CLB VIPs cache hit account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
 		return ids
 	}
 
@@ -48,7 +48,16 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 		}
 	}
 	t.setCachedIDs(account, region, "QCE/LB", "lb", vips)
-	logger.Log.Debugf("Tencent CLB VIPs enumerated account_id=%s region=%s count=%d", account.AccountID, region, len(vips))
+	if len(vips) > 0 {
+		max := 5
+		if len(vips) < max {
+			max = len(vips)
+		}
+		preview := vips[:max]
+		logger.Log.Infof("Tencent CLB VIPs enumerated account_id=%s region=%s count=%d preview=%v", account.AccountID, region, len(vips), preview)
+	} else {
+		logger.Log.Infof("Tencent CLB VIPs enumerated account_id=%s region=%s count=%d", account.AccountID, region, len(vips))
+	}
 	return vips
 }
 
@@ -110,6 +119,7 @@ func (t *Collector) fetchCLBMonitor(account config.CloudAccount, region string, 
 						labels = append(labels, "")
 					}
 					alias.WithLabelValues(labels...).Set(0)
+					metrics.IncSampleCount("QCE/CLB", 1)
 				}
 				continue
 			}
@@ -132,6 +142,7 @@ func (t *Collector) fetchCLBMonitor(account config.CloudAccount, region string, 
 					labels = append(labels, "")
 				}
 				alias.WithLabelValues(labels...).Set(scaled)
+				metrics.IncSampleCount("QCE/CLB", 1)
 			}
 		}
 	}

@@ -833,7 +833,8 @@ func (a *Collector) processMetricBatch(client CMSClient, req *cms.DescribeMetric
 							labels = append(labels, "")
 						}
 					}
-					vec.WithLabelValues(labels...).Set(0)
+                vec.WithLabelValues(labels...).Set(0)
+                metrics.IncSampleCount(ns, 1)
 				}
 			}
 			break
@@ -918,7 +919,8 @@ func (a *Collector) processMetricBatch(client CMSClient, req *cms.DescribeMetric
 					labels = append(labels, "")
 				}
 			}
-			vec.WithLabelValues(labels...).Set(val)
+            vec.WithLabelValues(labels...).Set(val)
+            metrics.IncSampleCount(ns, 1)
 		}
 		if resp.NextToken == "" {
 			break

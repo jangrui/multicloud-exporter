@@ -13,8 +13,8 @@ import (
 )
 
 func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []string {
-	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region)
-	ctxLog.Debugf("枚举共享带宽包开始")
+    ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region)
+    ctxLog.Infof("枚举共享带宽包开始")
 	client, err := a.clientFactory.NewVPCClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
 		return []string{}
@@ -81,8 +81,18 @@ func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []st
 		page++
 		time.Sleep(50 * time.Millisecond)
 	}
-	ctxLog.Debugf("枚举共享带宽包完成 数量=%d", len(ids))
-	return ids
+    // 打印缩略的 ID 列表，便于定位
+    if len(ids) > 0 {
+        max := 5
+        if len(ids) < max {
+            max = len(ids)
+        }
+        preview := ids[:max]
+        ctxLog.Infof("枚举共享带宽包完成 数量=%d 预览=%v", len(ids), preview)
+    } else {
+        ctxLog.Infof("枚举共享带宽包完成 数量=%d", len(ids))
+    }
+    return ids
 }
 
 func (a *Collector) fetchCBWPTags(account config.CloudAccount, region string, ids []string) map[string]string {

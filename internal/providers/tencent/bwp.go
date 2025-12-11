@@ -14,7 +14,7 @@ import (
 
 func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []string {
 	if ids, hit := t.getCachedIDs(account, region, "QCE/BWP", "bwp"); hit {
-		logger.Log.Debugf("Tencent BWP IDs cache hit account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
+		logger.Log.Infof("Tencent BWP IDs cache hit account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
 		return ids
 	}
 
@@ -44,7 +44,16 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 		ids = append(ids, *bp.BandwidthPackageId)
 	}
 	t.setCachedIDs(account, region, "QCE/BWP", "bwp", ids)
-	logger.Log.Debugf("Tencent BWP enumerated account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
+	if len(ids) > 0 {
+		max := 5
+		if len(ids) < max {
+			max = len(ids)
+		}
+		preview := ids[:max]
+		logger.Log.Infof("Tencent BWP enumerated account_id=%s region=%s count=%d preview=%v", account.AccountID, region, len(ids), preview)
+	} else {
+		logger.Log.Infof("Tencent BWP enumerated account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
+	}
 	return ids
 }
 
@@ -105,6 +114,7 @@ func (t *Collector) fetchBWPMonitor(account config.CloudAccount, region string, 
 						labels = append(labels, "")
 					}
 					alias.WithLabelValues(labels...).Set(0)
+					metrics.IncSampleCount("QCE/BWP", 1)
 				}
 				continue
 			}
@@ -127,6 +137,7 @@ func (t *Collector) fetchBWPMonitor(account config.CloudAccount, region string, 
 					labels = append(labels, "")
 				}
 				alias.WithLabelValues(labels...).Set(scaled)
+				metrics.IncSampleCount("QCE/BWP", 1)
 			}
 		}
 	}

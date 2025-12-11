@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"multicloud-exporter/internal/config"
+	"multicloud-exporter/internal/logger"
 
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/cms"
 )
@@ -83,17 +84,9 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 		var metrics []string
 		if err != nil || resp == nil || resp.Resources.Resource == nil {
 			if ns == "acs_bandwidth_package" {
-				metrics = []string{
-					"DownstreamBandwidth", "UpstreamBandwidth",
-					"DownstreamPacket", "UpstreamPacket",
-					"net_rx.rate", "net_tx.rate",
-					"net_rx.Pkgs", "net_tx.Pkgs",
-					"in_bandwidth_utilization", "out_bandwidth_utilization",
-					"in_ratelimit_drop_pps", "out_ratelimit_drop_pps",
-				}
-			} else {
-				continue
+				logger.Log.Infof("Aliyun discovery fallback enabled namespace=%s reason=meta_unavailable", ns)
 			}
+			continue
 		}
 		mapping := config.DefaultResourceDimMapping()
 		key := "aliyun." + ns
@@ -158,6 +151,7 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 					metrics = append(metrics, m)
 				}
 			}
+			logger.Log.Infof("Aliyun discovery appended slb fallback metrics added=%d", len(metrics)-len(cur))
 		}
 		if len(metrics) == 0 {
 			continue

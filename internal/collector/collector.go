@@ -9,6 +9,7 @@ import (
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/discovery"
 	"multicloud-exporter/internal/logger"
+	"multicloud-exporter/internal/metrics"
 	"multicloud-exporter/internal/providers"
 	_ "multicloud-exporter/internal/providers/aliyun"
 	_ "multicloud-exporter/internal/providers/huawei"
@@ -17,10 +18,11 @@ import (
 
 // Status 定义采集器状态
 type Status struct {
-	LastStart   time.Time              `json:"last_start"`
-	LastEnd     time.Time              `json:"last_end"`
-	Duration    string                 `json:"duration"`
-	LastResults map[string]AccountStat `json:"last_results"` // key: provider|account_id
+	LastStart    time.Time              `json:"last_start"`
+	LastEnd      time.Time              `json:"last_end"`
+	Duration     string                 `json:"duration"`
+	LastResults  map[string]AccountStat `json:"last_results"` // key: provider|account_id
+	SampleCounts map[string]int         `json:"sample_counts"`
 }
 
 type AccountStat struct {
@@ -118,6 +120,8 @@ func (c *Collector) collectInternal(filterProvider, filterResource string) {
 		accounts = filtered
 	}
 
+	// 重置命名空间样本计数
+	metrics.ResetSampleCounts()
 	c.statusLock.Lock()
 	c.status.LastStart = time.Now()
 	c.statusLock.Unlock()
@@ -160,6 +164,7 @@ func (c *Collector) collectInternal(filterProvider, filterResource string) {
 	c.statusLock.Lock()
 	c.status.LastEnd = time.Now()
 	c.status.Duration = time.Since(start).String()
+	c.status.SampleCounts = metrics.GetSampleCounts()
 	c.statusLock.Unlock()
 }
 

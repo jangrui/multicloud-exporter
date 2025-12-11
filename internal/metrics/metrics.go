@@ -70,7 +70,12 @@ var (
 	aliasByNamespace  = make(map[string]map[string]string)
 	helpByNamespace   = make(map[string]func(string) string)
 	aliasFuncByNS     = make(map[string]func(string) string)
-	scaleByNamespace  = make(map[string]map[string]float64)
+    scaleByNamespace  = make(map[string]map[string]float64)
+)
+
+var (
+    sampleCountsMu sync.Mutex
+    sampleCounts   = make(map[string]int)
 )
 
 func RegisterNamespacePrefix(namespace, prefix string) {
@@ -158,6 +163,31 @@ func NamespaceGauge(namespace, metric string, extraLabels ...string) (*prometheu
 	prometheus.MustRegister(g)
 	nsGauges[key] = gaugeInfo{vec: g, count: len(labels)}
 	return g, len(labels)
+}
+
+func IncSampleCount(namespace string, n int) {
+    if n <= 0 {
+        return
+    }
+    sampleCountsMu.Lock()
+    sampleCounts[namespace] += n
+    sampleCountsMu.Unlock()
+}
+
+func ResetSampleCounts() {
+    sampleCountsMu.Lock()
+    sampleCounts = make(map[string]int)
+    sampleCountsMu.Unlock()
+}
+
+func GetSampleCounts() map[string]int {
+    sampleCountsMu.Lock()
+    defer sampleCountsMu.Unlock()
+    out := make(map[string]int, len(sampleCounts))
+    for k, v := range sampleCounts {
+        out[k] = v
+    }
+    return out
 }
 
 func aliasMetricForNamespace(namespace, metric string) string {
