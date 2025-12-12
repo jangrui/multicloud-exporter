@@ -23,6 +23,7 @@ import (
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/cms"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/ecs"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/sts"
+	"github.com/aliyun/alibaba-cloud-sdk-go/services/tag"
 )
 
 // Collector 封装阿里云资源采集逻辑
@@ -341,6 +342,10 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 						tagLabels = a.fetchCBWPTags(account, region, resIDs)
 					case "lb", "slb", "clb":
 						tagLabels = a.fetchSLBTags(account, region, prod.Namespace, metricName, resIDs)
+					case "alb":
+						tagLabels = a.fetchALBTags(account, region, resIDs)
+					case "nlb":
+						tagLabels = a.fetchNLBTags(account, region, resIDs)
 					}
 
 					if len(tagLabels) > 0 {
@@ -679,6 +684,7 @@ func (a *Collector) listALBIDs(account config.CloudAccount, region string) []str
 		return ids
 	}
 	var out []string
+	var meta map[string]interface{}
 	albClient, err := a.clientFactory.NewALBClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err == nil && albClient != nil {
 		pageSize := 100
@@ -725,8 +731,16 @@ func (a *Collector) listALBIDs(account config.CloudAccount, region string) []str
 			return []string{}
 		}
 		out = a.listIDsByCMS(cmsClient, region, "acs_alb", "LoadBalancerActiveConnection", "loadBalancerId")
+		if len(out) > 0 {
+			meta = a.buildALBMetaByCMS(cmsClient, region, out)
+		}
+	} else {
+		cmsClient, cmsErr := a.clientFactory.NewCMSClient(region, account.AccessKeyID, account.AccessKeySecret)
+		if cmsErr == nil {
+			meta = a.buildALBMetaByCMS(cmsClient, region, out)
+		}
 	}
-	a.setCachedIDs(account, region, "acs_alb", "alb", out, nil)
+	a.setCachedIDs(account, region, "acs_alb", "alb", out, meta)
 	return out
 }
 
@@ -735,6 +749,7 @@ func (a *Collector) listNLBIDs(account config.CloudAccount, region string) []str
 		return ids
 	}
 	var out []string
+	var meta map[string]interface{}
 	nlbClient, err := a.clientFactory.NewNLBClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err == nil && nlbClient != nil {
 		pageSize := 100
@@ -781,8 +796,16 @@ func (a *Collector) listNLBIDs(account config.CloudAccount, region string) []str
 			return []string{}
 		}
 		out = a.listIDsByCMS(cmsClient, region, "acs_nlb", "InstanceActiveConnection", "instanceId")
+		if len(out) > 0 {
+			meta = a.buildNLBMetaByCMS(cmsClient, region, out)
+		}
+	} else {
+		cmsClient, cmsErr := a.clientFactory.NewCMSClient(region, account.AccessKeyID, account.AccessKeySecret)
+		if cmsErr == nil {
+			meta = a.buildNLBMetaByCMS(cmsClient, region, out)
+		}
 	}
-	a.setCachedIDs(account, region, "acs_nlb", "nlb", out, nil)
+	a.setCachedIDs(account, region, "acs_nlb", "nlb", out, meta)
 	return out
 }
 
@@ -884,6 +907,399 @@ func (a *Collector) setCachedIDs(account config.CloudAccount, region, namespace,
 	a.cacheMu.Lock()
 	a.resCache[a.cacheKey(account, region, namespace, rtype)] = resCacheEntry{IDs: ids, Meta: meta, UpdatedAt: time.Now()}
 	a.cacheMu.Unlock()
+}
+func (a *Collector) buildALBMetaByCMS(client CMSClient, region string, ids []string) map[string]interface{} {
+	idSet := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		idSet[id] = struct{}{}
+	}
+	out := make(map[string]interface{})
+	type q struct {
+		ns   string
+		name string
+		id   string
+		dims []string
+	}
+	qs := []q{
+		{ns: "acs_alb", name: "ListenerActiveConnection", id: "loadBalancerId", dims: []string{"listenerProtocol", "listenerPort"}},
+		{ns: "acs_alb", name: "ServerGroupHTTPCodeUpstream2XX", id: "loadBalancerId", dims: []string{"listenerProtocol", "listenerPort", "serverGroupId"}},
+		{ns: "acs_alb", name: "VipActiveConnection", id: "loadBalancerId", dims: []string{"vip"}},
+	}
+	for _, qq := range qs {
+		req := cms.CreateDescribeMetricListRequest()
+		req.Namespace = qq.ns
+		req.MetricName = qq.name
+		end := time.Now().UTC()
+		start := end.Add(-5 * time.Minute)
+		req.StartTime = start.Format("2006-01-02 15:04:05")
+		req.EndTime = end.Format("2006-01-02 15:04:05")
+		req.Period = "60"
+		resp, err := client.DescribeMetricList(req)
+		if err != nil || resp == nil {
+			continue
+		}
+		points := strings.TrimSpace(resp.Datapoints)
+		if points == "" {
+			continue
+		}
+		var arr []map[string]interface{}
+		if json.Unmarshal([]byte(points), &arr) != nil {
+			continue
+		}
+		type seenKey struct {
+			id  string
+			key string
+		}
+		seen := make(map[seenKey]struct{})
+		for _, p := range arr {
+			v, ok := p[qq.id]
+			if !ok {
+				continue
+			}
+			lbID, ok2 := v.(string)
+			if !ok2 || lbID == "" {
+				continue
+			}
+			if _, ok3 := idSet[lbID]; !ok3 {
+				continue
+			}
+			item := make(map[string]string)
+			for _, dk := range qq.dims {
+				if vv, ok := p[dk]; ok {
+					if s, ok := vv.(string); ok && s != "" {
+						item[dk] = s
+					} else if n, ok := vv.(float64); ok {
+						item[dk] = strconv.Itoa(int(n))
+					}
+				}
+			}
+			if len(item) == 0 {
+				continue
+			}
+			var keyParts []string
+			for _, dk := range qq.dims {
+				if val, ok := item[dk]; ok {
+					keyParts = append(keyParts, dk+"="+val)
+				}
+			}
+			if len(keyParts) == 0 {
+				continue
+			}
+			sk := seenKey{id: lbID, key: strings.Join(keyParts, "|")}
+			if _, ok := seen[sk]; ok {
+				continue
+			}
+			seen[sk] = struct{}{}
+			if _, ok := out[lbID]; !ok {
+				out[lbID] = []map[string]string{}
+			}
+			list := out[lbID].([]map[string]string)
+			list = append(list, item)
+			out[lbID] = list
+		}
+	}
+	return out
+}
+func (a *Collector) buildNLBMetaByCMS(client CMSClient, region string, ids []string) map[string]interface{} {
+	idSet := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		idSet[id] = struct{}{}
+	}
+	out := make(map[string]interface{})
+	type q struct {
+		ns   string
+		name string
+		id   string
+		dims []string
+	}
+	qs := []q{
+		{ns: "acs_nlb", name: "ListenerPacketRX", id: "instanceId", dims: []string{"listenerProtocol", "listenerPort"}},
+		{ns: "acs_nlb", name: "ListenerHeathyServerCount", id: "instanceId", dims: []string{"listenerProtocol", "listenerPort"}},
+		{ns: "acs_nlb", name: "VipActiveConnection", id: "instanceId", dims: []string{"vip"}},
+	}
+	for _, qq := range qs {
+		req := cms.CreateDescribeMetricListRequest()
+		req.Namespace = qq.ns
+		req.MetricName = qq.name
+		end := time.Now().UTC()
+		start := end.Add(-5 * time.Minute)
+		req.StartTime = start.Format("2006-01-02 15:04:05")
+		req.EndTime = end.Format("2006-01-02 15:04:05")
+		req.Period = "60"
+		resp, err := client.DescribeMetricList(req)
+		if err != nil || resp == nil {
+			continue
+		}
+		points := strings.TrimSpace(resp.Datapoints)
+		if points == "" {
+			continue
+		}
+		var arr []map[string]interface{}
+		if json.Unmarshal([]byte(points), &arr) != nil {
+			continue
+		}
+		type seenKey struct {
+			id  string
+			key string
+		}
+		seen := make(map[seenKey]struct{})
+		for _, p := range arr {
+			v, ok := p[qq.id]
+			if !ok {
+				continue
+			}
+			instID, ok2 := v.(string)
+			if !ok2 || instID == "" {
+				continue
+			}
+			if _, ok3 := idSet[instID]; !ok3 {
+				continue
+			}
+			item := make(map[string]string)
+			for _, dk := range qq.dims {
+				if vv, ok := p[dk]; ok {
+					if s, ok := vv.(string); ok && s != "" {
+						item[dk] = s
+					} else if n, ok := vv.(float64); ok {
+						item[dk] = strconv.Itoa(int(n))
+					}
+				}
+			}
+			if len(item) == 0 {
+				continue
+			}
+			var keyParts []string
+			for _, dk := range qq.dims {
+				if val, ok := item[dk]; ok {
+					keyParts = append(keyParts, dk+"="+val)
+				}
+			}
+			if len(keyParts) == 0 {
+				continue
+			}
+			sk := seenKey{id: instID, key: strings.Join(keyParts, "|")}
+			if _, ok := seen[sk]; ok {
+				continue
+			}
+			seen[sk] = struct{}{}
+			if _, ok := out[instID]; !ok {
+				out[instID] = []map[string]string{}
+			}
+			list := out[instID].([]map[string]string)
+			list = append(list, item)
+			out[instID] = list
+		}
+	}
+	return out
+}
+
+func (a *Collector) fetchALBTags(account config.CloudAccount, region string, ids []string) map[string]string {
+	if len(ids) == 0 {
+		return map[string]string{}
+	}
+	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", "alb")
+	tagClient, tagErr := a.clientFactory.NewTagClient(region, account.AccessKeyID, account.AccessKeySecret)
+	if tagErr != nil {
+		return map[string]string{}
+	}
+	out := make(map[string]string, len(ids))
+	batchSize := 50
+	total := len(ids)
+	uid := a.getAccountUID(account, region)
+	for start := 0; start < total; start += batchSize {
+		end := start + batchSize
+		if end > total {
+			end = total
+		}
+		var arns []string
+		for _, id := range ids[start:end] {
+			arns = append(arns, "arn:acs:alb:"+region+":"+uid+":loadbalancer/"+id)
+		}
+		req := tag.CreateListTagResourcesRequest()
+		req.RegionId = region
+		req.ResourceARN = &arns
+		resp, callErr := tagClient.ListTagResources(req)
+		if callErr != nil || resp == nil {
+			time.Sleep(50 * time.Millisecond)
+			continue
+		}
+		if len(resp.TagResources) > 0 {
+			for _, tr := range resp.TagResources {
+				id := tr.ResourceId
+				if id == "" && tr.ResourceARN != "" {
+					parts := strings.Split(tr.ResourceARN, "/")
+					if len(parts) > 0 {
+						id = parts[len(parts)-1]
+					}
+				}
+				if id == "" {
+					continue
+				}
+				for _, t := range tr.Tags {
+					k := t.Key
+					v := t.Value
+					if strings.EqualFold(k, "CodeName") || strings.EqualFold(k, "code_name") {
+						out[id] = v
+					}
+				}
+			}
+		} else {
+			content := resp.GetHttpContentBytes()
+			parsed := parseContentCodeName(content)
+			for k, v := range parsed {
+				out[k] = v
+			}
+		}
+	}
+	assigned := 0
+	for _, v := range out {
+		if v != "" {
+			assigned++
+		}
+	}
+	ctxLog.Debugf("ALB 标签采集完成 资源数=%d 有code_name=%d", len(ids), assigned)
+	return out
+}
+
+func (a *Collector) fetchNLBTags(account config.CloudAccount, region string, ids []string) map[string]string {
+	if len(ids) == 0 {
+		return map[string]string{}
+	}
+	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", "nlb")
+	tagClient, tagErr := a.clientFactory.NewTagClient(region, account.AccessKeyID, account.AccessKeySecret)
+	if tagErr != nil {
+		return map[string]string{}
+	}
+	out := make(map[string]string, len(ids))
+	batchSize := 50
+	total := len(ids)
+	uid := a.getAccountUID(account, region)
+	for start := 0; start < total; start += batchSize {
+		end := start + batchSize
+		if end > total {
+			end = total
+		}
+		var arns []string
+		for _, id := range ids[start:end] {
+			arns = append(arns, "arn:acs:nlb:"+region+":"+uid+":loadbalancer/"+id)
+		}
+		req := tag.CreateListTagResourcesRequest()
+		req.RegionId = region
+		req.ResourceARN = &arns
+		resp, callErr := tagClient.ListTagResources(req)
+		if callErr != nil || resp == nil {
+			time.Sleep(50 * time.Millisecond)
+			continue
+		}
+		if len(resp.TagResources) > 0 {
+			for _, tr := range resp.TagResources {
+				id := tr.ResourceId
+				if id == "" && tr.ResourceARN != "" {
+					parts := strings.Split(tr.ResourceARN, "/")
+					if len(parts) > 0 {
+						id = parts[len(parts)-1]
+					}
+				}
+				if id == "" {
+					continue
+				}
+				for _, t := range tr.Tags {
+					k := t.Key
+					v := t.Value
+					if strings.EqualFold(k, "CodeName") || strings.EqualFold(k, "code_name") {
+						out[id] = v
+					}
+				}
+			}
+		} else {
+			content := resp.GetHttpContentBytes()
+			parsed := parseContentCodeName(content)
+			for k, v := range parsed {
+				out[k] = v
+			}
+		}
+	}
+	assigned := 0
+	for _, v := range out {
+		if v != "" {
+			assigned++
+		}
+	}
+	ctxLog.Debugf("NLB 标签采集完成 资源数=%d 有code_name=%d", len(ids), assigned)
+	return out
+}
+
+func parseContentCodeName(content []byte) map[string]string {
+	out := make(map[string]string)
+	var jrA struct {
+		TagResources []struct {
+			ResourceId  string `json:"ResourceId"`
+			ResourceARN string `json:"ResourceARN"`
+			Tags        []struct {
+				Key      string `json:"Key"`
+				Value    string `json:"Value"`
+				TagKey   string `json:"TagKey"`
+				TagValue string `json:"TagValue"`
+			} `json:"Tags"`
+		} `json:"TagResources"`
+	}
+	if err := json.Unmarshal(content, &jrA); err == nil && len(jrA.TagResources) > 0 {
+		for _, tr := range jrA.TagResources {
+			id := tr.ResourceId
+			if id == "" && tr.ResourceARN != "" {
+				parts := strings.Split(tr.ResourceARN, "/")
+				if len(parts) > 0 {
+					id = parts[len(parts)-1]
+				}
+			}
+			if id == "" {
+				continue
+			}
+			for _, t := range tr.Tags {
+				k := t.Key
+				if k == "" {
+					k = t.TagKey
+				}
+				v := t.Value
+				if v == "" {
+					v = t.TagValue
+				}
+				if strings.EqualFold(k, "CodeName") || strings.EqualFold(k, "code_name") {
+					out[id] = v
+				}
+			}
+		}
+	}
+	var jrB struct {
+		TagResources struct {
+			TagResource []struct {
+				ResourceId string `json:"ResourceId"`
+				TagKey     string `json:"TagKey"`
+				TagValue   string `json:"TagValue"`
+				Key        string `json:"Key"`
+				Value      string `json:"Value"`
+			} `json:"TagResource"`
+		} `json:"TagResources"`
+	}
+	if err := json.Unmarshal(content, &jrB); err == nil && len(jrB.TagResources.TagResource) > 0 {
+		for _, tr := range jrB.TagResources.TagResource {
+			if tr.ResourceId == "" {
+				continue
+			}
+			k := tr.TagKey
+			if k == "" {
+				k = tr.Key
+			}
+			v := tr.TagValue
+			if v == "" {
+				v = tr.Value
+			}
+			if strings.EqualFold(k, "CodeName") || strings.EqualFold(k, "code_name") {
+				out[tr.ResourceId] = v
+			}
+		}
+	}
+	return out
 }
 func (a *Collector) buildMetricDimensions(ids []string, dkey string, metricDims []string, meta map[string]interface{}) ([]map[string]string, []string) {
 	var dynamicDims []string
