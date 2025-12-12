@@ -47,6 +47,7 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 	needBWP := false
 	needCLB := false
 	needCOS := false
+	needGWLB := false
 	for _, acc := range accounts {
 		for _, r := range acc.Resources {
 			rr := r
@@ -61,6 +62,9 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 			}
 			if rr == "s3" || rr == "*" {
 				needCOS = true
+			}
+			if rr == "gwlb" || rr == "*" {
+				needGWLB = true
 			}
 		}
 	}
@@ -108,6 +112,49 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 		}
 		if len(metrics) > 0 {
 			prods = append(prods, config.Product{Namespace: "QCE/BWP", AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: metrics}}})
+		}
+	}
+	if needGWLB {
+		region := "ap-guangzhou"
+		if len(accounts) > 0 && len(accounts[0].Regions) > 0 && accounts[0].Regions[0] != "*" {
+			region = accounts[0].Regions[0]
+		}
+		ak := accounts[0].AccessKeyID
+		sk := accounts[0].AccessKeySecret
+		client, err := newTencentMonitorClient(region, ak, sk)
+		if err == nil {
+			ns := "qce/gwlb"
+			req := monitor.NewDescribeBaseMetricsRequest()
+			req.Namespace = common.StringPtr(ns)
+			resp, err := client.DescribeBaseMetrics(req)
+			if err != nil {
+				logger.Log.Warnf("Tencent DescribeBaseMetrics %s error: %v", ns, err)
+			}
+			var metrics []string
+			if resp != nil && resp.Response != nil && resp.Response.MetricSet != nil {
+				for _, m := range resp.Response.MetricSet {
+					if m == nil || m.MetricName == nil {
+						continue
+					}
+					metrics = append(metrics, *m.MetricName)
+				}
+			}
+			fallback := []string{
+				"InTraffic", "OutTraffic",
+				"NewConn", "ConcurConn",
+			}
+			cur := make(map[string]struct{}, len(metrics))
+			for _, m := range metrics {
+				cur[m] = struct{}{}
+			}
+			for _, m := range fallback {
+				if _, ok := cur[m]; !ok {
+					metrics = append(metrics, m)
+				}
+			}
+			if len(metrics) > 0 {
+				prods = append(prods, config.Product{Namespace: ns, AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: metrics}}})
+			}
 		}
 	}
 	if needCLB {

@@ -63,9 +63,13 @@ func DefaultResourceDimMapping() map[string][]string {
 		"aliyun.acs_slb_dashboard":     {"InstanceId", "instanceId", "instance_id"},
 		"aliyun.acs_bandwidth_package": {"BandwidthPackageId", "bandwidthPackageId", "sharebandwidthpackages"},
 		"aliyun.acs_oss_dashboard":     {"BucketName", "bucketName", "bucket_name"},
+		"aliyun.acs_alb":               {"loadBalancerId", "LoadBalancerId"},
+		"aliyun.acs_nlb":               {"InstanceId", "instanceId", "instance_id"},
+		"aliyun.acs_gwlb":              {"instanceId", "InstanceId", "instance_id"},
 		// Tencent
 		"tencent.QCE/CVM": {"InstanceId"},
 		"tencent.QCE/LB":  {"LoadBalancerId", "vip"},
+		"tencent.qce/gwlb": {"gwLoadBalancerId", "GwLoadBalancerId"},
 		// AWS (Example)
 		"aws.AWS/EC2": {"InstanceId"},
 		"aws.AWS/ELB": {"LoadBalancerName"},
