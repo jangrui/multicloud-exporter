@@ -83,10 +83,10 @@ func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) [
 			max = len(buckets)
 		}
 		preview := buckets[:max]
-		logger.Log.Infof("Tencent COS buckets enumerated account_id=%s region=%s count=%d preview=%v", account.AccountID, region, len(buckets), preview)
-	} else {
-		logger.Log.Infof("Tencent COS buckets enumerated account_id=%s region=%s count=%d", account.AccountID, region, len(buckets))
-	}
+        logger.Log.Debugf("Tencent COS buckets enumerated account_id=%s region=%s count=%d preview=%v", account.AccountID, region, len(buckets), preview)
+    } else {
+        logger.Log.Debugf("Tencent COS buckets enumerated account_id=%s region=%s count=%d", account.AccountID, region, len(buckets))
+    }
 	return buckets
 }
 
@@ -147,10 +147,12 @@ func (t *Collector) fetchCOSMonitor(account config.CloudAccount, region string, 
 				if err != nil {
 					status := classifyTencentError(err)
 					metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", status).Inc()
+					metrics.RecordRequest("tencent", "GetMonitorData", status)
 					logger.Log.Warnf("GetMonitorData error metric=%s: %v", m, err)
 					continue
 				}
 				metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", "success").Inc()
+				metrics.RecordRequest("tencent", "GetMonitorData", "success")
 				metrics.RequestDuration.WithLabelValues("tencent", "GetMonitorData").Observe(time.Since(reqStart).Seconds())
 
 				if resp == nil || resp.Response == nil || len(resp.Response.DataPoints) == 0 {

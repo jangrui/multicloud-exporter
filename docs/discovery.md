@@ -6,7 +6,7 @@
 
 - 按 `accounts.yaml` 中列出的云产品自动扫描可用指标，生成 `products` 配置。
 - 事件驱动：监听 `accounts.yaml` 的 `resources` 集合变化，有变化时触发刷新；不再使用周期刷新。
-- 持久化与通知：写入本地文件并通过 REST/SSE 暴露与推送。
+- 通知：通过 REST/SSE 暴露与推送。
 
 ## 需求分析
 
@@ -24,7 +24,7 @@
 
 - 可靠性：监听文件变更足以覆盖静态配置更新；SSE 流与 REST 接口提供外部核对能力。
 - 性能：发现与采集解耦，TTL 控制枚举频率；缓存有效降低 `List/Describe` 压力。
-- 一致性：持久化快照 `configs/products.auto.yaml` 仅用于观测，不参与启动输入；已在 `internal/discovery/manager.go:79-84,101-113` 持久化实现。
+- 一致性：运行时产品集为唯一来源，不进行本地文件持久化。
 
 ## 行为与实现摘录
 
@@ -47,7 +47,6 @@
 - 启动：创建并启动 `Manager`，立即执行一次刷新。
 - 监听：定期检查 `ACCOUNTS_PATH` 文件修改时间；当解析后资源集合签名变化时触发刷新。
 - TTL：资源发现缓存按 `server.discovery_ttl` 控制（默认 `1h`）。
-- 持久化：默认写入 `configs/products.auto.yaml`；可通过 `server.no_savepoint: true` 禁用。
 - 认证：管理接口可选 BasicAuth；建议在生产环境下通过 TLS 暴露。
 
 ## 配置来源
@@ -58,7 +57,7 @@
 ### 来源优先级
 
 - 运行时产品源：自动发现产出的内存集合。
-- 持久化快照：`configs/products.auto.yaml` 仅供比对与排查。
+- 不持久化快照：仅通过 REST/SSE 提供对比与排查能力。
 - 手工目录：`config/products/*` 不参与加载。
 
 ## REST API
@@ -77,6 +76,40 @@
   ```
 - `GET /api/discovery/stream`
   - `text/event-stream`，推送 `update` 事件：`{"version": <int>}`。
+  - 初始化事件 `init` 携带当前版本：`{"version": <int>}`。
+  - 基于 SSE，客户端需保持长连接并自行处理断线重连。
+
+- `GET /api/discovery/status`
+  - 返回发现状态（示例）：
+  ```json
+  {
+    "version": 3,
+    "updated_at": 1733395200,
+    "accounts_path": "/app/configs/accounts.yaml",
+    "accounts_signature": "aliyun#alb,clb|tencent#bwp,clb",
+    "subscribers": 2,
+    "providers": ["aliyun", "tencent"],
+    "products_count": {"aliyun":2, "tencent":1},
+    "api_stats": [
+      {
+        "provider": "tencent",
+        "api": "GetMonitorData",
+        "total": 1280,
+        "status_count": {"success": 1270, "limit_error": 8, "auth_error": 2},
+        "qps_1m": 5.4,
+        "qps_5m": 3.2
+      },
+      {
+        "provider": "aliyun",
+        "api": "DescribeMetricLast",
+        "total": 3420,
+        "status_count": {"success": 3400, "auth_error": 10, "region_skip": 10},
+        "qps_1m": 12.1,
+        "qps_5m": 9.8
+      }
+    ]
+  }
+  ```
 
 ## 与采集器集成
 

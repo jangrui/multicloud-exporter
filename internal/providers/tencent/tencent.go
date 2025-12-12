@@ -79,6 +79,7 @@ func (t *Collector) getAllRegions(account config.CloudAccount) []string {
 	if err != nil || resp == nil || resp.Response == nil || resp.Response.RegionSet == nil {
 		status := classifyTencentError(err)
 		metrics.RequestTotal.WithLabelValues("tencent", "DescribeRegions", status).Inc()
+		metrics.RecordRequest("tencent", "DescribeRegions", status)
 		def := os.Getenv("DEFAULT_REGIONS")
 		if def != "" {
 			parts := strings.Split(def, ",")
@@ -96,6 +97,7 @@ func (t *Collector) getAllRegions(account config.CloudAccount) []string {
 		return []string{"ap-guangzhou"}
 	}
 	metrics.RequestTotal.WithLabelValues("tencent", "DescribeRegions", "success").Inc()
+	metrics.RecordRequest("tencent", "DescribeRegions", "success")
 	metrics.RequestDuration.WithLabelValues("tencent", "DescribeRegions").Observe(time.Since(start).Seconds())
 	var regions []string
 	for _, r := range resp.Response.RegionSet {
@@ -256,6 +258,7 @@ var (
 		}
 		metrics.RequestTotal.WithLabelValues("tencent", "DescribeBaseMetrics", "success").Inc()
 		metrics.RequestDuration.WithLabelValues("tencent", "DescribeBaseMetrics").Observe(time.Since(start).Seconds())
+		metrics.RecordRequest("tencent", "DescribeBaseMetrics", "success")
 		return json.Marshal(resp.Response)
 	}
 )

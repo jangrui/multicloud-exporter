@@ -13,7 +13,7 @@ import (
 
 func (t *Collector) listGWLBIDs(account config.CloudAccount, region string) []string {
 	if ids, hit := t.getCachedIDs(account, region, "qce/gwlb", "gwlb"); hit {
-		logger.Log.Infof("Tencent GWLB IDs cache hit account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
+		logger.Log.Debugf("Tencent GWLB IDs cache hit account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
 		return ids
 	}
 	client, err := t.clientFactory.NewMonitorClient(region, account.AccessKeyID, account.AccessKeySecret)
@@ -67,9 +67,9 @@ func (t *Collector) listGWLBIDs(account config.CloudAccount, region string) []st
 			max = len(ids)
 		}
 		preview := ids[:max]
-		logger.Log.Infof("Tencent GWLB enumerated account_id=%s region=%s count=%d preview=%v", account.AccountID, region, len(ids), preview)
+		logger.Log.Debugf("Tencent GWLB enumerated account_id=%s region=%s count=%d preview=%v", account.AccountID, region, len(ids), preview)
 	} else {
-		logger.Log.Infof("Tencent GWLB enumerated account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
+		logger.Log.Debugf("Tencent GWLB enumerated account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
 	}
 	return ids
 }
@@ -114,12 +114,14 @@ func (t *Collector) fetchGWLBMonitor(account config.CloudAccount, region string,
 			if err != nil {
 				status := classifyTencentError(err)
 				metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", status).Inc()
+				metrics.RecordRequest("tencent", "GetMonitorData", status)
 				if status == "limit_error" {
 					metrics.RateLimitTotal.WithLabelValues("tencent", "GetMonitorData").Inc()
 				}
 				continue
 			}
 			metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", "success").Inc()
+			metrics.RecordRequest("tencent", "GetMonitorData", "success")
 			metrics.RequestDuration.WithLabelValues("tencent", "GetMonitorData").Observe(time.Since(reqStart).Seconds())
 			if resp == nil || resp.Response == nil || resp.Response.DataPoints == nil || len(resp.Response.DataPoints) == 0 {
 				alias, count := metrics.NamespaceGauge("qce/gwlb", m)

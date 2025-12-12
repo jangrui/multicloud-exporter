@@ -253,341 +253,400 @@ canonical:
         - protocol
       unit: count/s
   unhealthy_server_count:
-    metric: UnhealthyServerCount
-    dimensions:
-      - userId
-      - instanceId
-      - port
-      - vip
-    unit: count
+    aliyun:
+      metric: UnhealthyServerCount
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - vip
+      unit: count
   healthy_server_count_with_rule:
-    metric: HealthyServerCountWithRule
-    dimensions:
-      - userId
-      - instanceId
-      - port
-      - vip
-      - domain
-      - url
-    unit: count
+    aliyun:
+      metric: HealthyServerCountWithRule
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - vip
+        - domain
+        - url
+      unit: count
   instance_qps:
-    metric: InstanceQps
-    dimensions:
-      - userId
-      - instanceId
-    unit: count/s
+    aliyun:
+      metric: InstanceQps
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
   instance_rt:
-    metric: InstanceRt
-    dimensions:
-      - userId
-      - instanceId
-    unit: ms
+    aliyun:
+      metric: InstanceRt
+      dimensions:
+        - userId
+        - instanceId
+      unit: ms
   instance_packet_rx:
-    metric: InstancePacketRX
-    dimensions:
-      - userId
-      - instanceId
-    unit: count/s
+    aliyun:
+      metric: InstancePacketRX
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
   instance_packet_tx:
-    metric: InstancePacketTX
-    dimensions:
-      - userId
-      - instanceId
-    unit: count/s
+    aliyun:
+      metric: InstancePacketTX
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
   instance_traffic_rx_utilization_pct:
-    metric: InstanceTrafficRXUtilization
-    dimensions:
-      - userId
-      - instanceId
-    unit: ratio
-    scale_hint: "Grafana 以 % 展示，不强制乘 100"
+    aliyun:
+      metric: InstanceTrafficRXUtilization
+      dimensions:
+        - userId
+        - instanceId
+      unit: ratio
   instance_traffic_tx_utilization_pct:
-    metric: InstanceTrafficTXUtilization
-    dimensions:
-      - userId
-      - instanceId
-    unit: ratio
-    scale_hint: "Grafana 以 % 展示，不强制乘 100"
+    aliyun:
+      metric: InstanceTrafficTXUtilization
+      dimensions:
+        - userId
+        - instanceId
+      unit: ratio
   instance_status_code_2xx:
-    metric: InstanceStatusCode2xx
-    dimensions:
-      - userId
-      - instanceId
-    unit: count/s
+    aliyun:
+      metric: InstanceStatusCode2xx
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
   instance_status_code_3xx:
-    metric: InstanceStatusCode3xx
-    dimensions:
-      - userId
-      - instanceId
-    unit: count/s
+    aliyun:
+      metric: InstanceStatusCode3xx
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
   instance_status_code_4xx:
-    metric: InstanceStatusCode4xx
-    dimensions:
-      - userId
-      - instanceId
-    unit: count/s
+    aliyun:
+      metric: InstanceStatusCode4xx
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
   instance_status_code_5xx:
-    metric: InstanceStatusCode5xx
-    dimensions:
-      - userId
-      - instanceId
-    unit: count/s
+    aliyun:
+      metric: InstanceStatusCode5xx
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
   instance_status_code_other:
-    metric: InstanceStatusCodeOther
-    dimensions:
-      - userId
-      - instanceId
-    unit: count/s
+    aliyun:
+      metric: InstanceStatusCodeOther
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
   instance_upstream_code_4xx:
-    metric: InstanceUpstreamCode4xx
-    dimensions:
-      - userId
-      - instanceId
-    unit: count/s
+    aliyun:
+      metric: InstanceUpstreamCode4xx
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
   instance_upstream_code_5xx:
-    metric: InstanceUpstreamCode5xx
-    dimensions:
-      - userId
-      - instanceId
-    unit: count/s
+    aliyun:
+      metric: InstanceUpstreamCode5xx
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
   instance_upstream_rt:
-    metric: InstanceUpstreamRt
-    dimensions:
-      - userId
-      - instanceId
-    unit: ms
+    aliyun:
+      metric: InstanceUpstreamRt
+      dimensions:
+        - userId
+        - instanceId
+      unit: ms
   inactive_connection:
-    metric: InactiveConnection
-    dimensions:
-      - userId
-      - instanceId
-      - port
-      - protocol
-    unit: count
+    aliyun:
+      metric: InactiveConnection
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - protocol
+      unit: count
   max_connection:
-    metric: MaxConnection
-    dimensions:
-      - userId
-      - instanceId
-      - port
-      - protocol
-    unit: count/s
+    aliyun:
+      metric: MaxConnection
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - protocol
+      unit: count/s
   group_active_connection:
-    metric: GroupActiveConnection
-    dimensions:
-      - userId
-      - groupId
-    unit: count
+    aliyun:
+      metric: GroupActiveConnection
+      dimensions:
+        - userId
+        - groupId
+      unit: count
   group_new_connection:
-    metric: GroupNewConnection
-    dimensions:
-      - userId
-      - groupId
-    unit: count/s
+    aliyun:
+      metric: GroupNewConnection
+      dimensions:
+        - userId
+        - groupId
+      unit: count/s
   group_total_traffic_rx:
-    metric: GroupTotalTrafficRX
-    dimensions:
-      - userId
-      - groupId
-    unit: bit/s
+    aliyun:
+      metric: GroupTotalTrafficRX
+      dimensions:
+        - userId
+        - groupId
+      unit: bit/s
   group_total_traffic_tx:
-    metric: GroupTotalTrafficTX
-    dimensions:
-      - userId
-      - groupId
-    unit: bit/s
+    aliyun:
+      metric: GroupTotalTrafficTX
+      dimensions:
+        - userId
+        - groupId
+      unit: bit/s
   group_traffic_rx:
-    metric: GroupTrafficRX
-    dimensions:
-      - userId
-      - groupId
-    unit: bit/s
+    aliyun:
+      metric: GroupTrafficRX
+      dimensions:
+        - userId
+        - groupId
+      unit: bit/s
   group_traffic_tx:
-    metric: GroupTrafficTX
-    dimensions:
-      - userId
-      - groupId
-    unit: bit/s
+    aliyun:
+      metric: GroupTrafficTX
+      dimensions:
+        - userId
+        - groupId
+      unit: bit/s
   group_unhealthy_server_count:
-    metric: GroupUnhealthyServerCount
-    dimensions:
-      - userId
-      - groupId
-    unit: count
+    aliyun:
+      metric: GroupUnhealthyServerCount
+      dimensions:
+        - userId
+        - groupId
+      unit: count
   healthy_server_count:
-    metric: HeathyServerCount
-    dimensions:
-      - userId
-      - instanceId
-      - port
-      - vip
-    unit: count
+    aliyun:
+      metric: HeathyServerCount
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - vip
+      unit: count
   instance_active_connection:
-    metric: InstanceActiveConnection
-    dimensions:
-      - userId
-      - instanceId
-    unit: count
+    aliyun:
+      metric: InstanceActiveConnection
+      dimensions:
+        - userId
+        - instanceId
+      unit: count
   instance_drop_connection:
-    metric: InstanceDropConnection
-    dimensions:
-      - userId
-      - instanceId
-    unit: count/s
+    aliyun:
+      metric: InstanceDropConnection
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
   instance_drop_packet_rx:
-    metric: InstanceDropPacketRX
-    dimensions:
-      - userId
-      - instanceId
-    unit: count/s
+    aliyun:
+      metric: InstanceDropPacketRX
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
   instance_drop_packet_tx:
-    metric: InstanceDropPacketTX
-    dimensions:
-      - userId
-      - instanceId
-    unit: count/s
+    aliyun:
+      metric: InstanceDropPacketTX
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
   instance_drop_traffic_rx:
-    metric: InstanceDropTrafficRX
-    dimensions:
-      - userId
-      - instanceId
-    unit: bit/s
+    aliyun:
+      metric: InstanceDropTrafficRX
+      dimensions:
+        - userId
+        - instanceId
+      unit: bit/s
   instance_drop_traffic_tx:
-    metric: InstanceDropTrafficTX
-    dimensions:
-      - userId
-      - instanceId
-    unit: bit/s
+    aliyun:
+      metric: InstanceDropTrafficTX
+      dimensions:
+        - userId
+        - instanceId
+      unit: bit/s
   instance_inactive_connection:
-    metric: InstanceInactiveConnection
-    dimensions:
-      - userId
-      - instanceId
-    unit: count
+    aliyun:
+      metric: InstanceInactiveConnection
+      dimensions:
+        - userId
+        - instanceId
+      unit: count
   instance_max_connection:
-    metric: InstanceMaxConnection
-    dimensions:
-      - userId
-      - instanceId
-    unit: count
+    aliyun:
+      metric: InstanceMaxConnection
+      dimensions:
+        - userId
+        - instanceId
+      unit: count
   instance_max_connection_utilization:
-    metric: InstanceMaxConnectionUtilization
-    dimensions:
-      - userId
-      - instanceId
-    unit: ratio
+    aliyun:
+      metric: InstanceMaxConnectionUtilization
+      dimensions:
+        - userId
+        - instanceId
+      unit: ratio
   instance_new_connection:
-    metric: InstanceNewConnection
-    dimensions:
-      - userId
-      - instanceId
-    unit: count/s
+    aliyun:
+      metric: InstanceNewConnection
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
   instance_new_connection_utilization:
-    metric: InstanceNewConnectionUtilization
-    dimensions:
-      - userId
-      - instanceId
-    unit: ratio
+    aliyun:
+      metric: InstanceNewConnectionUtilization
+      dimensions:
+        - userId
+        - instanceId
+      unit: ratio
   instance_qps_utilization:
-    metric: InstanceQpsUtilization
-    dimensions:
-      - userId
-      - instanceId
-    unit: ratio
+    aliyun:
+      metric: InstanceQpsUtilization
+      dimensions:
+        - userId
+        - instanceId
+      unit: ratio
   instance_traffic_rx:
-    metric: InstanceTrafficRX
-    dimensions:
-      - userId
-      - instanceId
-    unit: bit/s
+    aliyun:
+      metric: InstanceTrafficRX
+      dimensions:
+        - userId
+        - instanceId
+      unit: bit/s
   instance_traffic_tx:
-    metric: InstanceTrafficTX
-    dimensions:
-      - userId
-      - instanceId
-    unit: bit/s
+    aliyun:
+      metric: InstanceTrafficTX
+      dimensions:
+        - userId
+        - instanceId
+      unit: bit/s
   unhealthy_server_count_with_rule:
-    metric: UnhealthyServerCountWithRule
-    dimensions:
-      - userId
-      - instanceId
-      - port
-      - vip
-      - domain
-      - url
-    unit: count
+    aliyun:
+      metric: UnhealthyServerCountWithRule
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - vip
+        - domain
+        - url
+      unit: count
   upstream_code_4xx:
-    metric: UpstreamCode4xx
-    dimensions:
-      - userId
-      - instanceId
-      - port
-      - protocol
-    unit: count/s
+    aliyun:
+      metric: UpstreamCode4xx
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - protocol
+      unit: count/s
   upstream_code_5xx:
-    metric: UpstreamCode5xx
-    dimensions:
-      - userId
-      - instanceId
-      - port
-      - protocol
-    unit: count/s
+    aliyun:
+      metric: UpstreamCode5xx
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - protocol
+      unit: count/s
   upstream_rt:
-    metric: UpstreamRt
-    dimensions:
-      - userId
-      - instanceId
-      - port
-      - protocol
-    unit: ms
-
-    metric: PvvNewConn
-    unit: count/s
+    aliyun:
+      metric: UpstreamRt
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - protocol
+      unit: ms
+  pvv_new_conn:
+    tencent:
+      metric: PvvNewConn
+      unit: count/s
   pvv_outpkg:
-    metric: PvvOutpkg
-    unit: count/s
+    tencent:
+      metric: PvvOutpkg
+      unit: count/s
   pvv_outtraffic:
-    metric: PvvOuttraffic
-    unit: bps
+    tencent:
+      metric: PvvOuttraffic
+      unit: bps
   rrv_connum:
-    metric: RrvConnum
-    unit: count
+    tencent:
+      metric: RrvConnum
+      unit: count
   rrv_inactive_conn:
-    metric: RrvInactiveConn
-    unit: count
+    tencent:
+      metric: RrvInactiveConn
+      unit: count
   rrv_inpkg:
-    metric: RrvInpkg
-    unit: count/s
+    tencent:
+      metric: RrvInpkg
+      unit: count/s
   rrv_intraffic:
-    metric: RrvIntraffic
-    unit: bps
+    tencent:
+      metric: RrvIntraffic
+      unit: bps
   rrv_new_conn:
-    metric: RrvNewConn
-    unit: count/s
+    tencent:
+      metric: RrvNewConn
+      unit: count/s
   rrv_outpkg:
-    metric: RrvOutpkg
-    unit: count/s
+    tencent:
+      metric: RrvOutpkg
+      unit: count/s
   rrv_outtraffic:
-    metric: RrvOuttraffic
-    unit: bps
+    tencent:
+      metric: RrvOuttraffic
+      unit: bps
   rv_connum:
-    metric: RvConnum
-    unit: count
+    tencent:
+      metric: RvConnum
+      unit: count
   rv_inactive_conn:
-    metric: RvInactiveConn
-    unit: count
+    tencent:
+      metric: RvInactiveConn
+      unit: count
   rv_inpkg:
-    metric: RvInpkg
-    unit: count/s
+    tencent:
+      metric: RvInpkg
+      unit: count/s
   rv_intraffic:
-    metric: RvIntraffic
-    unit: bps
+    tencent:
+      metric: RvIntraffic
+      unit: bps
   rv_new_conn:
-    metric: RvNewConn
-    unit: count/s
+    tencent:
+      metric: RvNewConn
+      unit: count/s
   rv_outpkg:
-    metric: RvOutpkg
-    unit: count/s
+    tencent:
+      metric: RvOutpkg
+      unit: count/s
   rv_outtraffic:
-    metric: RvOuttraffic
-    unit: bps
+    tencent:
+      metric: RvOuttraffic
+      unit: bps

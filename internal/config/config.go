@@ -178,7 +178,6 @@ type ServerConf struct {
 	HttpsProxy  string     `yaml:"https_proxy"`
 	NoProxy     string     `yaml:"no_proxy"`
 	NoMeta      bool       `yaml:"no_meta"`
-	NoSavepoint bool       `yaml:"no_savepoint"`
 	// DiscoveryTTL 控制资源自动发现结果的缓存生命周期。
 	// 支持的时间单位：
 	//   - s: 秒 (second)

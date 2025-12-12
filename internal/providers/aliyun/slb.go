@@ -184,10 +184,12 @@ func (a *Collector) fetchSLBTags(account config.CloudAccount, region, namespace,
 			if callErr == nil {
 				metrics.RequestTotal.WithLabelValues("aliyun", "ListTagResources", "success").Inc()
 				metrics.RequestDuration.WithLabelValues("aliyun", "ListTagResources").Observe(time.Since(startReq).Seconds())
+				metrics.RecordRequest("aliyun", "ListTagResources", "success")
 				break
 			}
 			status := classifyAliyunError(callErr)
 			metrics.RequestTotal.WithLabelValues("aliyun", "ListTagResources", status).Inc()
+			metrics.RecordRequest("aliyun", "ListTagResources", status)
 			if status == "auth_error" {
 				break
 			}

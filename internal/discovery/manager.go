@@ -59,6 +59,43 @@ func (m *Manager) UpdatedAt() time.Time {
 	return m.updatedAt
 }
 
+type DiscoveryStatus struct {
+	Version           int64          `json:"version"`
+	UpdatedAt         int64          `json:"updated_at"`
+	AccountsPath      string         `json:"accounts_path"`
+	AccountsSignature string         `json:"accounts_signature"`
+	Subscribers       int            `json:"subscribers"`
+	Providers         []string       `json:"providers"`
+	ProductsCount     map[string]int `json:"products_count"`
+}
+
+func (m *Manager) Status() DiscoveryStatus {
+	m.mu.RLock()
+	providers := make([]string, 0, len(m.products))
+	counts := make(map[string]int, len(m.products))
+	for k, v := range m.products {
+		providers = append(providers, k)
+		counts[k] = len(v)
+	}
+	ver := m.version
+	up := m.updatedAt.Unix()
+	accPath := m.lastAccPath
+	accSig := m.lastAccSig
+	m.mu.RUnlock()
+	m.subsMu.Lock()
+	subs := len(m.subs)
+	m.subsMu.Unlock()
+	return DiscoveryStatus{
+		Version:           ver,
+		UpdatedAt:         up,
+		AccountsPath:      accPath,
+		AccountsSignature: accSig,
+		Subscribers:       subs,
+		Providers:         providers,
+		ProductsCount:     counts,
+	}
+}
+
 func (m *Manager) Refresh(ctx context.Context) error {
 	prods := make(map[string][]config.Product)
 	m.cfg.Mu.RLock()
@@ -82,11 +119,6 @@ func (m *Manager) Refresh(ctx context.Context) error {
 	if changed {
 		m.broadcast()
 	}
-	if !m.noSavepoint() {
-		if err := m.Save("configs/products.auto.yaml"); err != nil {
-			logger.Log.Errorf("discovery save error: %v", err)
-		}
-	}
 	return nil
 }
 
@@ -100,34 +132,6 @@ func (m *Manager) Start(ctx context.Context) {
 	m.lastAccSig = m.accountsSignature()
 	_ = m.Refresh(ctx)
 	go m.watchAccounts(ctx, p)
-}
-
-func (m *Manager) Save(path string) error {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	data := struct {
-		Products map[string][]config.Product `yaml:"products"`
-	}{Products: m.products}
-	bs, err := yaml.Marshal(data)
-	if err != nil {
-		return err
-	}
-	_ = os.MkdirAll("configs", 0755)
-	return os.WriteFile(path, bs, 0644)
-}
-
-func (m *Manager) noSavepoint() bool {
-	if m.cfg != nil && m.cfg.Server != nil {
-		if m.cfg.Server.NoSavepoint {
-			return true
-		}
-	}
-	if m.cfg != nil && m.cfg.ServerConf != nil {
-		if m.cfg.ServerConf.NoSavepoint {
-			return true
-		}
-	}
-	return false
 }
 
 // periodic refresh removed: discovery uses accounts resources changes as trigger

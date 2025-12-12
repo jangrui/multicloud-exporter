@@ -14,7 +14,7 @@ import (
 
 func (t *Collector) listCLBVips(account config.CloudAccount, region string) []string {
 	if ids, hit := t.getCachedIDs(account, region, "QCE/LB", "lb"); hit {
-		logger.Log.Infof("Tencent CLB VIPs cache hit account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
+		logger.Log.Debugf("Tencent CLB VIPs cache hit account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
 		return ids
 	}
 
@@ -28,9 +28,11 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 	if err != nil {
 		status := classifyTencentError(err)
 		metrics.RequestTotal.WithLabelValues("tencent", "DescribeLoadBalancers", status).Inc()
+		metrics.RecordRequest("tencent", "DescribeLoadBalancers", status)
 		return []string{}
 	}
 	metrics.RequestTotal.WithLabelValues("tencent", "DescribeLoadBalancers", "success").Inc()
+	metrics.RecordRequest("tencent", "DescribeLoadBalancers", "success")
 	metrics.RequestDuration.WithLabelValues("tencent", "DescribeLoadBalancers").Observe(time.Since(start).Seconds())
 
 	if resp == nil || resp.Response == nil || resp.Response.LoadBalancerSet == nil {
@@ -54,9 +56,9 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 			max = len(vips)
 		}
 		preview := vips[:max]
-		logger.Log.Infof("Tencent CLB VIPs enumerated account_id=%s region=%s count=%d preview=%v", account.AccountID, region, len(vips), preview)
+		logger.Log.Debugf("Tencent CLB VIPs enumerated account_id=%s region=%s count=%d preview=%v", account.AccountID, region, len(vips), preview)
 	} else {
-		logger.Log.Infof("Tencent CLB VIPs enumerated account_id=%s region=%s count=%d", account.AccountID, region, len(vips))
+		logger.Log.Debugf("Tencent CLB VIPs enumerated account_id=%s region=%s count=%d", account.AccountID, region, len(vips))
 	}
 	return vips
 }
@@ -102,12 +104,14 @@ func (t *Collector) fetchCLBMonitor(account config.CloudAccount, region string, 
 			if err != nil {
 				status := classifyTencentError(err)
 				metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", status).Inc()
+				metrics.RecordRequest("tencent", "GetMonitorData", status)
 				if status == "limit_error" {
 					metrics.RateLimitTotal.WithLabelValues("tencent", "GetMonitorData").Inc()
 				}
 				continue
 			}
 			metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", "success").Inc()
+			metrics.RecordRequest("tencent", "GetMonitorData", "success")
 			metrics.RequestDuration.WithLabelValues("tencent", "GetMonitorData").Observe(time.Since(reqStart).Seconds())
 
 			if resp == nil || resp.Response == nil || resp.Response.DataPoints == nil || len(resp.Response.DataPoints) == 0 {

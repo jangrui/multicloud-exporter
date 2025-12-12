@@ -432,10 +432,14 @@ func (a *Collector) getMetricMeta(client CMSClient, namespace, metric string) me
 	}
 	if err != nil {
 		logger.Log.Warnf("Aliyun getMetricMeta error: namespace=%s metric=%s error=%v", namespace, metric, err)
+		st := classifyAliyunError(err)
+		metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricMetaList", st).Inc()
+		metrics.RecordRequest("aliyun", "DescribeMetricMetaList", st)
 		return metricMeta{}
 	}
 	metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricMetaList", "success").Inc()
 	metrics.RequestDuration.WithLabelValues("aliyun", "DescribeMetricMetaList").Observe(time.Since(start).Seconds())
+	metrics.RecordRequest("aliyun", "DescribeMetricMetaList", "success")
 	var out metricMeta
 	if len(resp.Resources.Resource) > 0 {
 		r := resp.Resources.Resource[0]
@@ -843,10 +847,12 @@ func (a *Collector) listIDsByCMS(client CMSClient, region, namespace, metric, id
 		if callErr == nil {
 			metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricList", "success").Inc()
 			metrics.RequestDuration.WithLabelValues("aliyun", "DescribeMetricList").Observe(time.Since(st).Seconds())
+			metrics.RecordRequest("aliyun", "DescribeMetricList", "success")
 			break
 		}
 		status := classifyAliyunError(callErr)
 		metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricList", status).Inc()
+		metrics.RecordRequest("aliyun", "DescribeMetricList", status)
 		if status == "auth_error" || status == "region_skip" {
 			break
 		}
@@ -1400,10 +1406,12 @@ func (a *Collector) processMetricBatch(client CMSClient, req *cms.DescribeMetric
 			if callErr == nil {
 				metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricLast", "success").Inc()
 				metrics.RequestDuration.WithLabelValues("aliyun", "DescribeMetricLast").Observe(time.Since(startReq).Seconds())
+				metrics.RecordRequest("aliyun", "DescribeMetricLast", "success")
 				break
 			}
 			status := classifyAliyunError(callErr)
 			metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricLast", status).Inc()
+			metrics.RecordRequest("aliyun", "DescribeMetricLast", status)
 			if status == "auth_error" || status == "region_skip" {
 				ctxLog.Warnf("CMS DescribeMetricLast error status=%s: %v", status, callErr)
 				break
