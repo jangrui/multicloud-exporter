@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"multicloud-exporter/internal/utils"
 	"testing"
+
+	"github.com/aliyun/alibaba-cloud-sdk-go/services/cms"
 )
 
 func TestPickStatisticValue(t *testing.T) {
@@ -68,6 +70,54 @@ func TestResourceTypeForNamespace(t *testing.T) {
 	}
 	if resourceTypeForNamespace("acs_oss_dashboard") != "s3" {
 		t.Fatalf("oss")
+	}
+	if resourceTypeForNamespace("acs_alb") != "alb" {
+		t.Fatalf("alb")
+	}
+	if resourceTypeForNamespace("acs_nlb") != "nlb" {
+		t.Fatalf("nlb")
+	}
+	if resourceTypeForNamespace("acs_gwlb") != "gwlb" {
+		t.Fatalf("gwlb")
+	}
+}
+
+func TestListIDsByCMS_ALB(t *testing.T) {
+	mc := &mockCMSClient{
+		DescribeMetricListFunc: func(request *cms.DescribeMetricListRequest) (response *cms.DescribeMetricListResponse, err error) {
+			return &cms.DescribeMetricListResponse{Datapoints: `[{"loadBalancerId":"alb-1"},{"loadBalancerId":"alb-2"},{"loadBalancerId":"alb-1"}]`}, nil
+		},
+	}
+	c := &Collector{}
+	ids := c.listIDsByCMS(mc, "cn-hangzhou", "acs_alb", "LoadBalancerActiveConnection", "loadBalancerId")
+	if len(ids) != 2 {
+		t.Fatalf("alb ids expected 2 got %d", len(ids))
+	}
+}
+
+func TestListIDsByCMS_NLB(t *testing.T) {
+	mc := &mockCMSClient{
+		DescribeMetricListFunc: func(request *cms.DescribeMetricListRequest) (response *cms.DescribeMetricListResponse, err error) {
+			return &cms.DescribeMetricListResponse{Datapoints: `[{"instanceId":"nlb-1"},{"instanceId":"nlb-2"}]`}, nil
+		},
+	}
+	c := &Collector{}
+	ids := c.listIDsByCMS(mc, "cn-hangzhou", "acs_nlb", "InstanceActiveConnection", "instanceId")
+	if len(ids) != 2 {
+		t.Fatalf("nlb ids expected 2 got %d", len(ids))
+	}
+}
+
+func TestListIDsByCMS_GWLB(t *testing.T) {
+	mc := &mockCMSClient{
+		DescribeMetricListFunc: func(request *cms.DescribeMetricListRequest) (response *cms.DescribeMetricListResponse, err error) {
+			return &cms.DescribeMetricListResponse{Datapoints: `[{"instanceId":"gw-1"}]`}, nil
+		},
+	}
+	c := &Collector{}
+	ids := c.listIDsByCMS(mc, "cn-hangzhou", "acs_gwlb", "ActiveConnection", "instanceId")
+	if len(ids) != 1 || ids[0] != "gw-1" {
+		t.Fatalf("gwlb ids expected [gw-1] got %v", ids)
 	}
 }
 
