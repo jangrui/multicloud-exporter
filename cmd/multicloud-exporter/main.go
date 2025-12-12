@@ -58,7 +58,7 @@ func main() {
 			}
 		} else {
 			// Fallback to legacy single file check if glob fails or empty (though glob returns nil err on no match usually)
-			defaultPath := "configs/mappings/lb.metrics.yaml"
+			defaultPath := "configs/mappings/clb.metrics.yaml"
 			if _, err := os.Stat(defaultPath); err == nil {
 				if err := config.LoadMetricMappings(defaultPath); err != nil {
 					logger.Log.Warnf("Failed to load metric mappings from %s: %v", defaultPath, err)

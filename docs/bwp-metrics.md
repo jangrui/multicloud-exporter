@@ -57,7 +57,7 @@ bwp_in_utilization_pct{
   account_id="aliyun-test",
   region="cn-hangzhou",
   resource_type="bwp",
-  resource_id="cbwp-xxxxxxxx",
+  resource_id="bwp-xxxxxxxx",
   namespace="acs_bandwidth_package",
   metric_name="in_bandwidth_utilization",
   code_name=""

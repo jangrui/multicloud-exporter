@@ -18,9 +18,9 @@
 ## 支持的资源类型
 
 ### 阿里云
-- [x] cbwp - 共享带宽包
-- [x] slb - 负载均衡
-- [x] oss - 对象存储
+- [x] bwp - 共享带宽包
+- [x] clb - 负载均衡
+- [x] s3  - 对象存储 (OSS)
 - [ ] ecs - ECS实例
 - [ ] disk - 云盘
 - [ ] rds - RDS数据库
@@ -33,7 +33,7 @@
 ### 腾讯云
 - [x] clb - 负载均衡
 - [x] bwp - 共享带宽包
-- [x] cos - 对象存储
+- [x] s3  - 对象存储 (COS)
 - [ ] cdn - CDN
 - [ ] vpc - 私有网络
 - [ ] cbs - 云硬盘
@@ -123,20 +123,20 @@ server:
 ### LB/BWP 指标统一与映射
 
 - 统一映射文件：
-  - `configs/mappings/lb.metrics.yaml`：负载均衡
+  - `configs/mappings/clb.metrics.yaml`：负载均衡
   - `configs/mappings/bwp.metrics.yaml`：共享带宽包
   - `configs/mappings/s3.metrics.yaml`：对象存储 (OSS/COS)
-  - 带宽：`lb_traffic_rx_bps` ← Aliyun `TrafficRXNew`；Tencent `VipIntraffic`（`Mbps`→`bit/s`，`scale: 1000000`）
-  - 丢失带宽：`lb_drop_traffic_rx_bps` ← Aliyun `DropTrafficRX`；`lb_drop_traffic_tx_bps` ← Aliyun `DropTrafficTX`
-  - 包速率/丢包：`lb_packet_rx/tx`、`lb_drop_packet_rx/tx`（Aliyun/Tencent 对齐）
-  - 利用率：`lb_traffic_rx_utilization_pct/tx_utilization_pct` ← Tencent `IntrafficVipRatio/OuttrafficVipRatio`
+  - 带宽：`clb_traffic_rx_bps` ← Aliyun `TrafficRXNew`；Tencent `VipIntraffic`（`Mbps`→`bit/s`，`scale: 1000000`）
+  - 丢失带宽：`clb_drop_traffic_rx_bps` ← Aliyun `DropTrafficRX`；`clb_drop_traffic_tx_bps` ← Aliyun `DropTrafficTX`
+  - 包速率/丢包：`clb_packet_rx/tx`、`clb_drop_packet_rx/tx`（Aliyun/Tencent 对齐）
+  - 利用率：`clb_traffic_rx_utilization_pct/tx_utilization_pct` ← Tencent `IntrafficVipRatio/OuttrafficVipRatio`
 - 监听维度标签：
   - 阿里云 SLB：支持动态维度标签 `port/protocol`，并注入标签服务的 `code_name`；维度选择参考命名空间元数据中的 `dimensions`
   - 腾讯云 CLB：按 `vip` 维度采集；`code_name` 留空
 - 快速验证（本地）：
-  - `curl -s http://localhost:9101/metrics | grep -E '^lb_traffic_(rx|tx)_bps' | head -n 20`
-  - `curl -s http://localhost:9101/metrics | grep -E '^lb_drop_traffic_(rx|tx)_bps' | head -n 20`
-  - `curl -s http://localhost:9101/metrics | grep -E '^lb_traffic_(rx|tx)_utilization_pct$' | head -n 20`
+  - `curl -s http://localhost:9101/metrics | grep -E '^clb_traffic_(rx|tx)_bps' | head -n 20`
+  - `curl -s http://localhost:9101/metrics | grep -E '^clb_drop_traffic_(rx|tx)_bps' | head -n 20`
+  - `curl -s http://localhost:9101/metrics | grep -E '^clb_traffic_(rx|tx)_utilization_pct$' | head -n 20`
 
 
 ### accounts.yaml
@@ -150,9 +150,9 @@ accounts:
       access_key_secret: "${ALIYUN_SK}"
       regions: ["*"]
       resources:
-        - cbwp
-        - slb
-        - oss
+        - bwp
+        - clb
+        - s3
 
   tencent:
     - provider: tencent
@@ -163,7 +163,7 @@ accounts:
       resources:
         - clb
         - bwp
-        - cos
+        - s3
 ```
 
 > regions 配置：
@@ -172,7 +172,7 @@ accounts:
 
 > resources 配置：
 > - `resources: []` 或 `resources: ["*"]` 采集所有资源类型
-> - 指定如 `resources: ["slb", "cbwp"]` 仅采集列出的资源类型
+> - 指定如 `resources: ["clb", "bwp"]` 仅采集列出的资源类型
 
 ## 使用方法
 

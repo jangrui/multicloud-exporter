@@ -78,13 +78,13 @@
             "type": "prometheus"
           },
           "editorMode": "code",
-          "expr": "lb_rt{cloud_provider=\"$cloud_provider\", account_id=\"$account_id\", region=\"$region\", resource_id=\"$resource_id\", code_name=\"$code_name\"}",
+          "expr": "clb_rt{cloud_provider=\"$cloud_provider\", account_id=\"$account_id\", region=\"$region\", resource_id=\"$resource_id\", code_name=\"$code_name\"}",
           "legendFormat": "响应时间",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "LB 响应时间",
+      "title": "CLB 响应时间",
       "type": "gauge"
     },
     {
@@ -144,7 +144,7 @@
             "type": "prometheus"
           },
           "editorMode": "code",
-          "expr": "lb_qps{cloud_provider=\"$cloud_provider\", account_id=\"$account_id\", region=\"$region\", resource_id=\"$resource_id\", code_name=\"$code_name\"}",
+          "expr": "clb_qps{cloud_provider=\"$cloud_provider\", account_id=\"$account_id\", region=\"$region\", resource_id=\"$resource_id\", code_name=\"$code_name\"}",
           "legendFormat": "QPS",
           "range": true,
           "refId": "A"
@@ -247,7 +247,7 @@
             "type": "prometheus"
           },
           "editorMode": "code",
-          "expr": "lb_rt{cloud_provider=\"$cloud_provider\", account_id=\"$account_id\", region=\"$region\", resource_id=\"$resource_id\", code_name=\"$code_name\"}",
+          "expr": "clb_rt{cloud_provider=\"$cloud_provider\", account_id=\"$account_id\", region=\"$region\", resource_id=\"$resource_id\", code_name=\"$code_name\"}",
           "legendFormat": "响应时间",
           "range": true,
           "refId": "A"
@@ -342,7 +342,7 @@
             "type": "prometheus"
           },
           "editorMode": "code",
-          "expr": "lb_qps{cloud_provider=\"$cloud_provider\", account_id=\"$account_id\", region=\"$region\", resource_id=\"$resource_id\", code_name=\"$code_name\"}",
+          "expr": "clb_qps{cloud_provider=\"$cloud_provider\", account_id=\"$account_id\", region=\"$region\", resource_id=\"$resource_id\", code_name=\"$code_name\"}",
           "legendFormat": "QPS",
           "range": true,
           "refId": "A"
@@ -437,7 +437,7 @@
             "type": "prometheus"
           },
           "editorMode": "code",
-          "expr": "lb_traffic_rx_bps{cloud_provider=\"$cloud_provider\", account_id=\"$account_id\", region=\"$region\", resource_id=\"$resource_id\", code_name=\"$code_name\"}",
+          "expr": "clb_traffic_rx_bps{cloud_provider=\"$cloud_provider\", account_id=\"$account_id\", region=\"$region\", resource_id=\"$resource_id\", code_name=\"$code_name\"}",
           "legendFormat": "入向带宽",
           "range": true,
           "refId": "A"
@@ -447,7 +447,7 @@
             "type": "prometheus"
           },
           "editorMode": "code",
-          "expr": "lb_traffic_tx_bps{cloud_provider=\"$cloud_provider\", account_id=\"$account_id\", region=\"$region\", resource_id=\"$resource_id\", code_name=\"$code_name\"}",
+          "expr": "clb_traffic_tx_bps{cloud_provider=\"$cloud_provider\", account_id=\"$account_id\", region=\"$region\", resource_id=\"$resource_id\", code_name=\"$code_name\"}",
           "hide": false,
           "legendFormat": "出向带宽",
           "range": true,
@@ -543,7 +543,7 @@
             "type": "prometheus"
           },
           "editorMode": "code",
-          "expr": "lb_packet_rx{cloud_provider=\"$cloud_provider\", account_id=\"$account_id\", region=\"$region\", resource_id=\"$resource_id\", code_name=\"$code_name\"}",
+          "expr": "clb_packet_rx{cloud_provider=\"$cloud_provider\", account_id=\"$account_id\", region=\"$region\", resource_id=\"$resource_id\", code_name=\"$code_name\"}",
           "legendFormat": "入向包速率",
           "range": true,
           "refId": "A"
@@ -553,7 +553,7 @@
             "type": "prometheus"
           },
           "editorMode": "code",
-          "expr": "lb_packet_tx{cloud_provider=\"$cloud_provider\", account_id=\"$account_id\", region=\"$region\", resource_id=\"$resource_id\", code_name=\"$code_name\"}",
+          "expr": "clb_packet_tx{cloud_provider=\"$cloud_provider\", account_id=\"$account_id\", region=\"$region\", resource_id=\"$resource_id\", code_name=\"$code_name\"}",
           "hide": false,
           "legendFormat": "出向包速率",
           "range": true,

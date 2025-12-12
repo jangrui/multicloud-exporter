@@ -112,22 +112,19 @@ func (t *Collector) getAllRegions(account config.CloudAccount) []string {
 func (t *Collector) collectRegion(account config.CloudAccount, region string) {
 	logger.Log.Debugf("Start collecting Tencent region %s", region)
 	for _, resource := range account.Resources {
+		r := strings.ToLower(resource)
 		if resource == "*" {
 			// Collect all supported resources
 			t.collectCLB(account, region)
 			t.collectBWP(account, region)
 			t.collectCOS(account, region)
 		} else {
-			switch resource {
+			switch r {
 			case "clb":
-				t.collectCLB(account, region)
-			case "slb":
-				t.collectCLB(account, region)
-			case "lb":
 				t.collectCLB(account, region)
 			case "bwp":
 				t.collectBWP(account, region)
-			case "cos":
+			case "s3":
 				t.collectCOS(account, region)
 			default:
 				logger.Log.Warnf("Tencent resource type %s not implemented yet", resource)
@@ -150,7 +147,7 @@ func (t *Collector) collectCLB(account config.CloudAccount, region string) {
 		return
 	}
 	for _, p := range prods {
-		if p.Namespace != "QCE/LB" && p.Namespace != "QCE/LB_PUBLIC" && p.Namespace != "QCE/LB_PRIVATE" {
+		if p.Namespace != "QCE/LB" {
 			continue
 		}
 		vips := t.listCLBVips(account, region)

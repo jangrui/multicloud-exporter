@@ -9,5 +9,5 @@ import (
 func TestGetDefaultResources(t *testing.T) {
 	c := &Collector{}
 	resources := c.GetDefaultResources()
-	assert.Equal(t, []string{"clb", "bwp", "cos"}, resources)
+	assert.Equal(t, []string{"clb", "bwp", "s3"}, resources)
 }

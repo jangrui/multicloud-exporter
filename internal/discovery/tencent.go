@@ -3,6 +3,7 @@ package discovery
 import (
 	"context"
 	"encoding/json"
+	"strings"
 
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/logger"
@@ -48,13 +49,17 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 	needCOS := false
 	for _, acc := range accounts {
 		for _, r := range acc.Resources {
-			if r == "bwp" || r == "cbwp" || r == "*" {
+			rr := r
+			if rr != "" {
+				rr = strings.ToLower(rr)
+			}
+			if rr == "bwp" || rr == "*" {
 				needBWP = true
 			}
-			if r == "lb" || r == "clb" || r == "*" {
+			if rr == "clb" || rr == "*" {
 				needCLB = true
 			}
-			if r == "cos" || r == "*" {
+			if rr == "s3" || rr == "*" {
 				needCOS = true
 			}
 		}
@@ -114,42 +119,39 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 		sk := accounts[0].AccessKeySecret
 		client, err := newTencentMonitorClient(region, ak, sk)
 		if err == nil {
-			namespaces := []string{"QCE/LB", "QCE/LB_PUBLIC", "QCE/LB_PRIVATE"}
-			for _, ns := range namespaces {
-				req := monitor.NewDescribeBaseMetricsRequest()
-				req.Namespace = common.StringPtr(ns)
-				resp, err := client.DescribeBaseMetrics(req)
-				if err != nil {
-					logger.Log.Warnf("Tencent DescribeBaseMetrics %s error: %v", ns, err)
-					continue
-				}
-				var metrics []string
-				if resp != nil && resp.Response != nil && resp.Response.MetricSet != nil {
-					for _, m := range resp.Response.MetricSet {
-						if m == nil || m.MetricName == nil {
-							continue
-						}
-						metrics = append(metrics, *m.MetricName)
+			ns := "QCE/LB"
+			req := monitor.NewDescribeBaseMetricsRequest()
+			req.Namespace = common.StringPtr(ns)
+			resp, err := client.DescribeBaseMetrics(req)
+			if err != nil {
+				logger.Log.Warnf("Tencent DescribeBaseMetrics %s error: %v", ns, err)
+			}
+			var metrics []string
+			if resp != nil && resp.Response != nil && resp.Response.MetricSet != nil {
+				for _, m := range resp.Response.MetricSet {
+					if m == nil || m.MetricName == nil {
+						continue
 					}
+					metrics = append(metrics, *m.MetricName)
 				}
-				fallback := []string{
-					"VipIntraffic", "VipOuttraffic",
-					"VipInpkg", "VipOutpkg",
-					"Vipindroppkts", "Vipoutdroppkts",
-					"IntrafficVipRatio", "OuttrafficVipRatio",
+			}
+			fallback := []string{
+				"VipIntraffic", "VipOuttraffic",
+				"VipInpkg", "VipOutpkg",
+				"Vipindroppkts", "Vipoutdroppkts",
+				"IntrafficVipRatio", "OuttrafficVipRatio",
+			}
+			cur := make(map[string]struct{}, len(metrics))
+			for _, m := range metrics {
+				cur[m] = struct{}{}
+			}
+			for _, m := range fallback {
+				if _, ok := cur[m]; !ok {
+					metrics = append(metrics, m)
 				}
-				cur := make(map[string]struct{}, len(metrics))
-				for _, m := range metrics {
-					cur[m] = struct{}{}
-				}
-				for _, m := range fallback {
-					if _, ok := cur[m]; !ok {
-						metrics = append(metrics, m)
-					}
-				}
-				if len(metrics) > 0 {
-					prods = append(prods, config.Product{Namespace: ns, AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: metrics}}})
-				}
+			}
+			if len(metrics) > 0 {
+				prods = append(prods, config.Product{Namespace: ns, AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: metrics}}})
 			}
 		}
 	}

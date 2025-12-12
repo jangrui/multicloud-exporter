@@ -334,9 +334,9 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 					// - CBWP：使用 ListTagResources 过滤 TagKey=="CodeName"，得到带宽包的业务名称
 					// 其他命名空间当前不提供 code_name，保持为空字符串
 					switch rtype {
-					case "cbwp":
+					case "cbwp", "bwp":
 						tagLabels = a.fetchCBWPTags(account, region, resIDs)
-					case "lb", "slb":
+					case "lb", "slb", "clb":
 						tagLabels = a.fetchSLBTags(account, region, prod.Namespace, metricName, resIDs)
 					}
 
@@ -616,8 +616,10 @@ func hasAnyDim(dims []string, keys []string) bool {
 }
 
 func containsResource(list []string, r string) bool {
+	want := strings.ToLower(r)
 	for _, x := range list {
-		if x == r || x == "*" {
+		xx := strings.ToLower(x)
+		if xx == "*" || xx == want {
 			return true
 		}
 	}
@@ -629,11 +631,11 @@ func containsResource(list []string, r string) bool {
 func resourceTypeForNamespace(namespace string) string {
 	switch namespace {
 	case "acs_bandwidth_package":
-		return "cbwp"
+		return "bwp"
 	case "acs_slb_dashboard":
-		return "slb"
+		return "clb"
 	case "acs_oss_dashboard":
-		return "oss"
+		return "s3"
 	default:
 		return ""
 	}
@@ -642,12 +644,12 @@ func resourceTypeForNamespace(namespace string) string {
 func (a *Collector) resourceIDsForNamespace(account config.CloudAccount, region string, namespace string) ([]string, string, map[string]interface{}) {
 	switch namespace {
 	case "acs_bandwidth_package":
-		return a.listCBWPIDs(account, region), "cbwp", nil
+		return a.listCBWPIDs(account, region), "bwp", nil
 	case "acs_slb_dashboard":
 		ids, meta := a.listSLBIDs(account, region)
-		return ids, "slb", meta
+		return ids, "clb", meta
 	case "acs_oss_dashboard":
-		return a.listOSSIDs(account, region), "oss", nil
+		return a.listOSSIDs(account, region), "s3", nil
 	default:
 		return []string{}, "", nil
 	}

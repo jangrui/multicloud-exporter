@@ -16,7 +16,7 @@
   - `s3_requests_5xx`：5xx 请求数
 
 标签规范：
-- `cloud_provider`、`account_id`、`region`、`resource_type`（统一为 `oss` 或 `cos`，后续建议统一为 `s3`）、`resource_id`（Bucket名称）
+- `cloud_provider`、`account_id`、`region`、`resource_type`（统一为 `s3`）、`resource_id`（Bucket名称）
 
 ## 阿里云映射 (OSS)
 
@@ -50,7 +50,7 @@ s3_bucket_size_bytes{
   cloud_provider="aliyun",
   account_id="aliyun-prod",
   region="cn-hangzhou",
-  resource_type="oss",
+  resource_type="s3",
   resource_id="my-bucket",
   namespace="acs_oss_dashboard",
   metric_name="UserStorage",

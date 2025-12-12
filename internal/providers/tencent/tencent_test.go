@@ -213,7 +213,7 @@ func TestCollectRegion_MoreResources(t *testing.T) {
 		AccessKeySecret: "test-sk",
 	}
 
-	resources := []string{"slb", "lb", "bwp", "cos"}
+	resources := []string{"clb", "bwp", "s3"}
 	for _, res := range resources {
 		account.Resources = []string{res}
 		collector.collectRegion(account, "ap-beijing")

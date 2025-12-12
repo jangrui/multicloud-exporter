@@ -1,7 +1,7 @@
 # 统一 LB 指标映射关系（Aliyun / Tencent）
 # 说明：canonical 指代统一后的 `lb_*` 名称；各云平台原始指标在 providers 下声明，并给出单位与查询层的缩放建议。
 
-prefix: lb
+prefix: clb
 namespaces:
   aliyun: acs_slb_dashboard
   tencent: QCE/LB

@@ -45,7 +45,7 @@ func TestTencentDiscoverer_Discover(t *testing.T) {
 				AccessKeyID:     "ak",
 				AccessKeySecret: "sk",
 				Regions:         []string{"ap-guangzhou"},
-				Resources:       []string{"bwp", "clb", "cos"},
+				Resources:       []string{"bwp", "clb", "s3"},
 			},
 		},
 	}
@@ -97,10 +97,10 @@ func TestTencentDiscoverer_Discover(t *testing.T) {
     }
     assert.True(t, foundBWP)
 
-    // Verify at least one CLB namespace exists
+    // Verify CLB namespace exists (only QCE/LB)
     foundCLB := false
     for _, p := range prods {
-        if p.Namespace == "QCE/LB" || p.Namespace == "QCE/LB_PUBLIC" || p.Namespace == "QCE/LB_PRIVATE" {
+        if p.Namespace == "QCE/LB" {
             foundCLB = true
             break
         }

@@ -74,21 +74,21 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "avg(lb_traffic_rx_utilization_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"})",
+          "expr": "avg(clb_traffic_rx_utilization_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"})",
           "legendFormat": "平均入向带宽使用率",
           "range": true,
           "refId": "A"
         },
         {
           "editorMode": "code",
-          "expr": "avg(lb_traffic_tx_utilization_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"})",
+          "expr": "avg(clb_traffic_tx_utilization_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"})",
           "hide": false,
           "legendFormat": "平均出向带宽使用率",
           "range": true,
           "refId": "B"
         }
       ],
-      "title": "LB 平均带宽使用率 (Radial Gauge)",
+      "title": "CLB 平均带宽使用率 (Radial Gauge)",
       "type": "gauge"
     },
     {
@@ -175,14 +175,14 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(lb_traffic_rx_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"})",
+          "expr": "sum(clb_traffic_rx_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"})",
           "legendFormat": "总入向带宽",
           "range": true,
           "refId": "A"
         },
         {
           "editorMode": "code",
-          "expr": "sum(lb_traffic_tx_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"})",
+          "expr": "sum(clb_traffic_tx_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"})",
           "hide": false,
           "legendFormat": "总出向带宽",
           "range": true,
@@ -335,7 +335,7 @@
       "pluginVersion": "11.6.1",
       "targets": [
         {
-          "expr": "lb_traffic_rx_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
+          "expr": "clb_traffic_rx_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
           "legendFormat": "{{resource_id}} - 入带宽",
           "refId": "A"
         }
@@ -426,7 +426,7 @@
       "pluginVersion": "11.6.1",
       "targets": [
         {
-          "expr": "lb_traffic_tx_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
+          "expr": "clb_traffic_tx_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
           "legendFormat": "{{resource_id}} - 出带宽",
           "refId": "A"
         }
@@ -517,22 +517,22 @@
       "pluginVersion": "11.6.1",
       "targets": [
         {
-          "expr": "lb_status_code_2xx{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
+          "expr": "clb_status_code_2xx{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
           "legendFormat": "{{resource_id}} - 2xx",
           "refId": "A"
         },
         {
-          "expr": "lb_status_code_3xx{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
+          "expr": "clb_status_code_3xx{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
           "legendFormat": "{{resource_id}} - 3xx",
           "refId": "B"
         },
         {
-          "expr": "lb_status_code_4xx{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
+          "expr": "clb_status_code_4xx{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
           "legendFormat": "{{resource_id}} - 4xx",
           "refId": "C"
         },
         {
-          "expr": "lb_status_code_5xx{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
+          "expr": "clb_status_code_5xx{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
           "legendFormat": "{{resource_id}} - 5xx",
           "refId": "D"
         }
@@ -619,7 +619,7 @@
       "pluginVersion": "11.6.1",
       "targets": [
         {
-          "expr": "lb_packet_rx{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
+          "expr": "clb_packet_rx{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
           "legendFormat": "{{resource_id}} - 入包",
           "refId": "A"
         }
@@ -706,7 +706,7 @@
       "pluginVersion": "11.6.1",
       "targets": [
         {
-          "expr": "lb_packet_tx{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
+          "expr": "clb_packet_tx{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
           "legendFormat": "{{resource_id}} - 出包",
           "refId": "A"
         }
@@ -798,7 +798,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "lb_unhealthy_server_count{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
+          "expr": "clb_unhealthy_server_count{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
           "legendFormat": "{{resource_id}} - 异常服务器",
           "range": true,
           "refId": "A"
@@ -886,7 +886,7 @@
       "pluginVersion": "11.6.1",
       "targets": [
         {
-          "expr": "lb_qps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
+          "expr": "clb_qps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
           "legendFormat": "{{resource_id}} - QPS",
           "refId": "A"
         }
@@ -977,7 +977,7 @@
       "pluginVersion": "11.6.1",
       "targets": [
         {
-          "expr": "lb_rt{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
+          "expr": "clb_rt{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
           "legendFormat": "{{resource_id}} - RT",
           "refId": "A"
         }
@@ -1069,7 +1069,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "lb_status_code_5xx{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
+          "expr": "clb_status_code_5xx{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
           "legendFormat": "{{resource_id}} - 5xx",
           "range": true,
           "refId": "A"
@@ -1161,7 +1161,7 @@
       "pluginVersion": "11.6.1",
       "targets": [
         {
-          "expr": "lb_instance_qps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
+          "expr": "clb_instance_qps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
           "legendFormat": "{{resource_id}} - 实例QPS",
           "refId": "A"
         }
@@ -1253,7 +1253,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "lb_instance_rt{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
+          "expr": "clb_instance_rt{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
           "legendFormat": "{{resource_id}} - 实例RT",
           "range": true,
           "refId": "A"
@@ -1341,7 +1341,7 @@
       "pluginVersion": "11.6.1",
       "targets": [
         {
-          "expr": "lb_instance_packet_tx{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
+          "expr": "clb_instance_packet_tx{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
           "legendFormat": "{{resource_id}} - 出包",
           "refId": "A"
         }
@@ -1432,7 +1432,7 @@
       "pluginVersion": "11.6.1",
       "targets": [
         {
-          "expr": "lb_instance_packet_rx{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
+          "expr": "clb_instance_packet_rx{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
           "legendFormat": "{{resource_id}} - 入包",
           "refId": "A"
         }
@@ -1473,14 +1473,14 @@
           "type": "prometheus",
           "uid": "$datasource"
         },
-        "definition": "label_values(lb_active_connection{cloud_provider=~\"$cloud_provider\"},cloud_provider)",
+        "definition": "label_values(clb_active_connection{cloud_provider=~\"$cloud_provider\"},cloud_provider)",
         "includeAll": true,
         "label": "云厂商",
         "name": "cloud_provider",
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values(lb_active_connection{cloud_provider=~\"$cloud_provider\"},cloud_provider)",
+          "query": "label_values(clb_active_connection{cloud_provider=~\"$cloud_provider\"},cloud_provider)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,
@@ -1496,14 +1496,14 @@
           "type": "prometheus",
           "uid": "$datasource"
         },
-        "definition": "label_values(lb_active_connection{cloud_provider=~\"$account_id|$cloud_provider\", account_id=~\"$account_id\"},account_id)",
+        "definition": "label_values(clb_active_connection{cloud_provider=~\"$account_id|$cloud_provider\", account_id=~\"$account_id\"},account_id)",
         "includeAll": true,
         "label": "账号",
         "name": "account_id",
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values(lb_active_connection{cloud_provider=~\"$account_id|$cloud_provider\", account_id=~\"$account_id\"},account_id)",
+          "query": "label_values(clb_active_connection{cloud_provider=~\"$account_id|$cloud_provider\", account_id=~\"$account_id\"},account_id)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,
@@ -1519,14 +1519,14 @@
           "type": "prometheus",
           "uid": "$datasource"
         },
-        "definition": "label_values(lb_active_connection{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"},region)",
+        "definition": "label_values(clb_active_connection{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"},region)",
         "includeAll": true,
         "label": "地域",
         "name": "region",
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values(lb_active_connection{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"},region)",
+          "query": "label_values(clb_active_connection{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"},region)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,
@@ -1542,14 +1542,14 @@
           "type": "prometheus",
           "uid": "$datasource"
         },
-        "definition": "label_values(lb_active_connection{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"},resource_id)",
+        "definition": "label_values(clb_active_connection{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"},resource_id)",
         "includeAll": true,
         "label": "资源ID",
         "name": "resource_id",
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values(lb_active_connection{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"},resource_id)",
+          "query": "label_values(clb_active_connection{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"},resource_id)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,
@@ -1565,7 +1565,7 @@
           "type": "prometheus",
           "uid": "$datasource"
         },
-        "definition": "label_values(lb_active_connection{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"},code_name)",
+        "definition": "label_values(clb_active_connection{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"},code_name)",
         "includeAll": true,
         "label": "业务名",
         "multi": true,
@@ -1573,7 +1573,7 @@
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values(lb_active_connection{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"},code_name)",
+          "query": "label_values(clb_active_connection{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"},code_name)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,
