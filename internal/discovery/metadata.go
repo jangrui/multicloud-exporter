@@ -35,14 +35,6 @@ func AnnotateCanonical(metas []MetricMeta, mapping config.MetricMapping) []Metri
 					break
 				}
 			}
-			if m.Canonical == "" {
-				for newName, def := range mapping.AliyunOnly {
-					if def.Metric == m.Name {
-						m.Canonical = newName
-						break
-					}
-				}
-			}
 		} else if m.Provider == "tencent" {
 			for newName, providers := range mapping.Canonical {
 				def, ok := providers["tencent"]
@@ -56,14 +48,6 @@ func AnnotateCanonical(metas []MetricMeta, mapping config.MetricMapping) []Metri
 					}
 					m.Similar = xs
 					break
-				}
-			}
-			if m.Canonical == "" {
-				for newName, def := range mapping.TencentOnly {
-					if def.Metric == m.Name {
-						m.Canonical = newName
-						break
-					}
 				}
 			}
 		}

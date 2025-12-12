@@ -15,12 +15,12 @@ func TestAnnotateCanonical(t *testing.T) {
 				"aliyun":  {Metric: "AliyunMetric"},
 				"tencent": {Metric: "TencentMetric"},
 			},
-		},
-		AliyunOnly: map[string]config.MetricDef{
-			"aliyun_only": {Metric: "AliyunOnlyMetric"},
-		},
-		TencentOnly: map[string]config.MetricDef{
-			"tencent_only": {Metric: "TencentOnlyMetric"},
+			"aliyun_only": {
+				"aliyun": {Metric: "AliyunOnlyMetric"},
+			},
+			"tencent_only": {
+				"tencent": {Metric: "TencentOnlyMetric"},
+			},
 		},
 	}
 
@@ -39,7 +39,7 @@ func TestAnnotateCanonical(t *testing.T) {
 			},
 		},
 		{
-			name: "Aliyun Only",
+			name: "Aliyun Only Canonical",
 			metas: []MetricMeta{
 				{Provider: "aliyun", Name: "AliyunOnlyMetric"},
 			},
@@ -57,7 +57,7 @@ func TestAnnotateCanonical(t *testing.T) {
 			},
 		},
 		{
-			name: "Tencent Only",
+			name: "Tencent Only Canonical",
 			metas: []MetricMeta{
 				{Provider: "tencent", Name: "TencentOnlyMetric"},
 			},
