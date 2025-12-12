@@ -21,6 +21,9 @@
 - [x] bwp - 共享带宽包
 - [x] clb - 负载均衡
 - [x] s3  - 对象存储 (OSS)
+- [x] alb - 应用型负载均衡
+- [x] nlb - 网络型负载均衡
+- [x] gwlb - 网关型负载均衡
 - [ ] ecs - ECS实例
 - [ ] disk - 云盘
 - [ ] rds - RDS数据库
@@ -153,6 +156,9 @@ accounts:
         - bwp
         - clb
         - s3
+        - alb
+        - nlb
+        - gwlb
 
   tencent:
     - provider: tencent

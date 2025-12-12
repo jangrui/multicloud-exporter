@@ -82,7 +82,7 @@ accounts:
     aliyun: []
     #   - name: aliyun-acc-0
     #     regions: ["*"]
-    #     resources: ["bwp", "clb", "s3"]
+    #     resources: ["bwp", "clb", "s3", "alb", "nlb", "gwlb"]
     tencent: []
     #   - name: tencent-acc-0
     #     regions: ["*"]
@@ -96,11 +96,11 @@ accounts:
   #   - name: accounts-1
   #     provider: aliyun
   #     regions: ["*"]
-  #     resources: ["bwp", "clb", "s3"]
+  #     resources: ["bwp", "clb", "s3", "alb", "nlb", "gwlb"]
   #   - name: accounts-2
   #     provider: aliyun
   #     regions: ["*"]
-  #     resources: ["bwp", "clb", "s3"]
+  #     resources: ["bwp", "clb", "s3", "alb", "nlb", "gwlb"]
 
 resources: {}
 
