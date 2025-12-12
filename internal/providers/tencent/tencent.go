@@ -126,6 +126,8 @@ func (t *Collector) collectRegion(account config.CloudAccount, region string) {
 				t.collectBWP(account, region)
 			case "s3":
 				t.collectCOS(account, region)
+			case "cos":
+				t.collectCOS(account, region)
 			case "gwlb":
 				t.collectGWLB(account, region)
 			default:

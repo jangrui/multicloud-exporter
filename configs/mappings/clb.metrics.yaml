@@ -179,6 +179,7 @@ canonical:
         - userId
         - instanceId
         - port
+        - protocol
       unit: count/s
       scale: 1
   qps:
@@ -365,14 +366,6 @@ canonical:
     unit: count
   max_connection:
     metric: MaxConnection
-    dimensions:
-      - userId
-      - instanceId
-      - port
-      - protocol
-    unit: count/s
-  drop_connection:
-    metric: DropConnection
     dimensions:
       - userId
       - instanceId
