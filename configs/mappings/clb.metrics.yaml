@@ -5,9 +5,6 @@ prefix: lb
 namespaces:
   aliyun: acs_slb_dashboard
   tencent: QCE/LB
-  tencent: QCE/CLB
-  tencent: QCE/LB_PUBLIC
-  tencent: QCE/LB_PRIVATE
 
 canonical:
   traffic_rx_bps:
@@ -184,64 +181,76 @@ canonical:
         - port
       unit: count/s
       scale: 1
-
-aliyun_only:
   qps:
-    metric: Qps
-    dimensions:
-      - userId
-      - instanceId
-      - port
-      - protocol
-    unit: count/s
+    description: "每秒请求数 (L7)"
+    aliyun:
+      metric: Qps
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - protocol
+      unit: count/s
   rt:
-    metric: Rt
-    dimensions:
-      - userId
-      - instanceId
-      - port
-      - protocol
-    unit: ms
+    description: "响应时间 (L7)"
+    aliyun:
+      metric: Rt
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - protocol
+      unit: ms
   status_code_2xx:
-    metric: StatusCode2xx
-    dimensions:
-      - userId
-      - instanceId
-      - port
-      - protocol
-    unit: count/s
+    description: "HTTP 2XX 状态码数量"
+    aliyun:
+      metric: StatusCode2xx
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - protocol
+      unit: count/s
   status_code_3xx:
-    metric: StatusCode3xx
-    dimensions:
-      - userId
-      - instanceId
-      - port
-      - protocol
-    unit: count/s
+    description: "HTTP 3XX 状态码数量"
+    aliyun:
+      metric: StatusCode3xx
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - protocol
+      unit: count/s
   status_code_4xx:
-    metric: StatusCode4xx
-    dimensions:
-      - userId
-      - instanceId
-      - port
-      - protocol
-    unit: count/s
+    description: "HTTP 4XX 状态码数量"
+    aliyun:
+      metric: StatusCode4xx
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - protocol
+      unit: count/s
   status_code_5xx:
-    metric: StatusCode5xx
-    dimensions:
-      - userId
-      - instanceId
-      - port
-      - protocol
-    unit: count/s
+    description: "HTTP 5XX 状态码数量"
+    aliyun:
+      metric: StatusCode5xx
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - protocol
+      unit: count/s
   status_code_other:
-    metric: StatusCodeOther
-    dimensions:
-      - userId
-      - instanceId
-      - port
-      - protocol
-    unit: count/s
+    description: "其他 HTTP 状态码数量"
+    aliyun:
+      metric: StatusCodeOther
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - protocol
+      unit: count/s
   unhealthy_server_count:
     metric: UnhealthyServerCount
     dimensions:

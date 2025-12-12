@@ -150,7 +150,7 @@ func (t *Collector) collectCLB(account config.CloudAccount, region string) {
 		return
 	}
 	for _, p := range prods {
-		if p.Namespace != "QCE/LB" {
+		if p.Namespace != "QCE/LB" && p.Namespace != "QCE/LB_PUBLIC" && p.Namespace != "QCE/LB_PRIVATE" {
 			continue
 		}
 		vips := t.listCLBVips(account, region)

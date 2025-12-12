@@ -82,20 +82,30 @@ func TestTencentDiscoverer_Discover(t *testing.T) {
 		}, nil
 	}
 
-	prods := d.Discover(ctx, cfg)
-	assert.Len(t, prods, 3)
+    prods := d.Discover(ctx, cfg)
+    assert.GreaterOrEqual(t, len(prods), 3)
 
-	// Verify QCE/BWP
-	foundBWP := false
-	for _, p := range prods {
-		if p.Namespace == "QCE/BWP" {
-			foundBWP = true
-			assert.Contains(t, p.MetricInfo[0].MetricList, "OutTraffic")
-			// Verify fallback metrics are added
-			assert.Contains(t, p.MetricInfo[0].MetricList, "InTraffic")
-		}
-	}
-	assert.True(t, foundBWP)
+    // Verify QCE/BWP
+    foundBWP := false
+    for _, p := range prods {
+        if p.Namespace == "QCE/BWP" {
+            foundBWP = true
+            assert.Contains(t, p.MetricInfo[0].MetricList, "OutTraffic")
+            // Verify fallback metrics are added
+            assert.Contains(t, p.MetricInfo[0].MetricList, "InTraffic")
+        }
+    }
+    assert.True(t, foundBWP)
+
+    // Verify at least one CLB namespace exists
+    foundCLB := false
+    for _, p := range prods {
+        if p.Namespace == "QCE/LB" || p.Namespace == "QCE/LB_PUBLIC" || p.Namespace == "QCE/LB_PRIVATE" {
+            foundCLB = true
+            break
+        }
+    }
+    assert.True(t, foundCLB)
 
 	// Test case 4: Client error
 	newTencentMonitorClient = func(region, ak, sk string) (MonitorClient, error) {

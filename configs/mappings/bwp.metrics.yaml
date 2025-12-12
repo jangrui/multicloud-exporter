@@ -95,37 +95,41 @@ canonical:
         - bandwidthPackageId
       unit: percent
       scale: 1
-
-aliyun_only:
   drop_rx_pps:
-    metric: in_ratelimit_drop_pps
-    dimensions:
-      - userId
-      - instanceId
-    unit: count/s
-    scale: 1
+    description: "入方向限速丢包速率"
+    aliyun:
+      metric: in_ratelimit_drop_pps
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+      scale: 1
   drop_tx_pps:
-    metric: out_ratelimit_drop_pps
-    dimensions:
-      - userId
-      - instanceId
-    unit: count/s
-    scale: 1
-  # ratePercent seems redundant if we have utilization, but keeping if users want raw API value
+    description: "出方向限速丢包速率"
+    aliyun:
+      metric: out_ratelimit_drop_pps
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+      scale: 1
   rx_rate_percent:
-    metric: net_rx.ratePercent
-    dimensions:
-      - userId
-      - instanceId
-    unit: percent
-    scale: 1
+    description: "入方向速率 (百分比)"
+    aliyun:
+      metric: net_rx.ratePercent
+      dimensions:
+        - userId
+        - instanceId
+      unit: percent
+      scale: 1
   tx_rate_percent:
-    metric: net_tx.ratePercent
-    dimensions:
-      - userId
-      - instanceId
-    unit: percent
-    scale: 1
+    description: "出方向速率 (百分比)"
+    aliyun:
+      metric: net_tx.ratePercent
+      dimensions:
+        - userId
+        - instanceId
+      unit: percent
+      scale: 1
 
-tencent_only:
-  # Tencent BWP metrics are all covered in canonical
+ 

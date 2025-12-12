@@ -208,130 +208,155 @@ canonical:
       unit: count
       scale: 1
 
-aliyun_only:
-  # Latency
-  latency_e2e_get:
-    metric: GetObjectE2eLatency
-    dimensions:
-      - userId
-      - BucketName
-    unit: ms
-  latency_server_get:
-    metric: GetObjectServerLatency
-    dimensions:
-      - userId
-      - BucketName
-    unit: ms
-  latency_e2e_put:
-    metric: PutObjectE2eLatency
-    dimensions:
-      - userId
-      - BucketName
-    unit: ms
-  latency_server_put:
-    metric: PutObjectServerLatency
-    dimensions:
-      - userId
-      - BucketName
-    unit: ms
-  
-  # Bandwidth (If users prefer bps over Bytes)
-  bandwidth_internet_rx:
-    metric: InternetRecvBandwidth
-    dimensions:
-      - userId
-      - BucketName
-    unit: bit/s
-  bandwidth_internet_tx:
-    metric: InternetSendBandwidth
-    dimensions:
-      - userId
-      - BucketName
-    unit: bit/s
-  bandwidth_intranet_rx:
-    metric: IntranetRecvBandwidth
-    dimensions:
-      - userId
-      - BucketName
-    unit: bit/s
-  bandwidth_intranet_tx:
-    metric: IntranetSendBandwidth
-    dimensions:
-      - userId
-      - BucketName
-    unit: bit/s
-
-  # Cache
+  latency_e2e_get_ms:
+    description: "GET 端到端延迟"
+    aliyun:
+      metric: GetObjectE2eLatency
+      dimensions:
+        - userId
+        - BucketName
+      unit: ms
+  latency_server_get_ms:
+    description: "GET 服务端延迟"
+    aliyun:
+      metric: GetObjectServerLatency
+      dimensions:
+        - userId
+        - BucketName
+      unit: ms
+  latency_e2e_put_ms:
+    description: "PUT 端到端延迟"
+    aliyun:
+      metric: PutObjectE2eLatency
+      dimensions:
+        - userId
+        - BucketName
+      unit: ms
+  latency_server_put_ms:
+    description: "PUT 服务端延迟"
+    aliyun:
+      metric: PutObjectServerLatency
+      dimensions:
+        - userId
+        - BucketName
+      unit: ms
+  bandwidth_internet_rx_bps:
+    description: "公网入带宽"
+    aliyun:
+      metric: InternetRecvBandwidth
+      dimensions:
+        - userId
+        - BucketName
+      unit: bit/s
+  bandwidth_internet_tx_bps:
+    description: "公网出带宽"
+    aliyun:
+      metric: InternetSendBandwidth
+      dimensions:
+        - userId
+        - BucketName
+      unit: bit/s
+  bandwidth_intranet_rx_bps:
+    description: "内网入带宽"
+    aliyun:
+      metric: IntranetRecvBandwidth
+      dimensions:
+        - userId
+        - BucketName
+      unit: bit/s
+  bandwidth_intranet_tx_bps:
+    description: "内网出带宽"
+    aliyun:
+      metric: IntranetSendBandwidth
+      dimensions:
+        - userId
+        - BucketName
+      unit: bit/s
   cache_recv_bytes:
-    metric: CacheRecv
-    dimensions:
-      - userId
-      - instanceId
-      - BucketName
-    unit: Bytes
+    description: "缓存入流量 (Bytes)"
+    aliyun:
+      metric: CacheRecv
+      dimensions:
+        - userId
+        - instanceId
+        - BucketName
+      unit: Bytes
   cache_send_bytes:
-    metric: CacheSend
-    dimensions:
-      - userId
-      - instanceId
-      - BucketName
-    unit: Bytes
+    description: "缓存出流量 (Bytes)"
+    aliyun:
+      metric: CacheSend
+      dimensions:
+        - userId
+        - instanceId
+        - BucketName
+      unit: Bytes
   cache_origin_recv_bytes:
-    metric: CacheOriginRecv
-    dimensions:
-      - userId
-      - instanceId
-      - BucketName
-    unit: Bytes
+    description: "缓存回源入流量 (Bytes)"
+    aliyun:
+      metric: CacheOriginRecv
+      dimensions:
+        - userId
+        - instanceId
+        - BucketName
+      unit: Bytes
   cache_origin_send_bytes:
-    metric: CacheOriginSend
-    dimensions:
-      - userId
-      - instanceId
-      - BucketName
-    unit: Bytes
-
-  # Objects
+    description: "缓存回源出流量 (Bytes)"
+    aliyun:
+      metric: CacheOriginSend
+      dimensions:
+        - userId
+        - instanceId
+        - BucketName
+      unit: Bytes
   object_count:
-    metric: ObjectCount # Check if exists, usually "ObjectCount" or similar
-    dimensions:
-      - userId
-      - BucketName
-    unit: count
-
-tencent_only:
-  # Detailed Response Codes
+    description: "对象数量"
+    aliyun:
+      metric: ObjectCount
+      dimensions:
+        - userId
+        - BucketName
+      unit: count
   response_2xx_count:
-    metric: 2xxResponse
-    dimensions:
-      - bucket
-    unit: count
+    description: "2xx 响应数"
+    tencent:
+      metric: 2xxResponse
+      dimensions:
+        - bucket
+      unit: count
   response_3xx_count:
-    metric: 3xxResponse
-    dimensions:
-      - bucket
-    unit: count
+    description: "3xx 响应数"
+    tencent:
+      metric: 3xxResponse
+      dimensions:
+        - bucket
+      unit: count
   response_4xx_count:
-    metric: 4xxResponse
-    dimensions:
-      - bucket
-    unit: count
-  
-  # Storage Classes
+    description: "4xx 响应数"
+    tencent:
+      metric: 4xxResponse
+      dimensions:
+        - bucket
+      unit: count
   storage_ia_bytes:
-    metric: IaStorage
-    dimensions:
-      - bucket
-    unit: Bytes
+    description: "低频存储用量 (Bytes)"
+    tencent:
+      metric: IaStorage
+      dimensions:
+        - bucket
+      unit: Bytes
   storage_archive_bytes:
-    metric: DeepArcStorage
-    dimensions:
-      - bucket
-    unit: Bytes
-  
-  # Replication
+    description: "归档存储用量 (Bytes)"
+    tencent:
+      metric: DeepArcStorage
+      dimensions:
+        - bucket
+      unit: Bytes
   traffic_replication_bytes:
-    metric: CrossRegionReplicationTraffic
-    dimensions:
-      - bucket
-    unit: Bytes
+    description: "跨区域复制流量 (Bytes)"
+    tencent:
+      metric: CrossRegionReplicationTraffic
+      dimensions:
+        - bucket
+      unit: Bytes
+
+ 

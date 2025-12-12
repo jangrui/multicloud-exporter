@@ -76,11 +76,11 @@ func (t *Collector) fetchCLBMonitor(account config.CloudAccount, region string, 
 		}
 		for _, m := range group.MetricList {
 			req := monitor.NewGetMonitorDataRequest()
-			req.Namespace = common.StringPtr("QCE/LB")
+			req.Namespace = common.StringPtr(prod.Namespace)
 			req.MetricName = common.StringPtr(m)
 			per := period
 			if prod.Period == nil && group.Period == nil {
-				per = minPeriodForMetric(region, account, "QCE/LB", m)
+				per = minPeriodForMetric(region, account, prod.Namespace, m)
 			}
 			req.Period = common.Uint64Ptr(uint64(per))
 			var inst []*monitor.Instance
@@ -112,14 +112,14 @@ func (t *Collector) fetchCLBMonitor(account config.CloudAccount, region string, 
 
 			if resp == nil || resp.Response == nil || resp.Response.DataPoints == nil || len(resp.Response.DataPoints) == 0 {
 				// 输出 0 值样本以保证指标可见性
-				alias, count := metrics.NamespaceGauge("QCE/CLB", m)
+				alias, count := metrics.NamespaceGauge(prod.Namespace, m)
 				for _, vip := range vips {
-					labels := []string{"tencent", account.AccountID, region, "lb", vip, "QCE/CLB", m, ""}
+					labels := []string{"tencent", account.AccountID, region, "lb", vip, prod.Namespace, m, ""}
 					for len(labels) < count {
 						labels = append(labels, "")
 					}
 					alias.WithLabelValues(labels...).Set(0)
-					metrics.IncSampleCount("QCE/CLB", 1)
+					metrics.IncSampleCount(prod.Namespace, 1)
 				}
 				continue
 			}
@@ -135,14 +135,14 @@ func (t *Collector) fetchCLBMonitor(account config.CloudAccount, region string, 
 				if v := dp.Values[len(dp.Values)-1]; v != nil {
 					val = *v
 				}
-				alias, count := metrics.NamespaceGauge("QCE/CLB", m)
-				scaled := scaleCLBMetric(m, val)
-				labels := []string{"tencent", account.AccountID, region, "lb", rid, "QCE/CLB", m, ""}
+				alias, count := metrics.NamespaceGauge(prod.Namespace, m)
+				scaled := scaleCLBMetric(prod.Namespace, m, val)
+				labels := []string{"tencent", account.AccountID, region, "lb", rid, prod.Namespace, m, ""}
 				for len(labels) < count {
 					labels = append(labels, "")
 				}
 				alias.WithLabelValues(labels...).Set(scaled)
-				metrics.IncSampleCount("QCE/CLB", 1)
+				metrics.IncSampleCount(prod.Namespace, 1)
 			}
 		}
 	}
@@ -157,8 +157,8 @@ func extractDimension(dims []*monitor.Dimension, target string) string {
 	return ""
 }
 
-func scaleCLBMetric(metric string, val float64) float64 {
-	if s := metrics.GetMetricScale("QCE/CLB", metric); s != 0 && s != 1 {
+func scaleCLBMetric(namespace, metric string, val float64) float64 {
+	if s := metrics.GetMetricScale(namespace, metric); s != 0 && s != 1 {
 		return val * s
 	}
 	if metric == "VipIntraffic" || metric == "VipOuttraffic" {

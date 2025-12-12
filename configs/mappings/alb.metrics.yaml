@@ -4,7 +4,6 @@
 prefix: alb
 namespaces:
   aliyun: acs_alb
-  tencent: QCE/LB
 
 canonical:
   # 连接类指标
@@ -16,11 +15,6 @@ canonical:
         - userId
         - loadBalancerId
       unit: count
-    tencent:
-      metric: VConnum
-      dimensions:
-        - eip
-      unit: count
   new_connection:
     description: "新建连接数"
     aliyun:
@@ -28,11 +22,6 @@ canonical:
       dimensions:
         - userId
         - loadBalancerId
-      unit: count/s
-    tencent:
-      metric: VNewConn
-      dimensions:
-        - eip
       unit: count/s
   dropped_connection:
     description: "丢弃连接数"
@@ -53,12 +42,6 @@ canonical:
         - loadBalancerId
       unit: bit/s
       scale: 1
-    tencent:
-      metric: VipIntraffic
-      dimensions:
-        - eip
-      unit: Mbps
-      scale: 1000000
   traffic_tx_bps:
     description: "出网流量"
     aliyun:
@@ -67,30 +50,6 @@ canonical:
         - userId
         - loadBalancerId
       unit: bit/s
-      scale: 1
-    tencent:
-      metric: VipOuttraffic
-      dimensions:
-        - eip
-      unit: Mbps
-      scale: 1000000
-  
-  # 包转发类 (Aliyun ALB 暂未发现包转发指标，保留 Tencent)
-  packet_rx:
-    description: "入网包速率"
-    tencent:
-      metric: VipInpkg
-      dimensions:
-        - eip
-      unit: count/s
-      scale: 1
-  packet_tx:
-    description: "出网包速率"
-    tencent:
-      metric: VipOutpkg
-      dimensions:
-        - eip
-      unit: count/s
       scale: 1
 
   # 七层指标
@@ -103,7 +62,6 @@ canonical:
         - loadBalancerId
       unit: count/s
       scale: 1
-    # Tencent QPS metric not found
   rt:
     description: "响应时间 (L7)"
     aliyun:
@@ -113,19 +71,12 @@ canonical:
         - loadBalancerId
       unit: ms
       scale: 1
-    # Tencent RT metric not found
   status_code_2xx:
     description: "HTTP 2XX 状态码数量"
     aliyun:
       metric: LoadBalancerHTTPCode2XX
       dimensions:
         - userId
-        - loadBalancerId
-      unit: count/s
-      scale: 1
-    tencent:
-      metric: http_2xx
-      dimensions:
         - loadBalancerId
       unit: count/s
       scale: 1
@@ -138,24 +89,12 @@ canonical:
         - loadBalancerId
       unit: count/s
       scale: 1
-    tencent:
-      metric: http_3xx
-      dimensions:
-        - loadBalancerId
-      unit: count/s
-      scale: 1
   status_code_4xx:
     description: "HTTP 4XX 状态码数量"
     aliyun:
       metric: LoadBalancerHTTPCode4XX
       dimensions:
         - userId
-        - loadBalancerId
-      unit: count/s
-      scale: 1
-    tencent:
-      metric: http_4xx
-      dimensions:
         - loadBalancerId
       unit: count/s
       scale: 1
@@ -168,142 +107,7 @@ canonical:
         - loadBalancerId
       unit: count/s
       scale: 1
-    tencent:
-      metric: http_5xx
-      dimensions:
-        - loadBalancerId
-      unit: count/s
-      scale: 1
 
-# 阿里云特有指标
-aliyun_only:
-  # LoadBalancer Level
-  load_balancer_client_tls_negotiation_error:
-    metric: LoadBalancerClientTLSNegotiationError
-    dimensions:
-      - userId
-      - loadBalancerId
-    unit: count/s
-  load_balancer_http_code_500:
-    metric: LoadBalancerHTTPCode500
-    dimensions:
-      - userId
-      - loadBalancerId
-    unit: count/s
-  load_balancer_http_code_502:
-    metric: LoadBalancerHTTPCode502
-    dimensions:
-      - userId
-      - loadBalancerId
-    unit: count/s
-  load_balancer_http_code_503:
-    metric: LoadBalancerHTTPCode503
-    dimensions:
-      - userId
-      - loadBalancerId
-    unit: count/s
-  load_balancer_http_code_504:
-    metric: LoadBalancerHTTPCode504
-    dimensions:
-      - userId
-      - loadBalancerId
-    unit: count/s
-  load_balancer_http_code_upstream_2xx:
-    metric: LoadBalancerHTTPCodeUpstream2XX
-    dimensions:
-      - userId
-      - loadBalancerId
-    unit: count/s
-  load_balancer_http_code_upstream_3xx:
-    metric: LoadBalancerHTTPCodeUpstream3XX
-    dimensions:
-      - userId
-      - loadBalancerId
-    unit: count/s
-  load_balancer_http_code_upstream_4xx:
-    metric: LoadBalancerHTTPCodeUpstream4XX
-    dimensions:
-      - userId
-      - loadBalancerId
-    unit: count/s
-  load_balancer_http_code_upstream_5xx:
-    metric: LoadBalancerHTTPCodeUpstream5XX
-    dimensions:
-      - userId
-      - loadBalancerId
-    unit: count/s
-  load_balancer_http_fixed_response:
-    metric: LoadBalancerHTTPFixedResponse
-    dimensions:
-      - userId
-      - loadBalancerId
-    unit: count/s
-  load_balancer_http_redirect:
-    metric: LoadBalancerHTTPRedirect
-    dimensions:
-      - userId
-      - loadBalancerId
-    unit: count/s
-  load_balancer_healthy_host_count:
-    metric: LoadBalancerHealthyHostCount
-    dimensions:
-      - userId
-      - loadBalancerId
-    unit: count
-  load_balancer_inactive_connection:
-    metric: LoadBalancerInactiveConnection
-    dimensions:
-      - userId
-      - loadBalancerId
-    unit: count
-  load_balancer_max_connection:
-    metric: LoadBalancerMaxConnection
-    dimensions:
-      - userId
-      - loadBalancerId
-    unit: count
-  load_balancer_non_sticky_request:
-    metric: LoadBalancerNonStickyRequest
-    dimensions:
-      - userId
-      - loadBalancerId
-    unit: count/s
-  load_balancer_unhealthy_host_count:
-    metric: LoadBalancerUnHealthyHostCount
-    dimensions:
-      - userId
-      - loadBalancerId
-    unit: count
-  load_balancer_upstream_connection_error:
-    metric: LoadBalancerUpstreamConnectionError
-    dimensions:
-      - userId
-      - loadBalancerId
-    unit: count/s
-  load_balancer_upstream_response_time:
-    metric: LoadBalancerUpstreamResponseTime
-    dimensions:
-      - userId
-      - loadBalancerId
-    unit: ms
-  load_balancer_upstream_tls_negotiation_error:
-    metric: LoadBalancerUpstreamTLSNegotiationError
-    dimensions:
-      - userId
-      - loadBalancerId
-    unit: count/s
-  peak_lcus:
-    metric: PeakLCUs
-    dimensions:
-      - userId
-      - loadBalancerId
-    unit: count
-  reserved_lcus:
-    metric: ReservedLCUs
-    dimensions:
-      - userId
-      - loadBalancerId
-    unit: count
 
   # Listener Level
   listener_active_connection:

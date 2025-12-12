@@ -144,10 +144,4 @@ canonical:
       unit: count
     # Tencent GWLB 暂无健康服务器计数指标
 
-# 阿里云特有指标
-aliyun_only:
-  # 如果有阿里云GWLB特有指标，可以在这里定义
-
-# 腾讯云特有指标
-tencent_only:
-  # 如果有腾讯云GWLB特有指标，可以在这里定义
+ 

@@ -114,39 +114,42 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 		sk := accounts[0].AccessKeySecret
 		client, err := newTencentMonitorClient(region, ak, sk)
 		if err == nil {
-			req := monitor.NewDescribeBaseMetricsRequest()
-			req.Namespace = common.StringPtr("QCE/LB")
-			resp, err := client.DescribeBaseMetrics(req)
-			if err != nil {
-				logger.Log.Warnf("Tencent DescribeBaseMetrics QCE/LB error: %v", err)
-			}
-			var metrics []string
-			if err == nil && resp != nil && resp.Response != nil && resp.Response.MetricSet != nil {
-				for _, m := range resp.Response.MetricSet {
-					if m == nil || m.MetricName == nil {
-						continue
+			namespaces := []string{"QCE/LB", "QCE/LB_PUBLIC", "QCE/LB_PRIVATE"}
+			for _, ns := range namespaces {
+				req := monitor.NewDescribeBaseMetricsRequest()
+				req.Namespace = common.StringPtr(ns)
+				resp, err := client.DescribeBaseMetrics(req)
+				if err != nil {
+					logger.Log.Warnf("Tencent DescribeBaseMetrics %s error: %v", ns, err)
+					continue
+				}
+				var metrics []string
+				if resp != nil && resp.Response != nil && resp.Response.MetricSet != nil {
+					for _, m := range resp.Response.MetricSet {
+						if m == nil || m.MetricName == nil {
+							continue
+						}
+						metrics = append(metrics, *m.MetricName)
 					}
-					metrics = append(metrics, *m.MetricName)
 				}
-			}
-			// 兜底补充常用 CLB 指标，避免云侧元数据缺失导致无法采集
-			fallback := []string{
-				"VipIntraffic", "VipOuttraffic",
-				"VipInpkg", "VipOutpkg",
-				"Vipindroppkts", "Vipoutdroppkts",
-				"IntrafficVipRatio", "OuttrafficVipRatio",
-			}
-			cur := make(map[string]struct{}, len(metrics))
-			for _, m := range metrics {
-				cur[m] = struct{}{}
-			}
-			for _, m := range fallback {
-				if _, ok := cur[m]; !ok {
-					metrics = append(metrics, m)
+				fallback := []string{
+					"VipIntraffic", "VipOuttraffic",
+					"VipInpkg", "VipOutpkg",
+					"Vipindroppkts", "Vipoutdroppkts",
+					"IntrafficVipRatio", "OuttrafficVipRatio",
 				}
-			}
-			if len(metrics) > 0 {
-				prods = append(prods, config.Product{Namespace: "QCE/LB", AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: metrics}}})
+				cur := make(map[string]struct{}, len(metrics))
+				for _, m := range metrics {
+					cur[m] = struct{}{}
+				}
+				for _, m := range fallback {
+					if _, ok := cur[m]; !ok {
+						metrics = append(metrics, m)
+					}
+				}
+				if len(metrics) > 0 {
+					prods = append(prods, config.Product{Namespace: ns, AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: metrics}}})
+				}
 			}
 		}
 	}

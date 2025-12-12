@@ -3,9 +3,9 @@ package tencent
 import "testing"
 
 func TestScaleCLBMetric(t *testing.T) {
-    if scaleCLBMetric("VipIntraffic", 1.2) != 1200000 { t.Fatalf("clb in bps") }
-    if scaleCLBMetric("VipOuttraffic", 2) != 2000000 { t.Fatalf("clb out bps") }
-    if scaleCLBMetric("Conn", 3.3) != 3.3 { t.Fatalf("no scale") }
+    if scaleCLBMetric("QCE/LB", "VipIntraffic", 1.2) != 1200000 { t.Fatalf("clb in bps") }
+    if scaleCLBMetric("QCE/LB", "VipOuttraffic", 2) != 2000000 { t.Fatalf("clb out bps") }
+    if scaleCLBMetric("QCE/LB", "Conn", 3.3) != 3.3 { t.Fatalf("no scale") }
 }
 
 func TestScaleBWPMetric(t *testing.T) {
