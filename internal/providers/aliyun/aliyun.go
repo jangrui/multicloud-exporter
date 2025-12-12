@@ -17,6 +17,9 @@ import (
 
 	"sync"
 
+	alb20200616 "github.com/alibabacloud-go/alb-20200616/v2/client"
+	nlb20220430 "github.com/alibabacloud-go/nlb-20220430/v4/client"
+	"github.com/alibabacloud-go/tea/tea"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/cms"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/ecs"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/sts"
@@ -671,34 +674,131 @@ func (a *Collector) cacheKey(account config.CloudAccount, region, namespace, rty
 	return account.AccountID + "|" + region + "|" + namespace + "|" + rtype
 }
 
-// listALBIDs 通过 CMS 指标数据枚举 ALB 资源 ID
 func (a *Collector) listALBIDs(account config.CloudAccount, region string) []string {
-	client, err := a.clientFactory.NewCMSClient(region, account.AccessKeyID, account.AccessKeySecret)
-	if err != nil {
-		return []string{}
+	if ids, _, hit := a.getCachedIDs(account, region, "acs_alb", "alb"); hit {
+		return ids
 	}
-	metric := "LoadBalancerActiveConnection"
-	return a.listIDsByCMS(client, region, "acs_alb", metric, "loadBalancerId")
+	var out []string
+	albClient, err := a.clientFactory.NewALBClient(region, account.AccessKeyID, account.AccessKeySecret)
+	if err == nil && albClient != nil {
+		pageSize := 100
+		if a.cfg != nil {
+			if a.cfg.Server != nil && a.cfg.Server.PageSize > 0 && a.cfg.Server.PageSize < pageSize {
+				pageSize = a.cfg.Server.PageSize
+			} else if a.cfg.ServerConf != nil && a.cfg.ServerConf.PageSize > 0 && a.cfg.ServerConf.PageSize < pageSize {
+				pageSize = a.cfg.ServerConf.PageSize
+			}
+		}
+		nextToken := ""
+		for {
+			req := &alb20200616.ListLoadBalancersRequest{
+				MaxResults: tea.Int32(int32(pageSize)),
+			}
+			if nextToken != "" {
+				req.NextToken = tea.String(nextToken)
+			}
+			resp, callErr := albClient.ListLoadBalancers(req)
+			if callErr != nil || resp == nil || resp.Body == nil {
+				out = []string{}
+				break
+			}
+			if resp.Body.LoadBalancers != nil {
+				for _, lb := range resp.Body.LoadBalancers {
+					if lb != nil && lb.LoadBalancerId != nil {
+						id := tea.StringValue(lb.LoadBalancerId)
+						if id != "" {
+							out = append(out, id)
+						}
+					}
+				}
+			}
+			if resp.Body.NextToken == nil || tea.StringValue(resp.Body.NextToken) == "" {
+				break
+			}
+			nextToken = tea.StringValue(resp.Body.NextToken)
+			time.Sleep(25 * time.Millisecond)
+		}
+	}
+	if len(out) == 0 {
+		cmsClient, cmsErr := a.clientFactory.NewCMSClient(region, account.AccessKeyID, account.AccessKeySecret)
+		if cmsErr != nil {
+			return []string{}
+		}
+		out = a.listIDsByCMS(cmsClient, region, "acs_alb", "LoadBalancerActiveConnection", "loadBalancerId")
+	}
+	a.setCachedIDs(account, region, "acs_alb", "alb", out, nil)
+	return out
 }
 
-// listNLBIDs 通过 CMS 指标数据枚举 NLB 资源 ID
 func (a *Collector) listNLBIDs(account config.CloudAccount, region string) []string {
-	client, err := a.clientFactory.NewCMSClient(region, account.AccessKeyID, account.AccessKeySecret)
-	if err != nil {
-		return []string{}
+	if ids, _, hit := a.getCachedIDs(account, region, "acs_nlb", "nlb"); hit {
+		return ids
 	}
-	metric := "InstanceActiveConnection"
-	return a.listIDsByCMS(client, region, "acs_nlb", metric, "instanceId")
+	var out []string
+	nlbClient, err := a.clientFactory.NewNLBClient(region, account.AccessKeyID, account.AccessKeySecret)
+	if err == nil && nlbClient != nil {
+		pageSize := 100
+		if a.cfg != nil {
+			if a.cfg.Server != nil && a.cfg.Server.PageSize > 0 && a.cfg.Server.PageSize < pageSize {
+				pageSize = a.cfg.Server.PageSize
+			} else if a.cfg.ServerConf != nil && a.cfg.ServerConf.PageSize > 0 && a.cfg.ServerConf.PageSize < pageSize {
+				pageSize = a.cfg.ServerConf.PageSize
+			}
+		}
+		nextToken := ""
+		for {
+			req := &nlb20220430.ListLoadBalancersRequest{
+				MaxResults: tea.Int32(int32(pageSize)),
+			}
+			if nextToken != "" {
+				req.NextToken = tea.String(nextToken)
+			}
+			resp, callErr := nlbClient.ListLoadBalancers(req)
+			if callErr != nil || resp == nil || resp.Body == nil {
+				out = []string{}
+				break
+			}
+			if resp.Body.LoadBalancers != nil {
+				for _, lb := range resp.Body.LoadBalancers {
+					if lb != nil && lb.LoadBalancerId != nil {
+						id := tea.StringValue(lb.LoadBalancerId)
+						if id != "" {
+							out = append(out, id)
+						}
+					}
+				}
+			}
+			if resp.Body.NextToken == nil || tea.StringValue(resp.Body.NextToken) == "" {
+				break
+			}
+			nextToken = tea.StringValue(resp.Body.NextToken)
+			time.Sleep(25 * time.Millisecond)
+		}
+	}
+	if len(out) == 0 {
+		cmsClient, cmsErr := a.clientFactory.NewCMSClient(region, account.AccessKeyID, account.AccessKeySecret)
+		if cmsErr != nil {
+			return []string{}
+		}
+		out = a.listIDsByCMS(cmsClient, region, "acs_nlb", "InstanceActiveConnection", "instanceId")
+	}
+	a.setCachedIDs(account, region, "acs_nlb", "nlb", out, nil)
+	return out
 }
 
 // listAliGWLBIDs 通过 CMS 指标数据枚举 GWLB 资源 ID
 func (a *Collector) listAliGWLBIDs(account config.CloudAccount, region string) []string {
+	if ids, _, hit := a.getCachedIDs(account, region, "acs_gwlb", "gwlb"); hit {
+		return ids
+	}
 	client, err := a.clientFactory.NewCMSClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
 		return []string{}
 	}
 	metric := "ActiveConnection"
-	return a.listIDsByCMS(client, region, "acs_gwlb", metric, "instanceId")
+	out := a.listIDsByCMS(client, region, "acs_gwlb", metric, "instanceId")
+	a.setCachedIDs(account, region, "acs_gwlb", "gwlb", out, nil)
+	return out
 }
 
 // listIDsByCMS 使用 DescribeMetricList 拉取短时间窗口的数据，解析维度提取资源ID
