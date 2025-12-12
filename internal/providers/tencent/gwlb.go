@@ -16,9 +16,62 @@ func (t *Collector) listGWLBIDs(account config.CloudAccount, region string) []st
 		logger.Log.Infof("Tencent GWLB IDs cache hit account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
 		return ids
 	}
-	// TODO: Implement via TencentCloud GWLB SDK when available
-	// For now, return empty to avoid incorrect enumeration.
-	return []string{}
+	client, err := t.clientFactory.NewMonitorClient(region, account.AccessKeyID, account.AccessKeySecret)
+	if err != nil {
+		return []string{}
+	}
+	req := monitor.NewGetMonitorDataRequest()
+	req.Namespace = common.StringPtr("qce/gwlb")
+	req.MetricName = common.StringPtr("ConcurConn")
+	period := int64(60)
+	req.Period = common.Uint64Ptr(uint64(period))
+	start := time.Now().Add(-time.Duration(period) * time.Second)
+	end := time.Now()
+	req.StartTime = common.StringPtr(start.UTC().Format("2006-01-02T15:04:05Z"))
+	req.EndTime = common.StringPtr(end.UTC().Format("2006-01-02T15:04:05Z"))
+
+	reqStart := time.Now()
+	resp, err := client.GetMonitorData(req)
+	if err != nil {
+		status := classifyTencentError(err)
+		metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", status).Inc()
+		if status == "limit_error" {
+			metrics.RateLimitTotal.WithLabelValues("tencent", "GetMonitorData").Inc()
+		}
+		return []string{}
+	}
+	metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", "success").Inc()
+	metrics.RequestDuration.WithLabelValues("tencent", "GetMonitorData").Observe(time.Since(reqStart).Seconds())
+
+	var ids []string
+	seen := make(map[string]struct{})
+	if resp != nil && resp.Response != nil && resp.Response.DataPoints != nil {
+		for _, dp := range resp.Response.DataPoints {
+			if dp == nil || len(dp.Dimensions) == 0 {
+				continue
+			}
+			rid := extractDimension(dp.Dimensions, "gwLoadBalancerId")
+			if rid == "" {
+				continue
+			}
+			if _, ok := seen[rid]; !ok {
+				seen[rid] = struct{}{}
+				ids = append(ids, rid)
+			}
+		}
+	}
+	t.setCachedIDs(account, region, "qce/gwlb", "gwlb", ids)
+	if len(ids) > 0 {
+		max := 5
+		if len(ids) < max {
+			max = len(ids)
+		}
+		preview := ids[:max]
+		logger.Log.Infof("Tencent GWLB enumerated account_id=%s region=%s count=%d preview=%v", account.AccountID, region, len(ids), preview)
+	} else {
+		logger.Log.Infof("Tencent GWLB enumerated account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
+	}
+	return ids
 }
 
 func (t *Collector) fetchGWLBMonitor(account config.CloudAccount, region string, prod config.Product, ids []string) {
