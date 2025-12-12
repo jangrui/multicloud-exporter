@@ -636,6 +636,12 @@ func resourceTypeForNamespace(namespace string) string {
 		return "clb"
 	case "acs_oss_dashboard":
 		return "s3"
+	case "acs_alb":
+		return "alb"
+	case "acs_nlb":
+		return "nlb"
+	case "acs_gwlb":
+		return "gwlb"
 	default:
 		return ""
 	}
@@ -650,6 +656,12 @@ func (a *Collector) resourceIDsForNamespace(account config.CloudAccount, region 
 		return ids, "clb", meta
 	case "acs_oss_dashboard":
 		return a.listOSSIDs(account, region), "s3", nil
+	case "acs_alb":
+		return a.listALBIDs(account, region), "alb", nil
+	case "acs_nlb":
+		return a.listNLBIDs(account, region), "nlb", nil
+	case "acs_gwlb":
+		return a.listAliGWLBIDs(account, region), "gwlb", nil
 	default:
 		return []string{}, "", nil
 	}
@@ -659,6 +671,88 @@ func (a *Collector) cacheKey(account config.CloudAccount, region, namespace, rty
 	return account.AccountID + "|" + region + "|" + namespace + "|" + rtype
 }
 
+// listALBIDs 通过 CMS 指标数据枚举 ALB 资源 ID
+func (a *Collector) listALBIDs(account config.CloudAccount, region string) []string {
+	client, err := a.clientFactory.NewCMSClient(region, account.AccessKeyID, account.AccessKeySecret)
+	if err != nil {
+		return []string{}
+	}
+	metric := "LoadBalancerActiveConnection"
+	return a.listIDsByCMS(client, region, "acs_alb", metric, "loadBalancerId")
+}
+
+// listNLBIDs 通过 CMS 指标数据枚举 NLB 资源 ID
+func (a *Collector) listNLBIDs(account config.CloudAccount, region string) []string {
+	client, err := a.clientFactory.NewCMSClient(region, account.AccessKeyID, account.AccessKeySecret)
+	if err != nil {
+		return []string{}
+	}
+	metric := "InstanceActiveConnection"
+	return a.listIDsByCMS(client, region, "acs_nlb", metric, "instanceId")
+}
+
+// listAliGWLBIDs 通过 CMS 指标数据枚举 GWLB 资源 ID
+func (a *Collector) listAliGWLBIDs(account config.CloudAccount, region string) []string {
+	client, err := a.clientFactory.NewCMSClient(region, account.AccessKeyID, account.AccessKeySecret)
+	if err != nil {
+		return []string{}
+	}
+	metric := "ActiveConnection"
+	return a.listIDsByCMS(client, region, "acs_gwlb", metric, "instanceId")
+}
+
+// listIDsByCMS 使用 DescribeMetricList 拉取短时间窗口的数据，解析维度提取资源ID
+func (a *Collector) listIDsByCMS(client CMSClient, region, namespace, metric, idKey string) []string {
+	req := cms.CreateDescribeMetricListRequest()
+	req.Namespace = namespace
+	req.MetricName = metric
+	// 使用最近 5 分钟窗口以减少数据量
+	end := time.Now().UTC()
+	start := end.Add(-5 * time.Minute)
+	req.StartTime = start.Format("2006-01-02 15:04:05")
+	req.EndTime = end.Format("2006-01-02 15:04:05")
+	req.Period = "60"
+	var resp *cms.DescribeMetricListResponse
+	var callErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		st := time.Now()
+		resp, callErr = client.DescribeMetricList(req)
+		if callErr == nil {
+			metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricList", "success").Inc()
+			metrics.RequestDuration.WithLabelValues("aliyun", "DescribeMetricList").Observe(time.Since(st).Seconds())
+			break
+		}
+		status := classifyAliyunError(callErr)
+		metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricList", status).Inc()
+		if status == "auth_error" || status == "region_skip" {
+			break
+		}
+		// 简单退避
+		time.Sleep(time.Duration(200*(1<<attempt)) * time.Millisecond)
+	}
+	if callErr != nil || resp == nil {
+		return []string{}
+	}
+	var out []string
+	seen := make(map[string]struct{})
+	points := strings.TrimSpace(resp.Datapoints)
+	if points != "" {
+		var arr []map[string]interface{}
+		if err := json.Unmarshal([]byte(points), &arr); err == nil {
+			for _, p := range arr {
+				if v, ok := p[idKey]; ok {
+					if id, ok2 := v.(string); ok2 && id != "" {
+						if _, exists := seen[id]; !exists {
+							seen[id] = struct{}{}
+							out = append(out, id)
+						}
+					}
+				}
+			}
+		}
+	}
+	return out
+}
 func (a *Collector) getCachedIDs(account config.CloudAccount, region, namespace, rtype string) ([]string, map[string]interface{}, bool) {
 	a.cacheMu.RLock()
 	entry, ok := a.resCache[a.cacheKey(account, region, namespace, rtype)]
