@@ -16,9 +16,9 @@ import (
 	"multicloud-exporter/internal/logger"
 	"multicloud-exporter/internal/metrics"
 	_ "multicloud-exporter/internal/metrics/aliyun"
-    _ "multicloud-exporter/internal/metrics/tencent"
-    "path/filepath"
-    "strings"
+	_ "multicloud-exporter/internal/metrics/tencent"
+	"path/filepath"
+	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -39,17 +39,68 @@ func main() {
 
 	// 加载指标映射配置
 	if mappingPath := os.Getenv("MAPPING_PATH"); mappingPath != "" {
-		if err := config.LoadMetricMappings(mappingPath); err != nil {
-			logger.Log.Warnf("Failed to load metric mappings from %s: %v", mappingPath, err)
+		paths := strings.Split(mappingPath, ",")
+		loaded := 0
+		for _, p := range paths {
+			p = strings.TrimSpace(p)
+			if p == "" {
+				continue
+			}
+			fi, err := os.Stat(p)
+			if err != nil {
+				logger.Log.Warnf("Mapping path not found: %s (%v)", p, err)
+				continue
+			}
+			if fi.IsDir() {
+				files, err := filepath.Glob(filepath.Join(p, "*.yaml"))
+				if err != nil || len(files) == 0 {
+					logger.Log.Warnf("No mapping files in directory: %s", p)
+					continue
+				}
+				for _, f := range files {
+					if err := config.ValidateMappingStructure(f); err != nil {
+						logger.Log.Warnf("Mapping validation failed for %s: %v", f, err)
+						continue
+					}
+					if err := config.LoadMetricMappings(f); err != nil {
+						logger.Log.Warnf("Failed to load metric mappings from %s: %v", f, err)
+						continue
+					}
+					loaded++
+					logger.Log.Infof("Loaded metric mappings from %s", f)
+				}
+			} else {
+				if err := config.ValidateMappingStructure(p); err != nil {
+					logger.Log.Warnf("Mapping validation failed for %s: %v", p, err)
+				}
+				if err := config.LoadMetricMappings(p); err != nil {
+					logger.Log.Warnf("Failed to load metric mappings from %s: %v", p, err)
+				} else {
+					loaded++
+					logger.Log.Infof("Loaded metric mappings from %s", p)
+				}
+			}
+		}
+		if loaded == 0 {
+			logger.Log.Warnf("No metric mappings loaded from MAPPING_PATH=%s", mappingPath)
 		} else {
-			logger.Log.Infof("Loaded metric mappings from %s", mappingPath)
+			logger.Log.Infof("Metric mappings loaded count=%d from MAPPING_PATH", loaded)
 		}
 	} else {
 		// 尝试加载默认位置的所有映射文件
 		mappingDir := "configs/mappings"
+		if err := config.ValidateAllMappings(mappingDir); err != nil {
+			logger.Log.Warnf("Mapping validation found issues:\n%v", err)
+		} else {
+			logger.Log.Infof("Mapping validation passed for directory %s", mappingDir)
+		}
 		files, err := filepath.Glob(filepath.Join(mappingDir, "*.yaml"))
 		if err == nil && len(files) > 0 {
 			for _, f := range files {
+				if err := config.ValidateMappingStructure(f); err != nil {
+					logger.Log.Warnf("Mapping validation failed for %s: %v", f, err)
+					continue
+				}
 				if err := config.LoadMetricMappings(f); err != nil {
 					logger.Log.Warnf("Failed to load metric mappings from %s: %v", f, err)
 				} else {
@@ -58,8 +109,11 @@ func main() {
 			}
 		} else {
 			// Fallback to legacy single file check if glob fails or empty (though glob returns nil err on no match usually)
-			defaultPath := "configs/mappings/lb.metrics.yaml"
+			defaultPath := "configs/mappings/clb.metrics.yaml"
 			if _, err := os.Stat(defaultPath); err == nil {
+				if err := config.ValidateMappingStructure(defaultPath); err != nil {
+					logger.Log.Warnf("Mapping validation failed for %s: %v", defaultPath, err)
+				}
 				if err := config.LoadMetricMappings(defaultPath); err != nil {
 					logger.Log.Warnf("Failed to load metric mappings from %s: %v", defaultPath, err)
 				} else {
@@ -156,52 +210,52 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
-    wrap := func(h http.HandlerFunc) http.HandlerFunc {
-        enabled := false
-        var pairs []config.BasicAuth
-        if ev := os.Getenv("ADMIN_AUTH_ENABLED"); ev != "" {
-            if ev == "1" || strings.EqualFold(ev, "true") || strings.EqualFold(ev, "yes") {
-                enabled = true
-            }
-        }
-        if enabled {
-            if raw := os.Getenv("ADMIN_AUTH"); raw != "" {
-                var xs []config.BasicAuth
-                if json.Unmarshal([]byte(raw), &xs) == nil && len(xs) > 0 {
-                    pairs = xs
-                } else {
-                    for _, seg := range strings.Split(raw, ",") {
-                        kv := strings.SplitN(strings.TrimSpace(seg), ":", 2)
-                        if len(kv) == 2 && kv[0] != "" {
-                            pairs = append(pairs, config.BasicAuth{Username: kv[0], Password: kv[1]})
-                        }
-                    }
-                }
-            }
-            // 支持从 ADMIN_USERNAME/ADMIN_PASSWORD 构造单个账号
-            u := os.Getenv("ADMIN_USERNAME")
-            p := os.Getenv("ADMIN_PASSWORD")
-            if u != "" && p != "" {
-                pairs = append(pairs, config.BasicAuth{Username: u, Password: p})
-            }
-        }
-        if !enabled {
-            if cfg.Server != nil {
-                if cfg.Server.AdminAuthEnabled {
-                    enabled = true
-                    pairs = cfg.Server.AdminAuth
-                }
-            }
-            if !enabled && cfg.ServerConf != nil {
-                if cfg.ServerConf.AdminAuthEnabled {
-                    enabled = true
-                    pairs = cfg.ServerConf.AdminAuth
-                }
-            }
-        }
-        if !enabled || len(pairs) == 0 {
-            return h
-        }
+	wrap := func(h http.HandlerFunc) http.HandlerFunc {
+		enabled := false
+		var pairs []config.BasicAuth
+		if ev := os.Getenv("ADMIN_AUTH_ENABLED"); ev != "" {
+			if ev == "1" || strings.EqualFold(ev, "true") || strings.EqualFold(ev, "yes") {
+				enabled = true
+			}
+		}
+		if enabled {
+			if raw := os.Getenv("ADMIN_AUTH"); raw != "" {
+				var xs []config.BasicAuth
+				if json.Unmarshal([]byte(raw), &xs) == nil && len(xs) > 0 {
+					pairs = xs
+				} else {
+					for _, seg := range strings.Split(raw, ",") {
+						kv := strings.SplitN(strings.TrimSpace(seg), ":", 2)
+						if len(kv) == 2 && kv[0] != "" {
+							pairs = append(pairs, config.BasicAuth{Username: kv[0], Password: kv[1]})
+						}
+					}
+				}
+			}
+			// 支持从 ADMIN_USERNAME/ADMIN_PASSWORD 构造单个账号
+			u := os.Getenv("ADMIN_USERNAME")
+			p := os.Getenv("ADMIN_PASSWORD")
+			if u != "" && p != "" {
+				pairs = append(pairs, config.BasicAuth{Username: u, Password: p})
+			}
+		}
+		if !enabled {
+			if cfg.Server != nil {
+				if cfg.Server.AdminAuthEnabled {
+					enabled = true
+					pairs = cfg.Server.AdminAuth
+				}
+			}
+			if !enabled && cfg.ServerConf != nil {
+				if cfg.ServerConf.AdminAuthEnabled {
+					enabled = true
+					pairs = cfg.ServerConf.AdminAuth
+				}
+			}
+		}
+		if !enabled || len(pairs) == 0 {
+			return h
+		}
 		return func(w http.ResponseWriter, r *http.Request) {
 			u, p, ok := r.BasicAuth()
 			if !ok {
@@ -250,8 +304,14 @@ func main() {
 		fl, _ := w.(http.Flusher)
 		ch := mgr.Subscribe()
 		defer mgr.Unsubscribe(ch)
+		initPayload := struct {
+			Version int64 `json:"version"`
+		}{Version: mgr.Version()}
+		bs, _ := json.Marshal(initPayload)
 		_, _ = w.Write([]byte("event: init\n"))
-		_, _ = w.Write([]byte("data: {}\n\n"))
+		_, _ = w.Write([]byte("data: "))
+		_, _ = w.Write(bs)
+		_, _ = w.Write([]byte("\n\n"))
 		if fl != nil {
 			fl.Flush()
 		}
@@ -273,6 +333,30 @@ func main() {
 				}
 			}
 		}
+	}))
+	http.HandleFunc("/api/discovery/status", wrap(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		st := mgr.Status()
+		resp := struct {
+			Version           int64             `json:"version"`
+			UpdatedAt         int64             `json:"updated_at"`
+			AccountsPath      string            `json:"accounts_path"`
+			AccountsSignature string            `json:"accounts_signature"`
+			Subscribers       int               `json:"subscribers"`
+			Providers         []string          `json:"providers"`
+			ProductsCount     map[string]int    `json:"products_count"`
+			APIStats          []metrics.APIStat `json:"api_stats"`
+		}{
+			Version:           st.Version,
+			UpdatedAt:         st.UpdatedAt,
+			AccountsPath:      st.AccountsPath,
+			AccountsSignature: st.AccountsSignature,
+			Subscribers:       st.Subscribers,
+			Providers:         st.Providers,
+			ProductsCount:     st.ProductsCount,
+			APIStats:          metrics.GetAPIStats(),
+		}
+		_ = json.NewEncoder(w).Encode(resp)
 	}))
 	logger.Log.Infof("服务启动，端口=%s", port)
 	logger.Log.Fatal(http.ListenAndServe(":"+port, nil))

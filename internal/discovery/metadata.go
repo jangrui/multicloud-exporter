@@ -20,50 +20,30 @@ type MetricMeta struct {
 func AnnotateCanonical(metas []MetricMeta, mapping config.MetricMapping) []MetricMeta {
 	for i := range metas {
 		m := &metas[i]
-		if m.Provider == "aliyun" {
-			for newName, providers := range mapping.Canonical {
-				def, ok := providers["aliyun"]
-				if ok && def.Metric == m.Name {
+	if m.Provider == "aliyun" {
+			for newName, entry := range mapping.Canonical {
+				def := entry.Aliyun
+				if def.Metric == m.Name {
 					m.Canonical = newName
 					var xs []string
-					for p, d := range providers {
-						if p != "aliyun" && d.Metric != "" {
-							xs = append(xs, p)
-						}
+					if entry.Tencent.Metric != "" {
+						xs = append(xs, "tencent")
 					}
 					m.Similar = xs
 					break
-				}
-			}
-			if m.Canonical == "" {
-				for newName, def := range mapping.AliyunOnly {
-					if def.Metric == m.Name {
-						m.Canonical = newName
-						break
-					}
 				}
 			}
 		} else if m.Provider == "tencent" {
-			for newName, providers := range mapping.Canonical {
-				def, ok := providers["tencent"]
-				if ok && def.Metric == m.Name {
+			for newName, entry := range mapping.Canonical {
+				def := entry.Tencent
+				if def.Metric == m.Name {
 					m.Canonical = newName
 					var xs []string
-					for p, d := range providers {
-						if p != "tencent" && d.Metric != "" {
-							xs = append(xs, p)
-						}
+					if entry.Aliyun.Metric != "" {
+						xs = append(xs, "aliyun")
 					}
 					m.Similar = xs
 					break
-				}
-			}
-			if m.Canonical == "" {
-				for newName, def := range mapping.TencentOnly {
-					if def.Metric == m.Name {
-						m.Canonical = newName
-						break
-					}
 				}
 			}
 		}

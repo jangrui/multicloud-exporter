@@ -3,6 +3,8 @@ package aliyun
 import (
 	"fmt"
 
+	alb20200616 "github.com/alibabacloud-go/alb-20200616/v2/client"
+	nlb20220430 "github.com/alibabacloud-go/nlb-20220430/v4/client"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/cms"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/ecs"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/slb"
@@ -16,6 +18,8 @@ type mockClientFactory struct {
 	ecs *mockECSClient
 	cms *mockCMSClient
 	sts *mockSTSClient
+	alb *mockALBClient
+	nlb *mockNLBClient
 	slb *mockSLBClient
 	vpc *mockVPCClient
 	tag *mockTagClient
@@ -41,6 +45,20 @@ func (f *mockClientFactory) NewSTSClient(region, ak, sk string) (STSClient, erro
 		return nil, fmt.Errorf("mock sts client not initialized")
 	}
 	return f.sts, nil
+}
+
+func (f *mockClientFactory) NewALBClient(region, ak, sk string) (ALBClient, error) {
+	if f.alb == nil {
+		return nil, fmt.Errorf("mock alb client not initialized")
+	}
+	return f.alb, nil
+}
+
+func (f *mockClientFactory) NewNLBClient(region, ak, sk string) (NLBClient, error) {
+	if f.nlb == nil {
+		return nil, fmt.Errorf("mock nlb client not initialized")
+	}
+	return f.nlb, nil
 }
 
 func (f *mockClientFactory) NewSLBClient(region, ak, sk string) (SLBClient, error) {
@@ -178,4 +196,26 @@ func (m *mockOSSClient) ListBuckets(options ...oss.Option) (oss.ListBucketsResul
 		return m.ListBucketsFunc(options...)
 	}
 	return oss.ListBucketsResult{}, nil
+}
+
+type mockALBClient struct {
+	ListLoadBalancersFunc func(request *alb20200616.ListLoadBalancersRequest) (response *alb20200616.ListLoadBalancersResponse, err error)
+}
+
+func (m *mockALBClient) ListLoadBalancers(request *alb20200616.ListLoadBalancersRequest) (response *alb20200616.ListLoadBalancersResponse, err error) {
+	if m.ListLoadBalancersFunc != nil {
+		return m.ListLoadBalancersFunc(request)
+	}
+	return &alb20200616.ListLoadBalancersResponse{}, nil
+}
+
+type mockNLBClient struct {
+	ListLoadBalancersFunc func(request *nlb20220430.ListLoadBalancersRequest) (response *nlb20220430.ListLoadBalancersResponse, err error)
+}
+
+func (m *mockNLBClient) ListLoadBalancers(request *nlb20220430.ListLoadBalancersRequest) (response *nlb20220430.ListLoadBalancersResponse, err error) {
+	if m.ListLoadBalancersFunc != nil {
+		return m.ListLoadBalancersFunc(request)
+	}
+	return &nlb20220430.ListLoadBalancersResponse{}, nil
 }

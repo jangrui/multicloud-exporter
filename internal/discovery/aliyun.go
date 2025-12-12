@@ -42,17 +42,27 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 	nsSet := make(map[string]struct{})
 	for _, acc := range accounts {
 		for _, r := range acc.Resources {
-			switch r {
-			case "bwp", "cbwp":
+			rr := strings.ToLower(r)
+			switch rr {
+			case "bwp":
 				nsSet["acs_bandwidth_package"] = struct{}{}
-			case "lb", "slb":
+			case "clb":
 				nsSet["acs_slb_dashboard"] = struct{}{}
-			case "oss":
+			case "alb":
+				nsSet["acs_alb"] = struct{}{}
+			case "nlb":
+				nsSet["acs_nlb"] = struct{}{}
+			case "gwlb":
+				nsSet["acs_gwlb"] = struct{}{}
+			case "s3":
 				nsSet["acs_oss_dashboard"] = struct{}{}
 			case "*":
 				nsSet["acs_bandwidth_package"] = struct{}{}
 				nsSet["acs_slb_dashboard"] = struct{}{}
 				nsSet["acs_oss_dashboard"] = struct{}{}
+				nsSet["acs_alb"] = struct{}{}
+				nsSet["acs_nlb"] = struct{}{}
+				nsSet["acs_gwlb"] = struct{}{}
 			}
 		}
 	}

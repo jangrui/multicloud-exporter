@@ -11,7 +11,7 @@ type testD struct{ prods []config.Product }
 func (d *testD) Discover(ctx context.Context, cfg *config.Config) []config.Product { return d.prods }
 
 func TestManagerRefreshVersion(t *testing.T) {
-	cfg := &config.Config{Server: &config.ServerConf{NoSavepoint: true}}
+	cfg := &config.Config{Server: &config.ServerConf{}}
 	Register("t", &testD{prods: []config.Product{{Namespace: "n"}}})
 	m := NewManager(cfg)
 	if err := m.Refresh(context.Background()); err != nil {
@@ -41,7 +41,7 @@ func TestAccountsSignature(t *testing.T) {
 }
 
 func TestManagerSubscription(t *testing.T) {
-	cfg := &config.Config{Server: &config.ServerConf{NoSavepoint: true}}
+	cfg := &config.Config{Server: &config.ServerConf{}}
 	m := NewManager(cfg)
 	ch := m.Subscribe()
 	if ch == nil {
@@ -51,7 +51,7 @@ func TestManagerSubscription(t *testing.T) {
 }
 
 func TestManagerUpdatedAt(t *testing.T) {
-	cfg := &config.Config{Server: &config.ServerConf{NoSavepoint: true}}
+	cfg := &config.Config{Server: &config.ServerConf{}}
 	m := NewManager(cfg)
 	// Initially zero or near zero?
 	_ = m.UpdatedAt()

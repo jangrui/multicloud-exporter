@@ -63,9 +63,13 @@ func DefaultResourceDimMapping() map[string][]string {
 		"aliyun.acs_slb_dashboard":     {"InstanceId", "instanceId", "instance_id"},
 		"aliyun.acs_bandwidth_package": {"BandwidthPackageId", "bandwidthPackageId", "sharebandwidthpackages"},
 		"aliyun.acs_oss_dashboard":     {"BucketName", "bucketName", "bucket_name"},
+		"aliyun.acs_alb":               {"loadBalancerId", "LoadBalancerId"},
+		"aliyun.acs_nlb":               {"InstanceId", "instanceId", "instance_id"},
+		"aliyun.acs_gwlb":              {"instanceId", "InstanceId", "instance_id"},
 		// Tencent
 		"tencent.QCE/CVM": {"InstanceId"},
 		"tencent.QCE/LB":  {"LoadBalancerId", "vip"},
+		"tencent.qce/gwlb": {"gwLoadBalancerId", "GwLoadBalancerId"},
 		// AWS (Example)
 		"aws.AWS/EC2": {"InstanceId"},
 		"aws.AWS/ELB": {"LoadBalancerName"},
@@ -174,7 +178,6 @@ type ServerConf struct {
 	HttpsProxy  string     `yaml:"https_proxy"`
 	NoProxy     string     `yaml:"no_proxy"`
 	NoMeta      bool       `yaml:"no_meta"`
-	NoSavepoint bool       `yaml:"no_savepoint"`
 	// DiscoveryTTL 控制资源自动发现结果的缓存生命周期。
 	// 支持的时间单位：
 	//   - s: 秒 (second)

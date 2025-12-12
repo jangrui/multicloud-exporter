@@ -12,9 +12,9 @@ import (
 func TestGetDefaultResources(t *testing.T) {
 	c := NewCollector(&config.Config{}, nil)
 	resources := c.GetDefaultResources()
-	assert.Contains(t, resources, "cbwp")
-	assert.Contains(t, resources, "slb")
-	assert.Contains(t, resources, "oss")
+	assert.Contains(t, resources, "bwp")
+	assert.Contains(t, resources, "clb")
+	assert.Contains(t, resources, "s3")
 	assert.GreaterOrEqual(t, len(resources), 3)
 }
 

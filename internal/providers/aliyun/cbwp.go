@@ -14,7 +14,7 @@ import (
 
 func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []string {
     ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region)
-    ctxLog.Infof("枚举共享带宽包开始")
+    ctxLog.Debugf("枚举共享带宽包开始")
 	client, err := a.clientFactory.NewVPCClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
 		return []string{}
@@ -45,6 +45,7 @@ func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []st
 			resp, callErr = client.DescribeCommonBandwidthPackages(req)
 			if callErr == nil {
 				metrics.RequestTotal.WithLabelValues("aliyun", "DescribeCommonBandwidthPackages", "success").Inc()
+				metrics.RecordRequest("aliyun", "DescribeCommonBandwidthPackages", "success")
 				metrics.RequestDuration.WithLabelValues("aliyun", "DescribeCommonBandwidthPackages").Observe(time.Since(start).Seconds())
 				break
 			}
@@ -54,12 +55,14 @@ func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []st
 				resp, callErr = client.DescribeCommonBandwidthPackages(req)
 				if callErr == nil {
 					metrics.RequestTotal.WithLabelValues("aliyun", "DescribeCommonBandwidthPackages", "success").Inc()
+					metrics.RecordRequest("aliyun", "DescribeCommonBandwidthPackages", "success")
 					metrics.RequestDuration.WithLabelValues("aliyun", "DescribeCommonBandwidthPackages").Observe(time.Since(start).Seconds())
 					break
 				}
 			}
 			status := classifyAliyunError(callErr)
 			metrics.RequestTotal.WithLabelValues("aliyun", "DescribeCommonBandwidthPackages", status).Inc()
+			metrics.RecordRequest("aliyun", "DescribeCommonBandwidthPackages", status)
 			if status == "region_skip" || status == "auth_error" {
 				ctxLog.Warnf("CBWP describe error page=%d status=%s: %v", page, status, callErr)
 				break
@@ -88,9 +91,9 @@ func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []st
             max = len(ids)
         }
         preview := ids[:max]
-        ctxLog.Infof("枚举共享带宽包完成 数量=%d 预览=%v", len(ids), preview)
+        ctxLog.Debugf("枚举共享带宽包完成 数量=%d 预览=%v", len(ids), preview)
     } else {
-        ctxLog.Infof("枚举共享带宽包完成 数量=%d", len(ids))
+        ctxLog.Debugf("枚举共享带宽包完成 数量=%d", len(ids))
     }
     return ids
 }

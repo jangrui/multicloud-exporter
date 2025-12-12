@@ -74,82 +74,82 @@ func canonicalizeSLB(metric string) string {
 }
 
 func init() {
-	metrics.RegisterNamespacePrefix("acs_slb_dashboard", "lb")
+	metrics.RegisterNamespacePrefix("acs_slb_dashboard", "clb")
 	metrics.RegisterNamespaceAliasFunc("acs_slb_dashboard", canonicalizeSLB)
 	metrics.RegisterNamespaceHelp("acs_slb_dashboard", func(metric string) string {
 		switch metric {
 		case "active_connection":
-			return " - LB 活跃连接数"
+			return " - CLB 活跃连接数"
 		case "inactive_connection":
-			return " - LB 非活跃连接数"
+			return " - CLB 非活跃连接数"
 		case "new_connection":
-			return " - LB 新建连接数"
+			return " - CLB 新建连接数"
 		case "max_connection":
-			return " - LB 每秒最大并发连接数"
+			return " - CLB 每秒最大并发连接数"
 		case "drop_connection":
-			return " - LB 断开连接"
+			return " - CLB 断开连接"
 		case "packet_rx":
-			return " - LB 入包速率"
+			return " - CLB 入包速率"
 		case "packet_tx":
-			return " - LB 出包速率"
+			return " - CLB 出包速率"
 		case "drop_packet_rx":
-			return " - LB 入向丢包速率"
+			return " - CLB 入向丢包速率"
 		case "drop_packet_tx":
-			return " - LB 出向丢包速率"
+			return " - CLB 出向丢包速率"
 		case "traffic_rx_bps":
-			return " - LB 入方向带宽（bit/s）"
+			return " - CLB 入方向带宽（bit/s）"
 		case "traffic_tx_bps":
-			return " - LB 出方向带宽（bit/s）"
+			return " - CLB 出方向带宽（bit/s）"
 		case "drop_traffic_rx_bps":
-			return " - LB 入向丢失带宽（bit/s）"
+			return " - CLB 入向丢失带宽（bit/s）"
 		case "drop_traffic_tx_bps":
-			return " - LB 出向丢失带宽（bit/s）"
+			return " - CLB 出向丢失带宽（bit/s）"
 		case "qps":
-			return " - LB 七层监听 QPS"
+			return " - CLB 七层监听 QPS"
 		case "rt":
-			return " - LB 七层监听 RT"
+			return " - CLB 七层监听 RT"
 		case "status_code_2xx":
-			return " - LB 七层 2XX 状态码数量"
+			return " - CLB 七层 2XX 状态码数量"
 		case "status_code_3xx":
-			return " - LB 七层 3XX 状态码数量"
+			return " - CLB 七层 3XX 状态码数量"
 		case "status_code_4xx":
-			return " - LB 七层 4XX 状态码数量"
+			return " - CLB 七层 4XX 状态码数量"
 		case "status_code_5xx":
-			return " - LB 七层 5XX 状态码数量"
+			return " - CLB 七层 5XX 状态码数量"
 		case "status_code_other":
-			return " - LB 七层其它状态码数量"
+			return " - CLB 七层其它状态码数量"
 		case "unhealthy_server_count":
-			return " - LB 后端异常实例数"
+			return " - CLB 后端异常实例数"
 		case "healthy_server_count_with_rule":
-			return " - LB 七层规则后端健康实例数"
+			return " - CLB 七层规则后端健康实例数"
 		case "instance_qps":
-			return " - LB 七层实例 QPS"
+			return " - CLB 七层实例 QPS"
 		case "instance_rt":
-			return " - LB 七层实例 RT"
+			return " - CLB 七层实例 RT"
 		case "instance_packet_rx":
-			return " - LB 实例入包速率"
+			return " - CLB 实例入包速率"
 		case "instance_packet_tx":
-			return " - LB 实例出包速率"
+			return " - CLB 实例出包速率"
 		case "instance_traffic_rx_utilization_pct":
-			return " - LB 实例入向带宽使用率"
+			return " - CLB 实例入向带宽使用率"
 		case "instance_traffic_tx_utilization_pct":
-			return " - LB 实例出向带宽使用率"
+			return " - CLB 实例出向带宽使用率"
 		case "instance_status_code_2xx":
-			return " - LB 七层实例 2XX 状态码数量"
+			return " - CLB 七层实例 2XX 状态码数量"
 		case "instance_status_code_3xx":
-			return " - LB 七层实例 3XX 状态码数量"
+			return " - CLB 七层实例 3XX 状态码数量"
 		case "instance_status_code_4xx":
-			return " - LB 七层实例 4XX 状态码数量"
+			return " - CLB 七层实例 4XX 状态码数量"
 		case "instance_status_code_5xx":
-			return " - LB 七层实例 5XX 状态码数量"
+			return " - CLB 七层实例 5XX 状态码数量"
 		case "instance_status_code_other":
-			return " - LB 七层实例其它状态码数量"
+			return " - CLB 七层实例其它状态码数量"
 		case "instance_upstream_code_4xx":
-			return " - LB 七层实例 Upstream 4XX 状态码数量"
+			return " - CLB 七层实例 Upstream 4XX 状态码数量"
 		case "instance_upstream_code_5xx":
-			return " - LB 七层实例 Upstream 5XX 状态码数量"
+			return " - CLB 七层实例 Upstream 5XX 状态码数量"
 		case "instance_upstream_rt":
-			return " - LB 七层实例 Upstream RT"
+			return " - CLB 七层实例 Upstream RT"
 		}
 		return " - 云产品指标"
 	})

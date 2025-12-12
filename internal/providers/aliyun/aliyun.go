@@ -17,9 +17,13 @@ import (
 
 	"sync"
 
+	alb20200616 "github.com/alibabacloud-go/alb-20200616/v2/client"
+	nlb20220430 "github.com/alibabacloud-go/nlb-20220430/v4/client"
+	"github.com/alibabacloud-go/tea/tea"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/cms"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/ecs"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/sts"
+	"github.com/aliyun/alibaba-cloud-sdk-go/services/tag"
 )
 
 // Collector 封装阿里云资源采集逻辑
@@ -334,10 +338,14 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 					// - CBWP：使用 ListTagResources 过滤 TagKey=="CodeName"，得到带宽包的业务名称
 					// 其他命名空间当前不提供 code_name，保持为空字符串
 					switch rtype {
-					case "cbwp":
+					case "cbwp", "bwp":
 						tagLabels = a.fetchCBWPTags(account, region, resIDs)
-					case "lb", "slb":
+					case "lb", "slb", "clb":
 						tagLabels = a.fetchSLBTags(account, region, prod.Namespace, metricName, resIDs)
+					case "alb":
+						tagLabels = a.fetchALBTags(account, region, resIDs)
+					case "nlb":
+						tagLabels = a.fetchNLBTags(account, region, resIDs)
 					}
 
 					if len(tagLabels) > 0 {
@@ -424,10 +432,14 @@ func (a *Collector) getMetricMeta(client CMSClient, namespace, metric string) me
 	}
 	if err != nil {
 		logger.Log.Warnf("Aliyun getMetricMeta error: namespace=%s metric=%s error=%v", namespace, metric, err)
+		st := classifyAliyunError(err)
+		metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricMetaList", st).Inc()
+		metrics.RecordRequest("aliyun", "DescribeMetricMetaList", st)
 		return metricMeta{}
 	}
 	metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricMetaList", "success").Inc()
 	metrics.RequestDuration.WithLabelValues("aliyun", "DescribeMetricMetaList").Observe(time.Since(start).Seconds())
+	metrics.RecordRequest("aliyun", "DescribeMetricMetaList", "success")
 	var out metricMeta
 	if len(resp.Resources.Resource) > 0 {
 		r := resp.Resources.Resource[0]
@@ -616,8 +628,10 @@ func hasAnyDim(dims []string, keys []string) bool {
 }
 
 func containsResource(list []string, r string) bool {
+	want := strings.ToLower(r)
 	for _, x := range list {
-		if x == r || x == "*" {
+		xx := strings.ToLower(x)
+		if xx == "*" || xx == want {
 			return true
 		}
 	}
@@ -629,11 +643,17 @@ func containsResource(list []string, r string) bool {
 func resourceTypeForNamespace(namespace string) string {
 	switch namespace {
 	case "acs_bandwidth_package":
-		return "cbwp"
+		return "bwp"
 	case "acs_slb_dashboard":
-		return "slb"
+		return "clb"
 	case "acs_oss_dashboard":
-		return "oss"
+		return "s3"
+	case "acs_alb":
+		return "alb"
+	case "acs_nlb":
+		return "nlb"
+	case "acs_gwlb":
+		return "gwlb"
 	default:
 		return ""
 	}
@@ -642,12 +662,18 @@ func resourceTypeForNamespace(namespace string) string {
 func (a *Collector) resourceIDsForNamespace(account config.CloudAccount, region string, namespace string) ([]string, string, map[string]interface{}) {
 	switch namespace {
 	case "acs_bandwidth_package":
-		return a.listCBWPIDs(account, region), "cbwp", nil
+		return a.listCBWPIDs(account, region), "bwp", nil
 	case "acs_slb_dashboard":
 		ids, meta := a.listSLBIDs(account, region)
-		return ids, "slb", meta
+		return ids, "clb", meta
 	case "acs_oss_dashboard":
-		return a.listOSSIDs(account, region), "oss", nil
+		return a.listOSSIDs(account, region), "s3", nil
+	case "acs_alb":
+		return a.listALBIDs(account, region), "alb", nil
+	case "acs_nlb":
+		return a.listNLBIDs(account, region), "nlb", nil
+	case "acs_gwlb":
+		return a.listAliGWLBIDs(account, region), "gwlb", nil
 	default:
 		return []string{}, "", nil
 	}
@@ -657,6 +683,205 @@ func (a *Collector) cacheKey(account config.CloudAccount, region, namespace, rty
 	return account.AccountID + "|" + region + "|" + namespace + "|" + rtype
 }
 
+func (a *Collector) listALBIDs(account config.CloudAccount, region string) []string {
+	if ids, _, hit := a.getCachedIDs(account, region, "acs_alb", "alb"); hit {
+		return ids
+	}
+	var out []string
+	var meta map[string]interface{}
+	albClient, err := a.clientFactory.NewALBClient(region, account.AccessKeyID, account.AccessKeySecret)
+	if err == nil && albClient != nil {
+		pageSize := 100
+		if a.cfg != nil {
+			if a.cfg.Server != nil && a.cfg.Server.PageSize > 0 && a.cfg.Server.PageSize < pageSize {
+				pageSize = a.cfg.Server.PageSize
+			} else if a.cfg.ServerConf != nil && a.cfg.ServerConf.PageSize > 0 && a.cfg.ServerConf.PageSize < pageSize {
+				pageSize = a.cfg.ServerConf.PageSize
+			}
+		}
+		nextToken := ""
+		for {
+			req := &alb20200616.ListLoadBalancersRequest{
+				MaxResults: tea.Int32(int32(pageSize)),
+			}
+			if nextToken != "" {
+				req.NextToken = tea.String(nextToken)
+			}
+			resp, callErr := albClient.ListLoadBalancers(req)
+			if callErr != nil || resp == nil || resp.Body == nil {
+				out = []string{}
+				break
+			}
+			if resp.Body.LoadBalancers != nil {
+				for _, lb := range resp.Body.LoadBalancers {
+					if lb != nil && lb.LoadBalancerId != nil {
+						id := tea.StringValue(lb.LoadBalancerId)
+						if id != "" {
+							out = append(out, id)
+						}
+					}
+				}
+			}
+			if resp.Body.NextToken == nil || tea.StringValue(resp.Body.NextToken) == "" {
+				break
+			}
+			nextToken = tea.StringValue(resp.Body.NextToken)
+			time.Sleep(25 * time.Millisecond)
+		}
+	}
+	if len(out) == 0 {
+		cmsClient, cmsErr := a.clientFactory.NewCMSClient(region, account.AccessKeyID, account.AccessKeySecret)
+		if cmsErr != nil {
+			return []string{}
+		}
+		out = a.listIDsByCMS(cmsClient, region, "acs_alb", "LoadBalancerActiveConnection", "loadBalancerId")
+		if len(out) > 0 {
+			meta = a.buildALBMetaByCMS(cmsClient, region, out)
+		}
+	} else {
+		cmsClient, cmsErr := a.clientFactory.NewCMSClient(region, account.AccessKeyID, account.AccessKeySecret)
+		if cmsErr == nil {
+			meta = a.buildALBMetaByCMS(cmsClient, region, out)
+		}
+	}
+	a.setCachedIDs(account, region, "acs_alb", "alb", out, meta)
+	return out
+}
+
+func (a *Collector) listNLBIDs(account config.CloudAccount, region string) []string {
+	if ids, _, hit := a.getCachedIDs(account, region, "acs_nlb", "nlb"); hit {
+		return ids
+	}
+	var out []string
+	var meta map[string]interface{}
+	nlbClient, err := a.clientFactory.NewNLBClient(region, account.AccessKeyID, account.AccessKeySecret)
+	if err == nil && nlbClient != nil {
+		pageSize := 100
+		if a.cfg != nil {
+			if a.cfg.Server != nil && a.cfg.Server.PageSize > 0 && a.cfg.Server.PageSize < pageSize {
+				pageSize = a.cfg.Server.PageSize
+			} else if a.cfg.ServerConf != nil && a.cfg.ServerConf.PageSize > 0 && a.cfg.ServerConf.PageSize < pageSize {
+				pageSize = a.cfg.ServerConf.PageSize
+			}
+		}
+		nextToken := ""
+		for {
+			req := &nlb20220430.ListLoadBalancersRequest{
+				MaxResults: tea.Int32(int32(pageSize)),
+			}
+			if nextToken != "" {
+				req.NextToken = tea.String(nextToken)
+			}
+			resp, callErr := nlbClient.ListLoadBalancers(req)
+			if callErr != nil || resp == nil || resp.Body == nil {
+				out = []string{}
+				break
+			}
+			if resp.Body.LoadBalancers != nil {
+				for _, lb := range resp.Body.LoadBalancers {
+					if lb != nil && lb.LoadBalancerId != nil {
+						id := tea.StringValue(lb.LoadBalancerId)
+						if id != "" {
+							out = append(out, id)
+						}
+					}
+				}
+			}
+			if resp.Body.NextToken == nil || tea.StringValue(resp.Body.NextToken) == "" {
+				break
+			}
+			nextToken = tea.StringValue(resp.Body.NextToken)
+			time.Sleep(25 * time.Millisecond)
+		}
+	}
+	if len(out) == 0 {
+		cmsClient, cmsErr := a.clientFactory.NewCMSClient(region, account.AccessKeyID, account.AccessKeySecret)
+		if cmsErr != nil {
+			return []string{}
+		}
+		out = a.listIDsByCMS(cmsClient, region, "acs_nlb", "InstanceActiveConnection", "instanceId")
+		if len(out) > 0 {
+			meta = a.buildNLBMetaByCMS(cmsClient, region, out)
+		}
+	} else {
+		cmsClient, cmsErr := a.clientFactory.NewCMSClient(region, account.AccessKeyID, account.AccessKeySecret)
+		if cmsErr == nil {
+			meta = a.buildNLBMetaByCMS(cmsClient, region, out)
+		}
+	}
+	a.setCachedIDs(account, region, "acs_nlb", "nlb", out, meta)
+	return out
+}
+
+// listAliGWLBIDs 通过 CMS 指标数据枚举 GWLB 资源 ID
+func (a *Collector) listAliGWLBIDs(account config.CloudAccount, region string) []string {
+	if ids, _, hit := a.getCachedIDs(account, region, "acs_gwlb", "gwlb"); hit {
+		return ids
+	}
+	client, err := a.clientFactory.NewCMSClient(region, account.AccessKeyID, account.AccessKeySecret)
+	if err != nil {
+		return []string{}
+	}
+	metric := "ActiveConnection"
+	out := a.listIDsByCMS(client, region, "acs_gwlb", metric, "instanceId")
+	a.setCachedIDs(account, region, "acs_gwlb", "gwlb", out, nil)
+	return out
+}
+
+// listIDsByCMS 使用 DescribeMetricList 拉取短时间窗口的数据，解析维度提取资源ID
+func (a *Collector) listIDsByCMS(client CMSClient, region, namespace, metric, idKey string) []string {
+	req := cms.CreateDescribeMetricListRequest()
+	req.Namespace = namespace
+	req.MetricName = metric
+	// 使用最近 5 分钟窗口以减少数据量
+	end := time.Now().UTC()
+	start := end.Add(-5 * time.Minute)
+	req.StartTime = start.Format("2006-01-02 15:04:05")
+	req.EndTime = end.Format("2006-01-02 15:04:05")
+	req.Period = "60"
+	var resp *cms.DescribeMetricListResponse
+	var callErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		st := time.Now()
+		resp, callErr = client.DescribeMetricList(req)
+		if callErr == nil {
+			metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricList", "success").Inc()
+			metrics.RequestDuration.WithLabelValues("aliyun", "DescribeMetricList").Observe(time.Since(st).Seconds())
+			metrics.RecordRequest("aliyun", "DescribeMetricList", "success")
+			break
+		}
+		status := classifyAliyunError(callErr)
+		metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricList", status).Inc()
+		metrics.RecordRequest("aliyun", "DescribeMetricList", status)
+		if status == "auth_error" || status == "region_skip" {
+			break
+		}
+		// 简单退避
+		time.Sleep(time.Duration(200*(1<<attempt)) * time.Millisecond)
+	}
+	if callErr != nil || resp == nil {
+		return []string{}
+	}
+	var out []string
+	seen := make(map[string]struct{})
+	points := strings.TrimSpace(resp.Datapoints)
+	if points != "" {
+		var arr []map[string]interface{}
+		if err := json.Unmarshal([]byte(points), &arr); err == nil {
+			for _, p := range arr {
+				if v, ok := p[idKey]; ok {
+					if id, ok2 := v.(string); ok2 && id != "" {
+						if _, exists := seen[id]; !exists {
+							seen[id] = struct{}{}
+							out = append(out, id)
+						}
+					}
+				}
+			}
+		}
+	}
+	return out
+}
 func (a *Collector) getCachedIDs(account config.CloudAccount, region, namespace, rtype string) ([]string, map[string]interface{}, bool) {
 	a.cacheMu.RLock()
 	entry, ok := a.resCache[a.cacheKey(account, region, namespace, rtype)]
@@ -688,6 +913,399 @@ func (a *Collector) setCachedIDs(account config.CloudAccount, region, namespace,
 	a.cacheMu.Lock()
 	a.resCache[a.cacheKey(account, region, namespace, rtype)] = resCacheEntry{IDs: ids, Meta: meta, UpdatedAt: time.Now()}
 	a.cacheMu.Unlock()
+}
+func (a *Collector) buildALBMetaByCMS(client CMSClient, region string, ids []string) map[string]interface{} {
+	idSet := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		idSet[id] = struct{}{}
+	}
+	out := make(map[string]interface{})
+	type q struct {
+		ns   string
+		name string
+		id   string
+		dims []string
+	}
+	qs := []q{
+		{ns: "acs_alb", name: "ListenerActiveConnection", id: "loadBalancerId", dims: []string{"listenerProtocol", "listenerPort"}},
+		{ns: "acs_alb", name: "ServerGroupHTTPCodeUpstream2XX", id: "loadBalancerId", dims: []string{"listenerProtocol", "listenerPort", "serverGroupId"}},
+		{ns: "acs_alb", name: "VipActiveConnection", id: "loadBalancerId", dims: []string{"vip"}},
+	}
+	for _, qq := range qs {
+		req := cms.CreateDescribeMetricListRequest()
+		req.Namespace = qq.ns
+		req.MetricName = qq.name
+		end := time.Now().UTC()
+		start := end.Add(-5 * time.Minute)
+		req.StartTime = start.Format("2006-01-02 15:04:05")
+		req.EndTime = end.Format("2006-01-02 15:04:05")
+		req.Period = "60"
+		resp, err := client.DescribeMetricList(req)
+		if err != nil || resp == nil {
+			continue
+		}
+		points := strings.TrimSpace(resp.Datapoints)
+		if points == "" {
+			continue
+		}
+		var arr []map[string]interface{}
+		if json.Unmarshal([]byte(points), &arr) != nil {
+			continue
+		}
+		type seenKey struct {
+			id  string
+			key string
+		}
+		seen := make(map[seenKey]struct{})
+		for _, p := range arr {
+			v, ok := p[qq.id]
+			if !ok {
+				continue
+			}
+			lbID, ok2 := v.(string)
+			if !ok2 || lbID == "" {
+				continue
+			}
+			if _, ok3 := idSet[lbID]; !ok3 {
+				continue
+			}
+			item := make(map[string]string)
+			for _, dk := range qq.dims {
+				if vv, ok := p[dk]; ok {
+					if s, ok := vv.(string); ok && s != "" {
+						item[dk] = s
+					} else if n, ok := vv.(float64); ok {
+						item[dk] = strconv.Itoa(int(n))
+					}
+				}
+			}
+			if len(item) == 0 {
+				continue
+			}
+			var keyParts []string
+			for _, dk := range qq.dims {
+				if val, ok := item[dk]; ok {
+					keyParts = append(keyParts, dk+"="+val)
+				}
+			}
+			if len(keyParts) == 0 {
+				continue
+			}
+			sk := seenKey{id: lbID, key: strings.Join(keyParts, "|")}
+			if _, ok := seen[sk]; ok {
+				continue
+			}
+			seen[sk] = struct{}{}
+			if _, ok := out[lbID]; !ok {
+				out[lbID] = []map[string]string{}
+			}
+			list := out[lbID].([]map[string]string)
+			list = append(list, item)
+			out[lbID] = list
+		}
+	}
+	return out
+}
+func (a *Collector) buildNLBMetaByCMS(client CMSClient, region string, ids []string) map[string]interface{} {
+	idSet := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		idSet[id] = struct{}{}
+	}
+	out := make(map[string]interface{})
+	type q struct {
+		ns   string
+		name string
+		id   string
+		dims []string
+	}
+	qs := []q{
+		{ns: "acs_nlb", name: "ListenerPacketRX", id: "instanceId", dims: []string{"listenerProtocol", "listenerPort"}},
+		{ns: "acs_nlb", name: "ListenerHeathyServerCount", id: "instanceId", dims: []string{"listenerProtocol", "listenerPort"}},
+		{ns: "acs_nlb", name: "VipActiveConnection", id: "instanceId", dims: []string{"vip"}},
+	}
+	for _, qq := range qs {
+		req := cms.CreateDescribeMetricListRequest()
+		req.Namespace = qq.ns
+		req.MetricName = qq.name
+		end := time.Now().UTC()
+		start := end.Add(-5 * time.Minute)
+		req.StartTime = start.Format("2006-01-02 15:04:05")
+		req.EndTime = end.Format("2006-01-02 15:04:05")
+		req.Period = "60"
+		resp, err := client.DescribeMetricList(req)
+		if err != nil || resp == nil {
+			continue
+		}
+		points := strings.TrimSpace(resp.Datapoints)
+		if points == "" {
+			continue
+		}
+		var arr []map[string]interface{}
+		if json.Unmarshal([]byte(points), &arr) != nil {
+			continue
+		}
+		type seenKey struct {
+			id  string
+			key string
+		}
+		seen := make(map[seenKey]struct{})
+		for _, p := range arr {
+			v, ok := p[qq.id]
+			if !ok {
+				continue
+			}
+			instID, ok2 := v.(string)
+			if !ok2 || instID == "" {
+				continue
+			}
+			if _, ok3 := idSet[instID]; !ok3 {
+				continue
+			}
+			item := make(map[string]string)
+			for _, dk := range qq.dims {
+				if vv, ok := p[dk]; ok {
+					if s, ok := vv.(string); ok && s != "" {
+						item[dk] = s
+					} else if n, ok := vv.(float64); ok {
+						item[dk] = strconv.Itoa(int(n))
+					}
+				}
+			}
+			if len(item) == 0 {
+				continue
+			}
+			var keyParts []string
+			for _, dk := range qq.dims {
+				if val, ok := item[dk]; ok {
+					keyParts = append(keyParts, dk+"="+val)
+				}
+			}
+			if len(keyParts) == 0 {
+				continue
+			}
+			sk := seenKey{id: instID, key: strings.Join(keyParts, "|")}
+			if _, ok := seen[sk]; ok {
+				continue
+			}
+			seen[sk] = struct{}{}
+			if _, ok := out[instID]; !ok {
+				out[instID] = []map[string]string{}
+			}
+			list := out[instID].([]map[string]string)
+			list = append(list, item)
+			out[instID] = list
+		}
+	}
+	return out
+}
+
+func (a *Collector) fetchALBTags(account config.CloudAccount, region string, ids []string) map[string]string {
+	if len(ids) == 0 {
+		return map[string]string{}
+	}
+	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", "alb")
+	tagClient, tagErr := a.clientFactory.NewTagClient(region, account.AccessKeyID, account.AccessKeySecret)
+	if tagErr != nil {
+		return map[string]string{}
+	}
+	out := make(map[string]string, len(ids))
+	batchSize := 50
+	total := len(ids)
+	uid := a.getAccountUID(account, region)
+	for start := 0; start < total; start += batchSize {
+		end := start + batchSize
+		if end > total {
+			end = total
+		}
+		var arns []string
+		for _, id := range ids[start:end] {
+			arns = append(arns, "arn:acs:alb:"+region+":"+uid+":loadbalancer/"+id)
+		}
+		req := tag.CreateListTagResourcesRequest()
+		req.RegionId = region
+		req.ResourceARN = &arns
+		resp, callErr := tagClient.ListTagResources(req)
+		if callErr != nil || resp == nil {
+			time.Sleep(50 * time.Millisecond)
+			continue
+		}
+		if len(resp.TagResources) > 0 {
+			for _, tr := range resp.TagResources {
+				id := tr.ResourceId
+				if id == "" && tr.ResourceARN != "" {
+					parts := strings.Split(tr.ResourceARN, "/")
+					if len(parts) > 0 {
+						id = parts[len(parts)-1]
+					}
+				}
+				if id == "" {
+					continue
+				}
+				for _, t := range tr.Tags {
+					k := t.Key
+					v := t.Value
+					if strings.EqualFold(k, "CodeName") || strings.EqualFold(k, "code_name") {
+						out[id] = v
+					}
+				}
+			}
+		} else {
+			content := resp.GetHttpContentBytes()
+			parsed := parseContentCodeName(content)
+			for k, v := range parsed {
+				out[k] = v
+			}
+		}
+	}
+	assigned := 0
+	for _, v := range out {
+		if v != "" {
+			assigned++
+		}
+	}
+	ctxLog.Debugf("ALB 标签采集完成 资源数=%d 有code_name=%d", len(ids), assigned)
+	return out
+}
+
+func (a *Collector) fetchNLBTags(account config.CloudAccount, region string, ids []string) map[string]string {
+	if len(ids) == 0 {
+		return map[string]string{}
+	}
+	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", "nlb")
+	tagClient, tagErr := a.clientFactory.NewTagClient(region, account.AccessKeyID, account.AccessKeySecret)
+	if tagErr != nil {
+		return map[string]string{}
+	}
+	out := make(map[string]string, len(ids))
+	batchSize := 50
+	total := len(ids)
+	uid := a.getAccountUID(account, region)
+	for start := 0; start < total; start += batchSize {
+		end := start + batchSize
+		if end > total {
+			end = total
+		}
+		var arns []string
+		for _, id := range ids[start:end] {
+			arns = append(arns, "arn:acs:nlb:"+region+":"+uid+":loadbalancer/"+id)
+		}
+		req := tag.CreateListTagResourcesRequest()
+		req.RegionId = region
+		req.ResourceARN = &arns
+		resp, callErr := tagClient.ListTagResources(req)
+		if callErr != nil || resp == nil {
+			time.Sleep(50 * time.Millisecond)
+			continue
+		}
+		if len(resp.TagResources) > 0 {
+			for _, tr := range resp.TagResources {
+				id := tr.ResourceId
+				if id == "" && tr.ResourceARN != "" {
+					parts := strings.Split(tr.ResourceARN, "/")
+					if len(parts) > 0 {
+						id = parts[len(parts)-1]
+					}
+				}
+				if id == "" {
+					continue
+				}
+				for _, t := range tr.Tags {
+					k := t.Key
+					v := t.Value
+					if strings.EqualFold(k, "CodeName") || strings.EqualFold(k, "code_name") {
+						out[id] = v
+					}
+				}
+			}
+		} else {
+			content := resp.GetHttpContentBytes()
+			parsed := parseContentCodeName(content)
+			for k, v := range parsed {
+				out[k] = v
+			}
+		}
+	}
+	assigned := 0
+	for _, v := range out {
+		if v != "" {
+			assigned++
+		}
+	}
+	ctxLog.Debugf("NLB 标签采集完成 资源数=%d 有code_name=%d", len(ids), assigned)
+	return out
+}
+
+func parseContentCodeName(content []byte) map[string]string {
+	out := make(map[string]string)
+	var jrA struct {
+		TagResources []struct {
+			ResourceId  string `json:"ResourceId"`
+			ResourceARN string `json:"ResourceARN"`
+			Tags        []struct {
+				Key      string `json:"Key"`
+				Value    string `json:"Value"`
+				TagKey   string `json:"TagKey"`
+				TagValue string `json:"TagValue"`
+			} `json:"Tags"`
+		} `json:"TagResources"`
+	}
+	if err := json.Unmarshal(content, &jrA); err == nil && len(jrA.TagResources) > 0 {
+		for _, tr := range jrA.TagResources {
+			id := tr.ResourceId
+			if id == "" && tr.ResourceARN != "" {
+				parts := strings.Split(tr.ResourceARN, "/")
+				if len(parts) > 0 {
+					id = parts[len(parts)-1]
+				}
+			}
+			if id == "" {
+				continue
+			}
+			for _, t := range tr.Tags {
+				k := t.Key
+				if k == "" {
+					k = t.TagKey
+				}
+				v := t.Value
+				if v == "" {
+					v = t.TagValue
+				}
+				if strings.EqualFold(k, "CodeName") || strings.EqualFold(k, "code_name") {
+					out[id] = v
+				}
+			}
+		}
+	}
+	var jrB struct {
+		TagResources struct {
+			TagResource []struct {
+				ResourceId string `json:"ResourceId"`
+				TagKey     string `json:"TagKey"`
+				TagValue   string `json:"TagValue"`
+				Key        string `json:"Key"`
+				Value      string `json:"Value"`
+			} `json:"TagResource"`
+		} `json:"TagResources"`
+	}
+	if err := json.Unmarshal(content, &jrB); err == nil && len(jrB.TagResources.TagResource) > 0 {
+		for _, tr := range jrB.TagResources.TagResource {
+			if tr.ResourceId == "" {
+				continue
+			}
+			k := tr.TagKey
+			if k == "" {
+				k = tr.Key
+			}
+			v := tr.TagValue
+			if v == "" {
+				v = tr.Value
+			}
+			if strings.EqualFold(k, "CodeName") || strings.EqualFold(k, "code_name") {
+				out[tr.ResourceId] = v
+			}
+		}
+	}
+	return out
 }
 func (a *Collector) buildMetricDimensions(ids []string, dkey string, metricDims []string, meta map[string]interface{}) ([]map[string]string, []string) {
 	var dynamicDims []string
@@ -788,10 +1406,12 @@ func (a *Collector) processMetricBatch(client CMSClient, req *cms.DescribeMetric
 			if callErr == nil {
 				metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricLast", "success").Inc()
 				metrics.RequestDuration.WithLabelValues("aliyun", "DescribeMetricLast").Observe(time.Since(startReq).Seconds())
+				metrics.RecordRequest("aliyun", "DescribeMetricLast", "success")
 				break
 			}
 			status := classifyAliyunError(callErr)
 			metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricLast", status).Inc()
+			metrics.RecordRequest("aliyun", "DescribeMetricLast", status)
 			if status == "auth_error" || status == "region_skip" {
 				ctxLog.Warnf("CMS DescribeMetricLast error status=%s: %v", status, callErr)
 				break

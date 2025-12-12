@@ -15,23 +15,27 @@ type MetricDef struct {
 	Dimensions []string `yaml:"dimensions,omitempty"`
 }
 
+type CanonicalEntry struct {
+	Description string    `yaml:"description"`
+	Aliyun      MetricDef `yaml:"aliyun"`
+	Tencent     MetricDef `yaml:"tencent"`
+}
+
 type MetricMapping struct {
-    Prefix      string                          `yaml:"prefix"`
-    Namespaces  map[string]string               `yaml:"namespaces"`
-    Canonical   map[string]map[string]MetricDef `yaml:"canonical"`
-    AliyunOnly  map[string]MetricDef            `yaml:"aliyun_only"`
-    TencentOnly map[string]MetricDef            `yaml:"tencent_only"`
+	Prefix     string                    `yaml:"prefix"`
+	Namespaces map[string]string         `yaml:"namespaces"`
+	Canonical  map[string]CanonicalEntry `yaml:"canonical"`
 }
 
 func LoadMetricMappings(path string) error {
-    data, err := os.ReadFile(path)
-    if err != nil {
-        return fmt.Errorf("failed to read metric mappings from %s: %v", path, err)
-    }
-    var mapping MetricMapping
-    if err := yaml.Unmarshal(data, &mapping); err != nil {
-        return fmt.Errorf("error parsing metric mappings: %v", err)
-    }
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("failed to read metric mappings from %s: %v", path, err)
+	}
+	var mapping MetricMapping
+	if err := yaml.Unmarshal(data, &mapping); err != nil {
+		return fmt.Errorf("error parsing metric mappings: %v", err)
+	}
 
 	// Use configured namespaces
 	aliyunNS := mapping.Namespaces["aliyun"]
@@ -52,37 +56,17 @@ func LoadMetricMappings(path string) error {
 	tencentScales := make(map[string]float64)
 
 	// Canonical
-	for newName, providers := range mapping.Canonical {
-		if def, ok := providers["aliyun"]; ok && def.Metric != "" {
-			aliyunAliases[def.Metric] = newName
-			if def.Scale != 0 {
-				aliyunScales[def.Metric] = def.Scale
+	for newName, entry := range mapping.Canonical {
+		if entry.Aliyun.Metric != "" {
+			aliyunAliases[entry.Aliyun.Metric] = newName
+			if entry.Aliyun.Scale != 0 {
+				aliyunScales[entry.Aliyun.Metric] = entry.Aliyun.Scale
 			}
 		}
-		if def, ok := providers["tencent"]; ok && def.Metric != "" {
-			tencentAliases[def.Metric] = newName
-			if def.Scale != 0 {
-				tencentScales[def.Metric] = def.Scale
-			}
-		}
-	}
-
-	// Aliyun Only
-	for newName, def := range mapping.AliyunOnly {
-		if def.Metric != "" {
-			aliyunAliases[def.Metric] = newName
-			if def.Scale != 0 {
-				aliyunScales[def.Metric] = def.Scale
-			}
-		}
-	}
-
-	// Tencent Only
-	for newName, def := range mapping.TencentOnly {
-		if def.Metric != "" {
-			tencentAliases[def.Metric] = newName
-			if def.Scale != 0 {
-				tencentScales[def.Metric] = def.Scale
+		if entry.Tencent.Metric != "" {
+			tencentAliases[entry.Tencent.Metric] = newName
+			if entry.Tencent.Scale != 0 {
+				tencentScales[entry.Tencent.Metric] = entry.Tencent.Scale
 			}
 		}
 	}
@@ -100,17 +84,17 @@ func LoadMetricMappings(path string) error {
 		metrics.RegisterNamespaceMetricScale(tencentNS, tencentScales)
 	}
 
-    return nil
+	return nil
 }
 
 func ParseMetricMappings(path string) (MetricMapping, error) {
-    data, err := os.ReadFile(path)
-    if err != nil {
-        return MetricMapping{}, fmt.Errorf("failed to read metric mappings from %s: %v", path, err)
-    }
-    var mapping MetricMapping
-    if err := yaml.Unmarshal(data, &mapping); err != nil {
-        return MetricMapping{}, fmt.Errorf("error parsing metric mappings: %v", err)
-    }
-    return mapping, nil
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return MetricMapping{}, fmt.Errorf("failed to read metric mappings from %s: %v", path, err)
+	}
+	var mapping MetricMapping
+	if err := yaml.Unmarshal(data, &mapping); err != nil {
+		return MetricMapping{}, fmt.Errorf("error parsing metric mappings: %v", err)
+	}
+	return mapping, nil
 }

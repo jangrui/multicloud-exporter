@@ -14,7 +14,7 @@ import (
 
 func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []string {
 	if ids, hit := t.getCachedIDs(account, region, "QCE/BWP", "bwp"); hit {
-		logger.Log.Infof("Tencent BWP IDs cache hit account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
+		logger.Log.Debugf("Tencent BWP IDs cache hit account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
 		return ids
 	}
 
@@ -28,9 +28,11 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 	if err != nil {
 		status := classifyTencentError(err)
 		metrics.RequestTotal.WithLabelValues("tencent", "DescribeBandwidthPackages", status).Inc()
+		metrics.RecordRequest("tencent", "DescribeBandwidthPackages", status)
 		return []string{}
 	}
 	metrics.RequestTotal.WithLabelValues("tencent", "DescribeBandwidthPackages", "success").Inc()
+	metrics.RecordRequest("tencent", "DescribeBandwidthPackages", "success")
 	metrics.RequestDuration.WithLabelValues("tencent", "DescribeBandwidthPackages").Observe(time.Since(start).Seconds())
 
 	if resp == nil || resp.Response == nil || resp.Response.BandwidthPackageSet == nil {
@@ -50,9 +52,9 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 			max = len(ids)
 		}
 		preview := ids[:max]
-		logger.Log.Infof("Tencent BWP enumerated account_id=%s region=%s count=%d preview=%v", account.AccountID, region, len(ids), preview)
+		logger.Log.Debugf("Tencent BWP enumerated account_id=%s region=%s count=%d preview=%v", account.AccountID, region, len(ids), preview)
 	} else {
-		logger.Log.Infof("Tencent BWP enumerated account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
+		logger.Log.Debugf("Tencent BWP enumerated account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
 	}
 	return ids
 }
@@ -97,12 +99,14 @@ func (t *Collector) fetchBWPMonitor(account config.CloudAccount, region string, 
 			if err != nil {
 				status := classifyTencentError(err)
 				metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", status).Inc()
+				metrics.RecordRequest("tencent", "GetMonitorData", status)
 				if status == "limit_error" {
 					metrics.RateLimitTotal.WithLabelValues("tencent", "GetMonitorData").Inc()
 				}
 				continue
 			}
 			metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", "success").Inc()
+			metrics.RecordRequest("tencent", "GetMonitorData", "success")
 			metrics.RequestDuration.WithLabelValues("tencent", "GetMonitorData").Observe(time.Since(reqStart).Seconds())
 
 			if resp == nil || resp.Response == nil || resp.Response.DataPoints == nil || len(resp.Response.DataPoints) == 0 {

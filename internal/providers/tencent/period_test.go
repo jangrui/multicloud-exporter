@@ -20,7 +20,7 @@ func TestMinPeriod_SinglePeriod(t *testing.T) {
         return []byte(`{"MetricSet":[{"MetricName":"VipOuttraffic","Period":300}]}`), nil
     }
     acc := config.CloudAccount{}
-    p := minPeriodForMetric("ap-guangzhou", acc, "QCE/CLB", "VipOuttraffic")
+    p := minPeriodForMetric("ap-guangzhou", acc, "QCE/LB", "VipOuttraffic")
     if p != 300 { t.Fatalf("expected 300, got %d", p) }
 }
 
@@ -29,7 +29,6 @@ func TestMinPeriod_EmptyFallback(t *testing.T) {
         return []byte(`{"MetricSet":[]}`), nil
     }
     acc := config.CloudAccount{}
-    p := minPeriodForMetric("ap-guangzhou", acc, "QCE/CLB", "VipIntraffic")
+    p := minPeriodForMetric("ap-guangzhou", acc, "QCE/LB", "VipIntraffic")
     if p != 60 { t.Fatalf("expected 60 fallback, got %d", p) }
 }
-

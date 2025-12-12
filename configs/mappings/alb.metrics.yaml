@@ -1,0 +1,1852 @@
+# 统一 ALB 指标映射关系（Aliyun / Tencent）
+# 说明：canonical 指代统一后的 `alb_*` 名称；各云平台原始指标在 providers 下声明，并给出单位与查询层的缩放建议。
+
+prefix: alb
+namespaces:
+  aliyun: acs_alb
+
+canonical:
+  # 连接类指标
+  active_connection:
+    description: "活跃连接数"
+    aliyun:
+      metric: LoadBalancerActiveConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count
+  new_connection:
+    description: "新建连接数"
+    aliyun:
+      metric: LoadBalancerNewConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dropped_connection:
+    description: "丢弃连接数"
+    aliyun:
+      metric: LoadBalancerRejectedConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+
+  # 流量类指标
+  traffic_rx_bps:
+    description: "入网流量"
+    aliyun:
+      metric: LoadBalancerInBits
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: bit/s
+      scale: 1
+  traffic_tx_bps:
+    description: "出网流量"
+    aliyun:
+      metric: LoadBalancerOutBits
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: bit/s
+      scale: 1
+
+  # 七层指标
+  qps:
+    description: "每秒请求数 (L7)"
+    aliyun:
+      metric: LoadBalancerQPS
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+      scale: 1
+  rt:
+    description: "响应时间 (L7)"
+    aliyun:
+      metric: LoadBalancerRequestTime
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: ms
+      scale: 1
+  status_code_2xx:
+    description: "HTTP 2XX 状态码数量"
+    aliyun:
+      metric: LoadBalancerHTTPCode2XX
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+      scale: 1
+  status_code_3xx:
+    description: "HTTP 3XX 状态码数量"
+    aliyun:
+      metric: LoadBalancerHTTPCode3XX
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+      scale: 1
+  status_code_4xx:
+    description: "HTTP 4XX 状态码数量"
+    aliyun:
+      metric: LoadBalancerHTTPCode4XX
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+      scale: 1
+  status_code_5xx:
+    description: "HTTP 5XX 状态码数量"
+    aliyun:
+      metric: LoadBalancerHTTPCode5XX
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+      scale: 1
+
+
+  # Listener Level
+  listener_active_connection:
+    aliyun:
+      metric: ListenerActiveConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count
+  listener_client_tls_negotiation_error:
+    aliyun:
+      metric: ListenerClientTLSNegotiationError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  listener_http_code_2xx:
+    aliyun:
+      metric: ListenerHTTPCode2XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  listener_http_code_3xx:
+    aliyun:
+      metric: ListenerHTTPCode3XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  listener_http_code_4xx:
+    aliyun:
+      metric: ListenerHTTPCode4XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  listener_http_code_500:
+    aliyun:
+      metric: ListenerHTTPCode500
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  listener_http_code_502:
+    aliyun:
+      metric: ListenerHTTPCode502
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  listener_http_code_503:
+    aliyun:
+      metric: ListenerHTTPCode503
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  listener_http_code_504:
+    aliyun:
+      metric: ListenerHTTPCode504
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  listener_http_code_5xx:
+    aliyun:
+      metric: ListenerHTTPCode5XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  listener_http_code_upstream_2xx:
+    aliyun:
+      metric: ListenerHTTPCodeUpstream2XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  listener_http_code_upstream_3xx:
+    aliyun:
+      metric: ListenerHTTPCodeUpstream3XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  listener_http_code_upstream_4xx:
+    aliyun:
+      metric: ListenerHTTPCodeUpstream4XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  listener_http_code_upstream_5xx:
+    aliyun:
+      metric: ListenerHTTPCodeUpstream5XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  listener_http_fixed_response:
+    aliyun:
+      metric: ListenerHTTPFixedResponse
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  listener_http_redirect:
+    aliyun:
+      metric: ListenerHTTPRedirect
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  listener_healthy_host_count:
+    aliyun:
+      metric: ListenerHealthyHostCount
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count
+  listener_in_bits:
+    aliyun:
+      metric: ListenerInBits
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: bit/s
+  listener_inactive_connection:
+    aliyun:
+      metric: ListenerInactiveConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count
+  listener_max_connection:
+    aliyun:
+      metric: ListenerMaxConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count
+  listener_new_connection:
+    aliyun:
+      metric: ListenerNewConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  listener_non_sticky_request:
+    aliyun:
+      metric: ListenerNonStickyRequest
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  listener_out_bits:
+    aliyun:
+      metric: ListenerOutBits
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: bit/s
+  listener_qps:
+    aliyun:
+      metric: ListenerQPS
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  listener_rejected_connection:
+    aliyun:
+      metric: ListenerRejectedConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  listener_request_time:
+    aliyun:
+      metric: ListenerRequestTime
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: ms
+  listener_unhealthy_host_count:
+    aliyun:
+      metric: ListenerUnHealthyHostCount
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count
+  listener_upstream_connection_error:
+    aliyun:
+      metric: ListenerUpstreamConnectionError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  listener_upstream_response_time:
+    aliyun:
+      metric: ListenerUpstreamResponseTime
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: ms
+  listener_upstream_tls_negotiation_error:
+    aliyun:
+      metric: ListenerUpstreamTLSNegotiationError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+
+  # Vip Level
+  vip_active_connection:
+    aliyun:
+      metric: VipActiveConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count
+  vip_client_tls_negotiation_error:
+    aliyun:
+      metric: VipClientTLSNegotiationError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s
+  vip_http_code_2xx:
+    aliyun:
+      metric: VipHTTPCode2XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s
+  vip_http_code_3xx:
+    aliyun:
+      metric: VipHTTPCode3XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s
+  vip_http_code_4xx:
+    aliyun:
+      metric: VipHTTPCode4XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s
+  vip_http_code_500:
+    aliyun:
+      metric: VipHTTPCode500
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s
+  vip_http_code_502:
+    aliyun:
+      metric: VipHTTPCode502
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s
+  vip_http_code_503:
+    aliyun:
+      metric: VipHTTPCode503
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s
+  vip_http_code_504:
+    aliyun:
+      metric: VipHTTPCode504
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s
+  vip_http_code_5xx:
+    aliyun:
+      metric: VipHTTPCode5XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s
+  vip_http_fixed_response:
+    aliyun:
+      metric: VipHTTPFixedResponse
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s
+  vip_http_redirect:
+    aliyun:
+      metric: VipHTTPRedirect
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s
+  vip_in_bits:
+    aliyun:
+      metric: VipInBits
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: bit/s
+  vip_inactive_connection:
+    aliyun:
+      metric: VipInactiveConnection 
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: bit/s
+  vip_inactive_connection:
+    aliyun:
+      metric: VipInactiveConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count
+  vip_max_connection:
+    aliyun:
+      metric: VipMaxConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count
+  vip_new_connection:
+    metric: VipNewConnection
+    dimensions:
+      - userId
+      - loadBalancerId
+      - vip
+    unit: count/s
+  vip_non_sticky_request:
+    metric: VipNonStickyRequest
+    dimensions:
+      - userId
+      - loadBalancerId
+      - vip
+    unit: count/s
+  vip_out_bits:
+    aliyun:
+      metric: VipOutBits
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: bit/s
+  vip_qps:
+    aliyun:
+      metric: VipQPS
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s
+  vip_rejected_connection:
+    aliyun:
+      metric: VipRejectedConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s
+  vip_rejected_connection:
+    aliyun:
+      metric: VipRejectedConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s
+  vip_request_time:
+    aliyun:
+      metric: VipRequestTime
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: ms
+  vip_upstream_connection_error:
+    aliyun:
+      metric: VipUpstreamConnectionError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s
+  vip_upstream_response_time:
+    aliyun:
+      metric: VipUpstreamResponseTime
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: ms
+  vip_upstream_tls_negotiation_error:
+    aliyun:
+      metric: VipUpstreamTLSNegotiationError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+    unit: count/s
+
+  # ServerGroup Level
+  server_group_http_code_upstream_2xx:
+    aliyun:
+      metric: ServerGroupHTTPCodeUpstream2XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count/s
+  server_group_http_code_upstream_3xx:
+    aliyun:
+      metric: ServerGroupHTTPCodeUpstream3XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count/s
+  server_group_http_code_upstream_4xx:
+    aliyun:
+      metric: ServerGroupHTTPCodeUpstream4XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count/s
+  server_group_http_code_upstream_5xx:
+    aliyun:
+      metric: ServerGroupHTTPCodeUpstream5XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count/s
+  server_group_healthy_host_count:
+    aliyun:
+      metric: ServerGroupHealthyHostCount
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count
+  server_group_non_sticky_request:
+    aliyun:
+      metric: ServerGroupNonStickyRequest
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count/s
+  server_group_qps:
+    aliyun:
+      metric: ServerGroupQPS
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count/s
+  server_group_request_time:
+    aliyun:
+      metric: ServerGroupRequestTime
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: ms
+  server_group_unhealthy_host_count:
+    aliyun:
+      metric: ServerGroupUnHealthyHostCount
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+    unit: count
+  server_group_upstream_connection_error:
+    aliyun:
+      metric: ServerGroupUpstreamConnectionError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count/s
+  server_group_upstream_response_time:
+    aliyun:
+      metric: ServerGroupUpstreamResponseTime
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: ms
+  server_group_upstream_tls_negotiation_error:
+    aliyun:
+      metric: ServerGroupUpstreamTLSNegotiationError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count/s
+
+  # Rule Level
+  rule_http_code_upstream_2xx:
+    aliyun:
+      metric: RuleHTTPCodeUpstream2XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count/s
+  rule_http_code_upstream_2xx_ratio:
+    aliyun:
+      metric: RuleHTTPCodeUpstream2XXRatio
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: ratio
+  rule_http_code_upstream_3xx:
+    aliyun:
+      metric: RuleHTTPCodeUpstream3XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count/s
+  rule_http_code_upstream_3xx_ratio:
+    aliyun:
+      metric: RuleHTTPCodeUpstream3XXRatio
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: ratio
+  rule_http_code_upstream_4xx:
+    aliyun:
+      metric: RuleHTTPCodeUpstream4XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count/s
+  rule_http_code_upstream_4xx_ratio:
+    aliyun:
+      metric: RuleHTTPCodeUpstream4XXRatio
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: ratio
+  rule_http_code_upstream_5xx:
+    aliyun:
+      metric: RuleHTTPCodeUpstream5XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count/s
+  rule_http_code_upstream_5xx_ratio:
+    aliyun:
+      metric: RuleHTTPCodeUpstream5XXRatio
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: ratio
+  rule_healthy_host_count:
+    aliyun:
+      metric: RuleHealthyHostCount
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count
+  rule_non_sticky_request:
+    aliyun:
+      metric: RuleNonStickyRequest
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count/s
+  rule_qps:
+    aliyun:
+      metric: RuleQPS
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count/s
+  rule_request_time:
+    aliyun:
+      metric: RuleRequestTime
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: ms
+  rule_unhealthy_host_count:
+    aliyun:
+      metric: RuleUnHealthyHostCount
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count
+  rule_upstream_connection_error:
+    aliyun:
+      metric: RuleUpstreamConnectionError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count/s
+  rule_upstream_response_time:
+    aliyun:
+      metric: RuleUpstreamResponseTime
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: ms
+  rule_upstream_tls_negotiation_error:
+    aliyun:
+      metric: RuleUpstreamTLSNegotiationError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count/s
+
+  # DualStack Metrics
+  dual_stack_load_balancer_active_connection:
+    aliyun:
+      metric: DualStack_LoadBalancerActiveConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count 
+  dual_stack_load_balancer_client_tls_negotiation_error:
+    aliyun:
+      metric: DualStack_LoadBalancerClientTLSNegotiationError
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_http_code_2xx:
+    aliyun:
+      metric: DualStack_LoadBalancerHTTPCode2XX
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_http_code_3xx:
+    aliyun:
+      metric: DualStack_LoadBalancerHTTPCode3XX
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_http_code_4xx:
+    aliyun:
+      metric: DualStack_LoadBalancerHTTPCode4XX
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_http_code_500:
+    aliyun:
+      metric: DualStack_LoadBalancerHTTPCode500
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_http_code_502:
+    aliyun:
+      metric: DualStack_LoadBalancerHTTPCode502
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_http_code_503:
+    aliyun:
+      metric: DualStack_LoadBalancerHTTPCode503
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_http_code_504:
+    aliyun:
+      metric: DualStack_LoadBalancerHTTPCode504
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_http_code_5xx:
+    aliyun:
+      metric: DualStack_LoadBalancerHTTPCode5XX
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_http_code_upstream_2xx:
+    aliyun:
+      metric: DualStack_LoadBalancerHTTPCodeUpstream2XX
+      dimensions:
+        - userId
+        - loadBalancerId
+    unit: count/s
+  dual_stack_load_balancer_http_code_upstream_3xx:
+    aliyun:
+      metric: DualStack_LoadBalancerHTTPCodeUpstream3XX
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_http_code_upstream_4xx:
+    aliyun:
+      metric: DualStack_LoadBalancerHTTPCodeUpstream4XX
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_http_code_upstream_5xx:
+    aliyun:
+      metric: DualStack_LoadBalancerHTTPCodeUpstream5XX
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_http_fixed_response:
+    aliyun:
+      metric: DualStack_LoadBalancerHTTPFixedResponse
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s 
+  dual_stack_load_balancer_http_redirect:
+    aliyun:
+      metric: DualStack_LoadBalancerHTTPRedirect
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_healthy_host_count:
+    aliyun:
+      metric: DualStack_LoadBalancerHealthyHostCount
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count
+  dual_stack_load_balancer_in_bits:
+    aliyun:
+      metric: DualStack_LoadBalancerInBits
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: bit/s
+  dual_stack_load_balancer_inactive_connection:
+    aliyun:
+      metric: DualStack_LoadBalancerInactiveConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count
+  dual_stack_load_balancer_max_connection:
+    aliyun:
+      metric: DualStack_LoadBalancerMaxConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+    unit: count
+  dual_stack_load_balancer_new_connection:
+    aliyun:
+      metric: DualStack_LoadBalancerNewConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_non_sticky_request:
+    aliyun:
+      metric: DualStack_LoadBalancerNonStickyRequest
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_out_bits:
+    aliyun:
+      metric: DualStack_LoadBalancerOutBits
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: bit/s 
+  dual_stack_load_balancer_qps:
+    aliyun:
+      metric: DualStack_LoadBalancerQPS
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_rejected_connection:
+    aliyun:
+      metric: DualStack_LoadBalancerRejectedConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_request_time:
+    aliyun:
+      metric: DualStack_LoadBalancerRequestTime
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: ms
+  dual_stack_load_balancer_unhealthy_host_count:
+    aliyun:
+      metric: DualStack_LoadBalancerUnHealthyHostCount
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count
+  dual_stack_load_balancer_upstream_connection_error:
+    aliyun:
+      metric: DualStack_LoadBalancerUpstreamConnectionError
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_upstream_response_time:
+    aliyun:
+      metric: DualStack_LoadBalancerUpstreamResponseTime
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: ms
+  dual_stack_load_balancer_upstream_tls_negotiation_error:
+    aliyun:
+      metric: DualStack_LoadBalancerUpstreamTLSNegotiationError
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_listener_new_connection:
+    aliyun:
+      metric: DualStack_ListenerNewConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+
+  # DualStack Listener
+  dual_stack_listener_active_connection:
+    aliyun:
+      metric: DualStack_ListenerActiveConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count
+  dual_stack_listener_client_tls_negotiation_error:
+    aliyun:
+      metric: DualStack_ListenerClientTLSNegotiationError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_http_code_2xx:
+    aliyun:
+      metric: DualStack_ListenerHTTPCode2XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_http_code_3xx:
+    aliyun:
+      metric: DualStack_ListenerHTTPCode3XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_http_code_4xx:
+    aliyun:
+      metric: DualStack_ListenerHTTPCode4XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_http_code_500:
+    aliyun:
+      metric: DualStack_ListenerHTTPCode500
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_http_code_502:
+    aliyun:
+      metric: DualStack_ListenerHTTPCode502
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_http_code_503:
+    aliyun:
+      metric: DualStack_ListenerHTTPCode503
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_http_code_504:
+    aliyun:
+      metric: DualStack_ListenerHTTPCode504
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_http_code_5xx:
+    aliyun:
+      metric: DualStack_ListenerHTTPCode5XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_http_code_upstream_2xx:
+    aliyun:
+      metric: DualStack_ListenerHTTPCodeUpstream2XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_http_code_upstream_3xx:
+    aliyun:
+      metric: DualStack_ListenerHTTPCodeUpstream3XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_http_code_upstream_4xx:
+    aliyun:
+      metric: DualStack_ListenerHTTPCodeUpstream4XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s 
+  dual_stack_listener_http_code_upstream_5xx:
+    aliyun:
+      metric: DualStack_ListenerHTTPCodeUpstream5XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s 
+  dual_stack_listener_http_fixed_response:
+    aliyun:
+      metric: DualStack_ListenerHTTPFixedResponse
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_http_redirect:
+    aliyun:
+      metric: DualStack_ListenerHTTPRedirect
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s 
+  dual_stack_listener_healthy_host_count:
+    aliyun:
+      metric: DualStack_ListenerHealthyHostCount
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count
+  dual_stack_listener_in_bits:
+    aliyun:
+      metric: DualStack_ListenerInBits
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: bit/s
+  dual_stack_listener_inactive_connection:
+    aliyun:
+      metric: DualStack_ListenerInactiveConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count
+  dual_stack_listener_max_connection:
+    aliyun:
+      metric: DualStack_ListenerMaxConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_new_connection:
+    aliyun:
+      metric: DualStack_ListenerNewConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_non_sticky_request:
+    aliyun:
+      metric: DualStack_ListenerNonStickyRequest
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_out_bits:
+    aliyun:
+      metric: DualStack_ListenerOutBits
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: bit/s
+  dual_stack_listener_qps:
+    aliyun:
+      metric: DualStack_ListenerQPS
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_rejected_connection:
+    aliyun:
+      metric: DualStack_ListenerRejectedConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_request_time:
+    aliyun:
+      metric: DualStack_ListenerRequestTime
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: ms
+  dual_stack_listener_unhealthy_host_count:
+    aliyun:
+      metric: DualStack_ListenerUnHealthyHostCount
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count
+  dual_stack_listener_upstream_connection_error:
+    aliyun:
+      metric: DualStack_ListenerUpstreamConnectionError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+    unit: count/s
+  dual_stack_listener_upstream_response_time:
+    aliyun:
+      metric: DualStack_ListenerUpstreamResponseTime
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: ms
+  dual_stack_listener_upstream_tls_negotiation_error:
+    aliyun:
+      metric: DualStack_ListenerUpstreamTLSNegotiationError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+
+  # DualStack Vip
+  dual_stack_vip_active_connection:
+    aliyun:
+      metric: DualStack_VipActiveConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count
+  dual_stack_vip_client_tls_negotiation_error:
+    aliyun:
+      metric: DualStack_VipClientTLSNegotiationError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+    unit: count/s
+  dual_stack_vip_http_code_2xx:
+    aliyun:
+      metric: DualStack_VipHTTPCode2XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s 
+  dual_stack_vip_http_code_3xx:
+    aliyun:
+      metric: DualStack_VipHTTPCode3XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s
+  dual_stack_vip_http_code_4xx:
+    aliyun:
+      metric: DualStack_VipHTTPCode4XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s
+  dual_stack_vip_http_code_500:
+    aliyun:
+      metric: DualStack_VipHTTPCode500
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s
+  dual_stack_vip_http_code_502:
+    aliyun:
+      metric: DualStack_VipHTTPCode502
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s
+  dual_stack_vip_http_code_503:
+    aliyun:
+      metric: DualStack_VipHTTPCode503
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s
+  dual_stack_vip_http_code_504:
+    aliyun:
+      metric: DualStack_VipHTTPCode504
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s 
+  dual_stack_vip_http_code_5xx:
+    aliyun:
+      metric: DualStack_VipHTTPCode5XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s
+  dual_stack_vip_http_fixed_response:
+    aliyun:
+      metric: DualStack_VipHTTPFixedResponse
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s
+  dual_stack_vip_http_redirect:
+    aliyun:
+      metric: DualStack_VipHTTPRedirect
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s
+  dual_stack_vip_in_bits:
+    aliyun:
+      metric: DualStack_VipInBits
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: bit/s
+  dual_stack_vip_inactive_connection:
+    aliyun:
+      metric: DualStack_VipInactiveConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+    unit: count
+  dual_stack_vip_max_connection:
+    aliyun:
+      metric: DualStack_VipMaxConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count
+  dual_stack_vip_new_connection:
+    aliyun:
+      metric: DualStack_VipNewConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s
+  dual_stack_vip_non_sticky_request:
+    aliyun:
+      metric: DualStack_VipNonStickyRequest
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s
+  dual_stack_vip_out_bits:
+    aliyun:
+      metric: DualStack_VipOutBits
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: bit/s
+  dual_stack_vip_qps:
+    aliyun:
+      metric: DualStack_VipQPS
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s 
+  dual_stack_vip_rejected_connection:
+    aliyun:
+      metric: DualStack_VipRejectedConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s
+  dual_stack_vip_request_time:
+    aliyun:
+      metric: DualStack_VipRequestTime
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: ms
+  dual_stack_vip_upstream_connection_error:
+    aliyun:
+      metric: DualStack_VipUpstreamConnectionError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s
+  dual_stack_vip_upstream_response_time:
+    aliyun:
+      metric: DualStack_VipUpstreamResponseTime
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: ms
+  dual_stack_vip_upstream_tls_negotiation_error:
+    aliyun:
+      metric: DualStack_VipUpstreamTLSNegotiationError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s
+
+  # DualStack ServerGroup
+  dual_stack_server_group_http_code_upstream_2xx:
+    aliyun:
+      metric: DualStack_ServerGroupHTTPCodeUpstream2XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count/s
+  dual_stack_server_group_http_code_upstream_3xx:
+    aliyun:
+      metric: DualStack_ServerGroupHTTPCodeUpstream3XX
+      dimensions: 
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count/s
+  dual_stack_server_group_http_code_upstream_4xx:
+    aliyun:
+      metric: DualStack_ServerGroupHTTPCodeUpstream4XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count/s                                 
+  dual_stack_server_group_http_code_upstream_5xx:
+    aliyun:
+      metric: DualStack_ServerGroupHTTPCodeUpstream5XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count/s 
+  dual_stack_server_group_healthy_host_count:
+    aliyun:
+      metric: DualStack_ServerGroupHealthyHostCount
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count
+  dual_stack_server_group_non_sticky_request:
+    aliyun:
+      metric: DualStack_ServerGroupNonStickyRequest
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count/s
+  dual_stack_server_group_qps:
+    aliyun:
+      metric: DualStack_ServerGroupQPS
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count/s
+  dual_stack_server_group_request_time:
+    aliyun:
+      metric: DualStack_ServerGroupRequestTime
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: ms  
+  dual_stack_server_group_unhealthy_host_count:
+    aliyun:
+      metric: DualStack_ServerGroupUnHealthyHostCount
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count
+  dual_stack_server_group_upstream_connection_error:
+    aliyun:
+      metric: DualStack_ServerGroupUpstreamConnectionError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count/s
+  dual_stack_server_group_upstream_response_time:
+    aliyun:
+      metric: DualStack_ServerGroupUpstreamResponseTime
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: ms
+  dual_stack_server_group_upstream_tls_negotiation_error:
+    aliyun:
+      metric: DualStack_ServerGroupUpstreamTLSNegotiationError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count/s
+
+  # DualStack Rule
+  dual_stack_rule_http_code_upstream_2xx:
+    aliyun:
+      metric: DualStack_RuleHTTPCodeUpstream2XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count/s
+  dual_stack_rule_http_code_upstream_2xx_ratio:
+    aliyun:
+      metric: DualStack_RuleHTTPCodeUpstream2XXRatio
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: ratio
+  dual_stack_rule_http_code_upstream_3xx:
+    aliyun:
+      metric: DualStack_RuleHTTPCodeUpstream3XX 
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count/s
+  dual_stack_rule_http_code_upstream_3xx_ratio:
+    aliyun:
+      metric: DualStack_RuleHTTPCodeUpstream3XXRatio
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: ratio 
+  dual_stack_rule_http_code_upstream_4xx:
+    aliyun:
+      metric: DualStack_RuleHTTPCodeUpstream4XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count/s
+  dual_stack_rule_http_code_upstream_4xx_ratio:
+    aliyun:
+      metric: DualStack_RuleHTTPCodeUpstream4XXRatio
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort  
+        - ruleId
+      unit: ratio
+  dual_stack_rule_http_code_upstream_5xx:
+    aliyun:
+      metric: DualStack_RuleHTTPCodeUpstream5XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count/s
+  dual_stack_rule_http_code_upstream_5xx_ratio:
+    aliyun:
+      metric: DualStack_RuleHTTPCodeUpstream5XXRatio
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+    unit: ratio
+  dual_stack_rule_healthy_host_count:
+    aliyun:
+      metric: DualStack_RuleHealthyHostCount
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count
+  dual_stack_rule_non_sticky_request:
+    aliyun:
+      metric: DualStack_RuleNonStickyRequest
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count/s
+  dual_stack_rule_qps:
+    aliyun:
+      metric: DualStack_RuleQPS
+      dimensions:
+        - userId
+        - loadBalancerId  
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count/s
+      - listenerPort
+      - ruleId
+    unit: count/s
+  dual_stack_rule_request_time:
+    aliyun:
+      metric: DualStack_RuleRequestTime
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: ms
+  dual_stack_rule_unhealthy_host_count:
+    aliyun:
+      metric: DualStack_RuleUnHealthyHostCount
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+    unit: count
+  dual_stack_rule_upstream_connection_error:
+    aliyun:
+      metric: DualStack_RuleUpstreamConnectionError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count/s
+  dual_stack_rule_upstream_response_time:
+    aliyun:
+      metric: DualStack_RuleUpstreamResponseTime
+      dimensions:
+        - userId  
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: ms
+      - listenerProtocol
+      - listenerPort
+      - ruleId
+    unit: ms
+  dual_stack_rule_upstream_tls_negotiation_error:
+    aliyun:
+      metric: DualStack_RuleUpstreamTLSNegotiationError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count/s

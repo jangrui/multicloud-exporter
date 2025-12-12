@@ -119,9 +119,9 @@ Exporter 暴露了 `/metrics` 端点，其中包含自身运行状态指标：
           access_key_secret: "${ALIYUN_SK}"
           regions: ["*"]
           resources:
-            - cbwp
-            - slb
-            - oss
+            - bwp
+            - clb
+            - s3
 
       tencent:
         - provider: tencent
@@ -132,7 +132,7 @@ Exporter 暴露了 `/metrics` 端点，其中包含自身运行状态指标：
           resources:
             - bwp
             - clb
-            - cos
+            - s3
     ```
 
 - 调度与资源

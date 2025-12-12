@@ -76,12 +76,12 @@ func TestManager_Watch(t *testing.T) {
 	// 2. Start Manager
 	m.Start(ctx)
 
-	// Allow some time for initial load from file (triggered by watchAccounts)
-	// and drain any pending events so we start with a clean slate.
-	time.Sleep(200 * time.Millisecond)
+	// Wait for initial sync (expect at least one update)
 	select {
 	case <-ch:
-	default:
+		// Consumed initial event
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for initial discovery")
 	}
 
 	// Verify initial state

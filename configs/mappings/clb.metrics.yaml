@@ -1,0 +1,652 @@
+# 统一 LB 指标映射关系（Aliyun / Tencent）
+# 说明：canonical 指代统一后的 `lb_*` 名称；各云平台原始指标在 providers 下声明，并给出单位与查询层的缩放建议。
+
+prefix: clb
+namespaces:
+  aliyun: acs_slb_dashboard
+  tencent: QCE/LB
+
+canonical:
+  traffic_rx_bps:
+    description: "入网流量 (实例级)"
+    aliyun:
+      metric: InstanceTrafficRX
+      dimensions:
+        - userId
+        - instanceId
+      unit: bit/s
+      scale: 1
+    tencent:
+      metric: VipIntraffic
+      dimensions:
+        - eip
+      unit: Mbps
+      scale: 1000000
+  traffic_tx_bps:
+    description: "出网流量 (实例级)"
+    aliyun:
+      metric: InstanceTrafficTX
+      dimensions:
+        - userId
+        - instanceId
+      unit: bit/s
+      scale: 1
+    tencent:
+      metric: VipOuttraffic
+      dimensions:
+        - eip
+      unit: Mbps
+      scale: 1000000
+  packet_rx:
+    description: "入网包速率"
+    aliyun:
+      metric: InstancePacketRX
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+      scale: 1
+    tencent:
+      metric: VipInpkg
+      dimensions:
+        - eip
+      unit: count/s
+      scale: 1
+  packet_tx:
+    description: "出网包速率"
+    aliyun:
+      metric: InstancePacketTX
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+      scale: 1
+    tencent:
+      metric: VipOutpkg
+      dimensions:
+        - eip
+      unit: count/s
+      scale: 1
+  drop_packet_rx:
+    description: "入网丢包速率"
+    aliyun:
+      metric: InstanceDropPacketRX
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+      scale: 1
+    tencent:
+      metric: Vipindroppkts
+      dimensions:
+        - eip
+      unit: pps
+      scale: 1
+  drop_packet_tx:
+    description: "出网丢包速率"
+    aliyun:
+      metric: InstanceDropPacketTX
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+      scale: 1
+    tencent:
+      metric: Vipoutdroppkts
+      dimensions:
+        - eip
+      unit: pps
+      scale: 1
+  drop_traffic_rx_bps:
+    description: "入网丢弃流量 (实例级)"
+    aliyun:
+      metric: InstanceDropTrafficRX
+      dimensions:
+        - userId
+        - instanceId
+      unit: bit/s
+      scale: 1
+  drop_traffic_tx_bps:
+    description: "出网丢弃流量 (实例级)"
+    aliyun:
+      metric: InstanceDropTrafficTX
+      dimensions:
+        - userId
+        - instanceId
+      unit: bit/s
+      scale: 1
+  traffic_rx_utilization_pct:
+    description: "入网带宽利用率"
+    tencent:
+      metric: IntrafficVipRatio
+      dimensions:
+        - eip
+      unit: '%'
+      scale: 1
+  traffic_tx_utilization_pct:
+    description: "出网带宽利用率"
+    tencent:
+      metric: OuttrafficVipRatio
+      dimensions:
+        - eip
+      unit: '%'
+      scale: 1
+  vip_new_connection:
+    description: "VIP 新建连接数 (腾讯云特有)"
+    tencent:
+      metric: VNewConn
+      dimensions:
+        - eip
+      unit: count/s
+      scale: 1
+  new_connection:
+    description: "新建连接数"
+    aliyun:
+      metric: NewConnection
+      dimensions:
+        - userId
+        - instanceId
+        - port
+      unit: count
+      scale: 1
+    tencent:
+      metric: VNewConn
+      dimensions:
+        - eip
+      unit: count/s
+      scale: 1
+  active_connection:
+    description: "活跃连接数"
+    aliyun:
+      metric: ActiveConnection
+      dimensions:
+        - userId
+        - instanceId
+        - port
+      unit: count
+      scale: 1
+    tencent:
+      metric: VConnum
+      dimensions:
+        - eip
+      unit: count
+      scale: 1
+  drop_connection:
+    description: "丢弃连接数"
+    aliyun:
+      metric: DropConnection
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - protocol
+      unit: count/s
+      scale: 1
+  qps:
+    description: "每秒请求数 (L7)"
+    aliyun:
+      metric: Qps
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - protocol
+      unit: count/s
+  rt:
+    description: "响应时间 (L7)"
+    aliyun:
+      metric: Rt
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - protocol
+      unit: ms
+  status_code_2xx:
+    description: "HTTP 2XX 状态码数量"
+    aliyun:
+      metric: StatusCode2xx
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - protocol
+      unit: count/s
+  status_code_3xx:
+    description: "HTTP 3XX 状态码数量"
+    aliyun:
+      metric: StatusCode3xx
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - protocol
+      unit: count/s
+  status_code_4xx:
+    description: "HTTP 4XX 状态码数量"
+    aliyun:
+      metric: StatusCode4xx
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - protocol
+      unit: count/s
+  status_code_5xx:
+    description: "HTTP 5XX 状态码数量"
+    aliyun:
+      metric: StatusCode5xx
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - protocol
+      unit: count/s
+  status_code_other:
+    description: "其他 HTTP 状态码数量"
+    aliyun:
+      metric: StatusCodeOther
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - protocol
+      unit: count/s
+  unhealthy_server_count:
+    aliyun:
+      metric: UnhealthyServerCount
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - vip
+      unit: count
+  healthy_server_count_with_rule:
+    aliyun:
+      metric: HealthyServerCountWithRule
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - vip
+        - domain
+        - url
+      unit: count
+  instance_qps:
+    aliyun:
+      metric: InstanceQps
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+  instance_rt:
+    aliyun:
+      metric: InstanceRt
+      dimensions:
+        - userId
+        - instanceId
+      unit: ms
+  instance_packet_rx:
+    aliyun:
+      metric: InstancePacketRX
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+  instance_packet_tx:
+    aliyun:
+      metric: InstancePacketTX
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+  instance_traffic_rx_utilization_pct:
+    aliyun:
+      metric: InstanceTrafficRXUtilization
+      dimensions:
+        - userId
+        - instanceId
+      unit: ratio
+  instance_traffic_tx_utilization_pct:
+    aliyun:
+      metric: InstanceTrafficTXUtilization
+      dimensions:
+        - userId
+        - instanceId
+      unit: ratio
+  instance_status_code_2xx:
+    aliyun:
+      metric: InstanceStatusCode2xx
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+  instance_status_code_3xx:
+    aliyun:
+      metric: InstanceStatusCode3xx
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+  instance_status_code_4xx:
+    aliyun:
+      metric: InstanceStatusCode4xx
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+  instance_status_code_5xx:
+    aliyun:
+      metric: InstanceStatusCode5xx
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+  instance_status_code_other:
+    aliyun:
+      metric: InstanceStatusCodeOther
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+  instance_upstream_code_4xx:
+    aliyun:
+      metric: InstanceUpstreamCode4xx
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+  instance_upstream_code_5xx:
+    aliyun:
+      metric: InstanceUpstreamCode5xx
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+  instance_upstream_rt:
+    aliyun:
+      metric: InstanceUpstreamRt
+      dimensions:
+        - userId
+        - instanceId
+      unit: ms
+  inactive_connection:
+    aliyun:
+      metric: InactiveConnection
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - protocol
+      unit: count
+  max_connection:
+    aliyun:
+      metric: MaxConnection
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - protocol
+      unit: count/s
+  group_active_connection:
+    aliyun:
+      metric: GroupActiveConnection
+      dimensions:
+        - userId
+        - groupId
+      unit: count
+  group_new_connection:
+    aliyun:
+      metric: GroupNewConnection
+      dimensions:
+        - userId
+        - groupId
+      unit: count/s
+  group_total_traffic_rx:
+    aliyun:
+      metric: GroupTotalTrafficRX
+      dimensions:
+        - userId
+        - groupId
+      unit: bit/s
+  group_total_traffic_tx:
+    aliyun:
+      metric: GroupTotalTrafficTX
+      dimensions:
+        - userId
+        - groupId
+      unit: bit/s
+  group_traffic_rx:
+    aliyun:
+      metric: GroupTrafficRX
+      dimensions:
+        - userId
+        - groupId
+      unit: bit/s
+  group_traffic_tx:
+    aliyun:
+      metric: GroupTrafficTX
+      dimensions:
+        - userId
+        - groupId
+      unit: bit/s
+  group_unhealthy_server_count:
+    aliyun:
+      metric: GroupUnhealthyServerCount
+      dimensions:
+        - userId
+        - groupId
+      unit: count
+  healthy_server_count:
+    aliyun:
+      metric: HeathyServerCount
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - vip
+      unit: count
+  instance_active_connection:
+    aliyun:
+      metric: InstanceActiveConnection
+      dimensions:
+        - userId
+        - instanceId
+      unit: count
+  instance_drop_connection:
+    aliyun:
+      metric: InstanceDropConnection
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+  instance_drop_packet_rx:
+    aliyun:
+      metric: InstanceDropPacketRX
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+  instance_drop_packet_tx:
+    aliyun:
+      metric: InstanceDropPacketTX
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+  instance_drop_traffic_rx:
+    aliyun:
+      metric: InstanceDropTrafficRX
+      dimensions:
+        - userId
+        - instanceId
+      unit: bit/s
+  instance_drop_traffic_tx:
+    aliyun:
+      metric: InstanceDropTrafficTX
+      dimensions:
+        - userId
+        - instanceId
+      unit: bit/s
+  instance_inactive_connection:
+    aliyun:
+      metric: InstanceInactiveConnection
+      dimensions:
+        - userId
+        - instanceId
+      unit: count
+  instance_max_connection:
+    aliyun:
+      metric: InstanceMaxConnection
+      dimensions:
+        - userId
+        - instanceId
+      unit: count
+  instance_max_connection_utilization:
+    aliyun:
+      metric: InstanceMaxConnectionUtilization
+      dimensions:
+        - userId
+        - instanceId
+      unit: ratio
+  instance_new_connection:
+    aliyun:
+      metric: InstanceNewConnection
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+  instance_new_connection_utilization:
+    aliyun:
+      metric: InstanceNewConnectionUtilization
+      dimensions:
+        - userId
+        - instanceId
+      unit: ratio
+  instance_qps_utilization:
+    aliyun:
+      metric: InstanceQpsUtilization
+      dimensions:
+        - userId
+        - instanceId
+      unit: ratio
+  instance_traffic_rx:
+    aliyun:
+      metric: InstanceTrafficRX
+      dimensions:
+        - userId
+        - instanceId
+      unit: bit/s
+  instance_traffic_tx:
+    aliyun:
+      metric: InstanceTrafficTX
+      dimensions:
+        - userId
+        - instanceId
+      unit: bit/s
+  unhealthy_server_count_with_rule:
+    aliyun:
+      metric: UnhealthyServerCountWithRule
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - vip
+        - domain
+        - url
+      unit: count
+  upstream_code_4xx:
+    aliyun:
+      metric: UpstreamCode4xx
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - protocol
+      unit: count/s
+  upstream_code_5xx:
+    aliyun:
+      metric: UpstreamCode5xx
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - protocol
+      unit: count/s
+  upstream_rt:
+    aliyun:
+      metric: UpstreamRt
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - protocol
+      unit: ms
+  pvv_new_conn:
+    tencent:
+      metric: PvvNewConn
+      unit: count/s
+  pvv_outpkg:
+    tencent:
+      metric: PvvOutpkg
+      unit: count/s
+  pvv_outtraffic:
+    tencent:
+      metric: PvvOuttraffic
+      unit: bps
+  rrv_connum:
+    tencent:
+      metric: RrvConnum
+      unit: count
+  rrv_inactive_conn:
+    tencent:
+      metric: RrvInactiveConn
+      unit: count
+  rrv_inpkg:
+    tencent:
+      metric: RrvInpkg
+      unit: count/s
+  rrv_intraffic:
+    tencent:
+      metric: RrvIntraffic
+      unit: bps
+  rrv_new_conn:
+    tencent:
+      metric: RrvNewConn
+      unit: count/s
+  rrv_outpkg:
+    tencent:
+      metric: RrvOutpkg
+      unit: count/s
+  rrv_outtraffic:
+    tencent:
+      metric: RrvOuttraffic
+      unit: bps
+  rv_connum:
+    tencent:
+      metric: RvConnum
+      unit: count
+  rv_inactive_conn:
+    tencent:
+      metric: RvInactiveConn
+      unit: count
+  rv_inpkg:
+    tencent:
+      metric: RvInpkg
+      unit: count/s
+  rv_intraffic:
+    tencent:
+      metric: RvIntraffic
+      unit: bps
+  rv_new_conn:
+    tencent:
+      metric: RvNewConn
+      unit: count/s
+  rv_outpkg:
+    tencent:
+      metric: RvOutpkg
+      unit: count/s
+  rv_outtraffic:
+    tencent:
+      metric: RvOuttraffic
+      unit: bps

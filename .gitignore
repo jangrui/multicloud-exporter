@@ -33,5 +33,3 @@ configs/products/
 
 # Local Resources
 local/
-configs/products.auto.yaml
-internal/discovery/configs/products.auto.yaml

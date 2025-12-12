@@ -1,6 +1,10 @@
 package aliyun
 
 import (
+	alb20200616 "github.com/alibabacloud-go/alb-20200616/v2/client"
+	openapi "github.com/alibabacloud-go/darabonba-openapi/v2/client"
+	nlb20220430 "github.com/alibabacloud-go/nlb-20220430/v4/client"
+	"github.com/alibabacloud-go/tea/tea"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/cms"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/ecs"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/slb"
@@ -13,6 +17,16 @@ import (
 // ECSClient interface for mocking
 type ECSClient interface {
 	DescribeRegions(request *ecs.DescribeRegionsRequest) (response *ecs.DescribeRegionsResponse, err error)
+}
+
+// ALBClient interface for mocking
+type ALBClient interface {
+	ListLoadBalancers(request *alb20200616.ListLoadBalancersRequest) (response *alb20200616.ListLoadBalancersResponse, err error)
+}
+
+// NLBClient interface for mocking
+type NLBClient interface {
+	ListLoadBalancers(request *nlb20220430.ListLoadBalancersRequest) (response *nlb20220430.ListLoadBalancersResponse, err error)
 }
 
 // SLBClient interface for mocking
@@ -54,6 +68,8 @@ type ClientFactory interface {
 	NewECSClient(region, ak, sk string) (ECSClient, error)
 	NewCMSClient(region, ak, sk string) (CMSClient, error)
 	NewSTSClient(region, ak, sk string) (STSClient, error)
+	NewALBClient(region, ak, sk string) (ALBClient, error)
+	NewNLBClient(region, ak, sk string) (NLBClient, error)
 	NewSLBClient(region, ak, sk string) (SLBClient, error)
 	NewVPCClient(region, ak, sk string) (VPCClient, error)
 	NewTagClient(region, ak, sk string) (TagClient, error)
@@ -65,6 +81,24 @@ type defaultClientFactory struct{}
 
 func (f *defaultClientFactory) NewECSClient(region, ak, sk string) (ECSClient, error) {
 	return ecs.NewClientWithAccessKey(region, ak, sk)
+}
+
+func (f *defaultClientFactory) NewALBClient(region, ak, sk string) (ALBClient, error) {
+	cfg := &openapi.Config{
+		AccessKeyId:     tea.String(ak),
+		AccessKeySecret: tea.String(sk),
+		Endpoint:        tea.String("alb." + region + ".aliyuncs.com"),
+	}
+	return alb20200616.NewClient(cfg)
+}
+
+func (f *defaultClientFactory) NewNLBClient(region, ak, sk string) (NLBClient, error) {
+	cfg := &openapi.Config{
+		AccessKeyId:     tea.String(ak),
+		AccessKeySecret: tea.String(sk),
+		Endpoint:        tea.String("nlb." + region + ".aliyuncs.com"),
+	}
+	return nlb20220430.NewClient(cfg)
 }
 
 func (f *defaultClientFactory) NewSLBClient(region, ak, sk string) (SLBClient, error) {

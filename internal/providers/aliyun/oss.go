@@ -57,10 +57,12 @@ func (a *Collector) listOSSIDs(account config.CloudAccount, region string) []str
 			lsRes, err := client.ListBuckets(oss.Marker(marker), oss.MaxKeys(100))
 			if err != nil {
 				metrics.RequestTotal.WithLabelValues("aliyun", "ListBuckets", "error").Inc()
+				metrics.RecordRequest("aliyun", "ListBuckets", "error")
 				ctxLog.Errorf("ListBuckets error: %v", err)
 				break
 			}
 			metrics.RequestTotal.WithLabelValues("aliyun", "ListBuckets", "success").Inc()
+			metrics.RecordRequest("aliyun", "ListBuckets", "success")
 			metrics.RequestDuration.WithLabelValues("aliyun", "ListBuckets").Observe(time.Since(start).Seconds())
 
 			for _, bucket := range lsRes.Buckets {
@@ -101,9 +103,9 @@ func (a *Collector) listOSSIDs(account config.CloudAccount, region string) []str
             max = len(regionBuckets)
         }
         preview := regionBuckets[:max]
-        ctxLog.Infof("枚举OSS存储桶完成 数量=%d 预览=%v (Cached: %v)", len(regionBuckets), preview, valid)
+        ctxLog.Debugf("枚举OSS存储桶完成 数量=%d 预览=%v (Cached: %v)", len(regionBuckets), preview, valid)
     } else {
-        ctxLog.Infof("枚举OSS存储桶完成 数量=%d (Cached: %v)", len(regionBuckets), valid)
+        ctxLog.Debugf("枚举OSS存储桶完成 数量=%d (Cached: %v)", len(regionBuckets), valid)
     }
     return regionBuckets
 }

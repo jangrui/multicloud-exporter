@@ -79,6 +79,7 @@ func (t *Collector) getAllRegions(account config.CloudAccount) []string {
 	if err != nil || resp == nil || resp.Response == nil || resp.Response.RegionSet == nil {
 		status := classifyTencentError(err)
 		metrics.RequestTotal.WithLabelValues("tencent", "DescribeRegions", status).Inc()
+		metrics.RecordRequest("tencent", "DescribeRegions", status)
 		def := os.Getenv("DEFAULT_REGIONS")
 		if def != "" {
 			parts := strings.Split(def, ",")
@@ -96,6 +97,7 @@ func (t *Collector) getAllRegions(account config.CloudAccount) []string {
 		return []string{"ap-guangzhou"}
 	}
 	metrics.RequestTotal.WithLabelValues("tencent", "DescribeRegions", "success").Inc()
+	metrics.RecordRequest("tencent", "DescribeRegions", "success")
 	metrics.RequestDuration.WithLabelValues("tencent", "DescribeRegions").Observe(time.Since(start).Seconds())
 	var regions []string
 	for _, r := range resp.Response.RegionSet {
@@ -112,23 +114,24 @@ func (t *Collector) getAllRegions(account config.CloudAccount) []string {
 func (t *Collector) collectRegion(account config.CloudAccount, region string) {
 	logger.Log.Debugf("Start collecting Tencent region %s", region)
 	for _, resource := range account.Resources {
+		r := strings.ToLower(resource)
 		if resource == "*" {
 			// Collect all supported resources
 			t.collectCLB(account, region)
 			t.collectBWP(account, region)
 			t.collectCOS(account, region)
 		} else {
-			switch resource {
+			switch r {
 			case "clb":
-				t.collectCLB(account, region)
-			case "slb":
-				t.collectCLB(account, region)
-			case "lb":
 				t.collectCLB(account, region)
 			case "bwp":
 				t.collectBWP(account, region)
+			case "s3":
+				t.collectCOS(account, region)
 			case "cos":
 				t.collectCOS(account, region)
+			case "gwlb":
+				t.collectGWLB(account, region)
 			default:
 				logger.Log.Warnf("Tencent resource type %s not implemented yet", resource)
 			}
@@ -255,6 +258,7 @@ var (
 		}
 		metrics.RequestTotal.WithLabelValues("tencent", "DescribeBaseMetrics", "success").Inc()
 		metrics.RequestDuration.WithLabelValues("tencent", "DescribeBaseMetrics").Observe(time.Since(start).Seconds())
+		metrics.RecordRequest("tencent", "DescribeBaseMetrics", "success")
 		return json.Marshal(resp.Response)
 	}
 )

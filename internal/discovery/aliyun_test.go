@@ -54,7 +54,7 @@ func TestAliyunDiscoverer_Discover(t *testing.T) {
 				AccessKeyID:     "ak",
 				AccessKeySecret: "sk",
 				Regions:         []string{"cn-hangzhou"},
-				Resources:       []string{"slb"},
+				Resources:       []string{"clb"},
 			},
 		},
 	}
