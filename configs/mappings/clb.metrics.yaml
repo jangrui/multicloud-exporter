@@ -548,35 +548,6 @@ canonical:
       - protocol
     unit: ms
 
-# 腾讯云特有指标示例：保留原名语义，统一到 lb_tencent_* 前缀（可选）
-# 实际暴露建议：若能等价映射到 canonical，则优先映射；否则以 provider 特有前缀暴露。
-
-tencent_only:
-  v_connum:
-    metric: VConnum
-    unit: count
-  v_intraffic:
-    metric: VIntraffic
-    unit: bps
-  v_outtraffic:
-    metric: VOuttraffic
-    unit: bps
-  acc_out_traffic:
-    metric: AccOuttraffic
-    unit: MB
-  pvv_connum:
-    metric: PvvConnum
-    unit: count
-  pvv_inactive_conn:
-    metric: PvvInactiveConn
-    unit: count
-  pvv_inpkg:
-    metric: PvvInpkg
-    unit: count/s
-  pvv_intraffic:
-    metric: PvvIntraffic
-    unit: bps
-  pvv_new_conn:
     metric: PvvNewConn
     unit: count/s
   pvv_outpkg:
