@@ -15,10 +15,16 @@ type MetricDef struct {
 	Dimensions []string `yaml:"dimensions,omitempty"`
 }
 
+type CanonicalEntry struct {
+	Description string    `yaml:"description"`
+	Aliyun      MetricDef `yaml:"aliyun"`
+	Tencent     MetricDef `yaml:"tencent"`
+}
+
 type MetricMapping struct {
-	Prefix     string                          `yaml:"prefix"`
-	Namespaces map[string]string               `yaml:"namespaces"`
-	Canonical  map[string]map[string]MetricDef `yaml:"canonical"`
+	Prefix     string                    `yaml:"prefix"`
+	Namespaces map[string]string         `yaml:"namespaces"`
+	Canonical  map[string]CanonicalEntry `yaml:"canonical"`
 }
 
 func LoadMetricMappings(path string) error {
@@ -50,17 +56,17 @@ func LoadMetricMappings(path string) error {
 	tencentScales := make(map[string]float64)
 
 	// Canonical
-	for newName, providers := range mapping.Canonical {
-		if def, ok := providers["aliyun"]; ok && def.Metric != "" {
-			aliyunAliases[def.Metric] = newName
-			if def.Scale != 0 {
-				aliyunScales[def.Metric] = def.Scale
+	for newName, entry := range mapping.Canonical {
+		if entry.Aliyun.Metric != "" {
+			aliyunAliases[entry.Aliyun.Metric] = newName
+			if entry.Aliyun.Scale != 0 {
+				aliyunScales[entry.Aliyun.Metric] = entry.Aliyun.Scale
 			}
 		}
-		if def, ok := providers["tencent"]; ok && def.Metric != "" {
-			tencentAliases[def.Metric] = newName
-			if def.Scale != 0 {
-				tencentScales[def.Metric] = def.Scale
+		if entry.Tencent.Metric != "" {
+			tencentAliases[entry.Tencent.Metric] = newName
+			if entry.Tencent.Scale != 0 {
+				tencentScales[entry.Tencent.Metric] = entry.Tencent.Scale
 			}
 		}
 	}

@@ -10,16 +10,16 @@ import (
 
 func TestAnnotateCanonical(t *testing.T) {
 	mapping := config.MetricMapping{
-		Canonical: map[string]map[string]config.MetricDef{
+		Canonical: map[string]config.CanonicalEntry{
 			"canonical_metric": {
-				"aliyun":  {Metric: "AliyunMetric"},
-				"tencent": {Metric: "TencentMetric"},
+				Aliyun:  config.MetricDef{Metric: "AliyunMetric"},
+				Tencent: config.MetricDef{Metric: "TencentMetric"},
 			},
 			"aliyun_only": {
-				"aliyun": {Metric: "AliyunOnlyMetric"},
+				Aliyun: config.MetricDef{Metric: "AliyunOnlyMetric"},
 			},
 			"tencent_only": {
-				"tencent": {Metric: "TencentOnlyMetric"},
+				Tencent: config.MetricDef{Metric: "TencentOnlyMetric"},
 			},
 		},
 	}
