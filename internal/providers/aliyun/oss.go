@@ -133,6 +133,7 @@ func (a *Collector) listOSSIDs(account config.CloudAccount, region string) []str
 
 func (a *Collector) fetchOSSBucketTags(account config.CloudAccount, region string, buckets []string) map[string]string {
 	out := make(map[string]string, len(buckets))
+	var mu sync.Mutex
 	client, err := a.clientFactory.NewOSSClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
 		return out
@@ -152,7 +153,9 @@ func (a *Collector) fetchOSSBucketTags(account config.CloudAccount, region strin
 			}
 			for _, t := range res.Tags {
 				if strings.EqualFold(t.Key, "CodeName") || strings.EqualFold(t.Key, "code_name") {
+					mu.Lock()
 					out[bucket] = t.Value
+					mu.Unlock()
 					break
 				}
 			}
