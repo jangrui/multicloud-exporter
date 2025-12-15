@@ -2,6 +2,8 @@ package tencent
 
 import (
 	"context"
+	"strings"
+	"sync"
 	"time"
 
 	"multicloud-exporter/internal/config"
@@ -90,6 +92,37 @@ func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) [
 	return buckets
 }
 
+func (t *Collector) fetchCOSBucketCodeNames(account config.CloudAccount, region string, buckets []string) map[string]string {
+	out := make(map[string]string, len(buckets))
+	client, err := t.clientFactory.NewCOSClient(region, account.AccessKeyID, account.AccessKeySecret)
+	if err != nil {
+		return out
+	}
+	limit := 5
+	sem := make(chan struct{}, limit)
+	var wg sync.WaitGroup
+	for _, b := range buckets {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(bucket string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			tags, err := client.GetBucketTagging(context.Background(), bucket, region)
+			if err != nil || len(tags) == 0 {
+				return
+			}
+			for k, v := range tags {
+				if strings.EqualFold(k, "CodeName") || strings.EqualFold(k, "code_name") {
+					out[bucket] = v
+					break
+				}
+			}
+		}(b)
+	}
+	wg.Wait()
+	return out
+}
+
 func (t *Collector) fetchCOSMonitor(account config.CloudAccount, region string, prod config.Product, buckets []string) {
 	client, err := t.clientFactory.NewMonitorClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
@@ -105,6 +138,8 @@ func (t *Collector) fetchCOSMonitor(account config.CloudAccount, region string, 
 	// Monitor API has limits on number of instances per request.
 	// We need to batch the buckets.
 	batchSize := 10 // Safe batch size
+
+	codeNames := t.fetchCOSBucketCodeNames(account, region, buckets)
 
 	for _, group := range prod.MetricInfo {
 		if group.Period != nil {
@@ -181,7 +216,8 @@ func (t *Collector) fetchCOSMonitor(account config.CloudAccount, region string, 
 					val := *point.Values[len(point.Values)-1]
 
 					vec, count := metrics.NamespaceGauge("QCE/COS", m)
-					labels := []string{"tencent", account.AccountID, region, "cos", bucketName, "QCE/COS", m, bucketName}
+					codeName := codeNames[bucketName]
+					labels := []string{"tencent", account.AccountID, region, "cos", bucketName, "QCE/COS", m, codeName}
 					for len(labels) < count {
 						labels = append(labels, "")
 					}

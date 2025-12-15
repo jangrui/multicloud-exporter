@@ -346,6 +346,8 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 						tagLabels = a.fetchALBTags(account, region, resIDs)
 					case "nlb":
 						tagLabels = a.fetchNLBTags(account, region, resIDs)
+					case "s3":
+						tagLabels = a.fetchOSSBucketTags(account, region, resIDs)
 					}
 
 					if len(tagLabels) > 0 {

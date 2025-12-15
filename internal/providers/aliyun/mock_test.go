@@ -189,6 +189,7 @@ func (m *mockTagClient) ListTagResources(request *tag.ListTagResourcesRequest) (
 
 type mockOSSClient struct {
 	ListBucketsFunc func(options ...oss.Option) (oss.ListBucketsResult, error)
+	GetBucketTaggingFunc func(bucketName string, options ...oss.Option) (oss.GetBucketTaggingResult, error)
 }
 
 func (m *mockOSSClient) ListBuckets(options ...oss.Option) (oss.ListBucketsResult, error) {
@@ -196,6 +197,13 @@ func (m *mockOSSClient) ListBuckets(options ...oss.Option) (oss.ListBucketsResul
 		return m.ListBucketsFunc(options...)
 	}
 	return oss.ListBucketsResult{}, nil
+}
+
+func (m *mockOSSClient) GetBucketTagging(bucketName string, options ...oss.Option) (oss.GetBucketTaggingResult, error) {
+	if m.GetBucketTaggingFunc != nil {
+		return m.GetBucketTaggingFunc(bucketName, options...)
+	}
+	return oss.GetBucketTaggingResult{}, nil
 }
 
 type mockALBClient struct {

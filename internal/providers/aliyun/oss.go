@@ -2,6 +2,7 @@ package aliyun
 
 import (
 	"strings"
+	"sync"
 	"time"
 
 	"multicloud-exporter/internal/config"
@@ -97,15 +98,46 @@ func (a *Collector) listOSSIDs(account config.CloudAccount, region string) []str
 		}
 	}
 
-    if len(regionBuckets) > 0 {
-        max := 5
-        if len(regionBuckets) < max {
-            max = len(regionBuckets)
-        }
-        preview := regionBuckets[:max]
-        ctxLog.Debugf("枚举OSS存储桶完成 数量=%d 预览=%v (Cached: %v)", len(regionBuckets), preview, valid)
-    } else {
-        ctxLog.Debugf("枚举OSS存储桶完成 数量=%d (Cached: %v)", len(regionBuckets), valid)
-    }
-    return regionBuckets
+	if len(regionBuckets) > 0 {
+		max := 5
+		if len(regionBuckets) < max {
+			max = len(regionBuckets)
+		}
+		preview := regionBuckets[:max]
+		ctxLog.Debugf("枚举OSS存储桶完成 数量=%d 预览=%v (Cached: %v)", len(regionBuckets), preview, valid)
+	} else {
+		ctxLog.Debugf("枚举OSS存储桶完成 数量=%d (Cached: %v)", len(regionBuckets), valid)
+	}
+	return regionBuckets
+}
+
+func (a *Collector) fetchOSSBucketTags(account config.CloudAccount, region string, buckets []string) map[string]string {
+	out := make(map[string]string, len(buckets))
+	client, err := a.clientFactory.NewOSSClient(region, account.AccessKeyID, account.AccessKeySecret)
+	if err != nil {
+		return out
+	}
+	limit := 5
+	sem := make(chan struct{}, limit)
+	var wg sync.WaitGroup
+	for _, b := range buckets {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(bucket string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			res, err := client.GetBucketTagging(bucket)
+			if err != nil {
+				return
+			}
+			for _, t := range res.Tags {
+				if strings.EqualFold(t.Key, "CodeName") || strings.EqualFold(t.Key, "code_name") {
+					out[bucket] = t.Value
+					break
+				}
+			}
+		}(b)
+	}
+	wg.Wait()
+	return out
 }

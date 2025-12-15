@@ -100,6 +100,7 @@ func (m *mockMonitorClient) GetMonitorData(request *monitor.GetMonitorDataReques
 
 type mockCOSClient struct {
 	GetServiceFunc func(ctx context.Context) (*cos.ServiceGetResult, *cos.Response, error)
+	GetBucketTaggingFunc func(ctx context.Context, bucket string, region string) (map[string]string, error)
 }
 
 func (m *mockCOSClient) GetService(ctx context.Context) (*cos.ServiceGetResult, *cos.Response, error) {
@@ -107,4 +108,11 @@ func (m *mockCOSClient) GetService(ctx context.Context) (*cos.ServiceGetResult, 
 		return m.GetServiceFunc(ctx)
 	}
 	return &cos.ServiceGetResult{}, nil, nil
+}
+
+func (m *mockCOSClient) GetBucketTagging(ctx context.Context, bucket string, region string) (map[string]string, error) {
+	if m.GetBucketTaggingFunc != nil {
+		return m.GetBucketTaggingFunc(ctx, bucket, region)
+	}
+	return map[string]string{}, nil
 }

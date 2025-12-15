@@ -488,14 +488,6 @@ canonical:
       unit: bit/s
   vip_inactive_connection:
     aliyun:
-      metric: VipInactiveConnection 
-      dimensions:
-        - userId
-        - loadBalancerId
-        - vip
-      unit: bit/s
-  vip_inactive_connection:
-    aliyun:
       metric: VipInactiveConnection
       dimensions:
         - userId
@@ -511,19 +503,21 @@ canonical:
         - vip
       unit: count
   vip_new_connection:
-    metric: VipNewConnection
-    dimensions:
-      - userId
-      - loadBalancerId
-      - vip
-    unit: count/s
+    aliyun:
+      metric: VipNewConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s
   vip_non_sticky_request:
-    metric: VipNonStickyRequest
-    dimensions:
-      - userId
-      - loadBalancerId
-      - vip
-    unit: count/s
+    aliyun:
+      metric: VipNonStickyRequest
+      dimensions:
+        - userId
+        - loadBalancerId
+        - vip
+      unit: count/s
   vip_out_bits:
     aliyun:
       metric: VipOutBits
@@ -535,14 +529,6 @@ canonical:
   vip_qps:
     aliyun:
       metric: VipQPS
-      dimensions:
-        - userId
-        - loadBalancerId
-        - vip
-      unit: count/s
-  vip_rejected_connection:
-    aliyun:
-      metric: VipRejectedConnection
       dimensions:
         - userId
         - loadBalancerId
@@ -587,7 +573,7 @@ canonical:
         - userId
         - loadBalancerId
         - vip
-    unit: count/s
+      unit: count/s
 
   # ServerGroup Level
   server_group_http_code_upstream_2xx:
@@ -679,7 +665,7 @@ canonical:
         - listenerProtocol
         - listenerPort
         - serverGroupId
-    unit: count
+      unit: count
   server_group_upstream_connection_error:
     aliyun:
       metric: ServerGroupUpstreamConnectionError
@@ -950,7 +936,7 @@ canonical:
       dimensions:
         - userId
         - loadBalancerId
-    unit: count/s
+      unit: count/s
   dual_stack_load_balancer_http_code_upstream_3xx:
     aliyun:
       metric: DualStack_LoadBalancerHTTPCodeUpstream3XX
@@ -1013,7 +999,7 @@ canonical:
       dimensions:
         - userId
         - loadBalancerId
-    unit: count
+      unit: count
   dual_stack_load_balancer_new_connection:
     aliyun:
       metric: DualStack_LoadBalancerNewConnection
@@ -1083,15 +1069,6 @@ canonical:
       dimensions:
         - userId
         - loadBalancerId
-      unit: count/s
-  dual_stack_listener_new_connection:
-    aliyun:
-      metric: DualStack_ListenerNewConnection
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
       unit: count/s
 
   # DualStack Listener
@@ -1346,7 +1323,7 @@ canonical:
         - loadBalancerId
         - listenerProtocol
         - listenerPort
-    unit: count/s
+      unit: count/s
   dual_stack_listener_upstream_response_time:
     aliyun:
       metric: DualStack_ListenerUpstreamResponseTime
@@ -1382,7 +1359,7 @@ canonical:
         - userId
         - loadBalancerId
         - vip
-    unit: count/s
+      unit: count/s
   dual_stack_vip_http_code_2xx:
     aliyun:
       metric: DualStack_VipHTTPCode2XX
@@ -1478,7 +1455,7 @@ canonical:
         - userId
         - loadBalancerId
         - vip
-    unit: count
+      unit: count
   dual_stack_vip_max_connection:
     aliyun:
       metric: DualStack_VipMaxConnection
@@ -1762,7 +1739,7 @@ canonical:
         - listenerProtocol
         - listenerPort
         - ruleId
-    unit: ratio
+      unit: ratio
   dual_stack_rule_healthy_host_count:
     aliyun:
       metric: DualStack_RuleHealthyHostCount
@@ -1793,9 +1770,6 @@ canonical:
         - listenerPort
         - ruleId
       unit: count/s
-      - listenerPort
-      - ruleId
-    unit: count/s
   dual_stack_rule_request_time:
     aliyun:
       metric: DualStack_RuleRequestTime
@@ -1815,7 +1789,7 @@ canonical:
         - listenerProtocol
         - listenerPort
         - ruleId
-    unit: count
+      unit: count
   dual_stack_rule_upstream_connection_error:
     aliyun:
       metric: DualStack_RuleUpstreamConnectionError
@@ -1836,10 +1810,6 @@ canonical:
         - listenerPort
         - ruleId
       unit: ms
-      - listenerProtocol
-      - listenerPort
-      - ruleId
-    unit: ms
   dual_stack_rule_upstream_tls_negotiation_error:
     aliyun:
       metric: DualStack_RuleUpstreamTLSNegotiationError

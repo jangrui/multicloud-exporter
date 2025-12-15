@@ -32,6 +32,7 @@ type MonitorClient interface {
 
 type COSClient interface {
 	GetService(ctx context.Context) (*cos.ServiceGetResult, *cos.Response, error)
+	GetBucketTagging(ctx context.Context, bucket string, region string) (map[string]string, error)
 }
 
 type ClientFactory interface {
@@ -66,10 +67,37 @@ func (f *defaultClientFactory) NewMonitorClient(region, ak, sk string) (MonitorC
 
 type defaultCOSClient struct {
 	client *cos.Client
+	ak     string
+	sk     string
+	token  string
 }
 
 func (c *defaultCOSClient) GetService(ctx context.Context) (*cos.ServiceGetResult, *cos.Response, error) {
 	return c.client.Service.Get(ctx)
+}
+
+func (c *defaultCOSClient) GetBucketTagging(ctx context.Context, bucket string, region string) (map[string]string, error) {
+	u, _ := cos.NewBucketURL(bucket, region, true)
+	b := &cos.BaseURL{BucketURL: u}
+	httpClient := &http.Client{
+		Transport: &cos.AuthorizationTransport{
+			SecretID:     c.ak,
+			SecretKey:    c.sk,
+			SessionToken: c.token,
+		},
+	}
+	bc := cos.NewClient(b, httpClient)
+	res, _, err := bc.Bucket.GetTagging(ctx)
+	if err != nil || res == nil {
+		return map[string]string{}, err
+	}
+	out := make(map[string]string)
+	for _, t := range res.TagSet {
+		if t.Key != "" {
+			out[t.Key] = t.Value
+		}
+	}
+	return out, nil
 }
 
 func (f *defaultClientFactory) NewCOSClient(region, ak, sk string) (COSClient, error) {
@@ -81,5 +109,5 @@ func (f *defaultClientFactory) NewCOSClient(region, ak, sk string) (COSClient, e
 			SecretKey: sk,
 		},
 	})
-	return &defaultCOSClient{client: c}, nil
+	return &defaultCOSClient{client: c, ak: ak, sk: sk}, nil
 }

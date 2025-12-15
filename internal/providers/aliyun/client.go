@@ -61,6 +61,7 @@ type STSClient interface {
 // OSSClient interface for mocking
 type OSSClient interface {
 	ListBuckets(options ...oss.Option) (oss.ListBucketsResult, error)
+	GetBucketTagging(bucketName string, options ...oss.Option) (oss.GetBucketTaggingResult, error)
 }
 
 // ClientFactory interface for creating clients
