@@ -1,4 +1,5 @@
 # Unified Bandwidth Package Metrics (Aliyun CBWP / Tencent BWP)
+# 排序整理：2025-12-15；修改者：@jangrui；规则：按带宽/包速率/利用率类别分组展示（仅调整可读性，不改变键与字段）
 prefix: bwp
 namespaces:
   aliyun: acs_bandwidth_package

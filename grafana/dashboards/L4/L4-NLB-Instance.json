@@ -50,7 +50,7 @@
               }
             ]
           },
-          "unit": "percent"
+          "unit": "bps"
         },
         "overrides": []
       },
@@ -77,13 +77,13 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "nlb_bandwidth_utilization_pct{cloud_provider=\"$cloud_provider\", account_id=\"$account_id\", region=\"$region\", resource_id=\"$resource_id\", code_name=\"$code_name\"}",
+          "expr": "nlb_traffic_tx_bps{cloud_provider=\"$cloud_provider\", account_id=\"$account_id\", region=\"$region\", resource_id=\"$resource_id\", code_name=\"$code_name\"}",
           "legendFormat": "{{resource_id}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "NLB 实例带宽使用率 (Radial Gauge)",
+      "title": "NLB 出网带宽 (Radial Gauge)",
       "type": "gauge"
     },
     {
@@ -666,6 +666,7 @@
   "timezone": "browser",
   "title": "L4-NLB实例详情",
   "uid": "l4-nlb-instance",
-  "version": 1,
+  "version": 2,
+  "description": "2025-12-15 @jangrui: 替换带宽利用率为出网带宽 (bps)，与最新映射配置一致",
   "weekStart": ""
 }

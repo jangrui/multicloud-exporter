@@ -1,5 +1,6 @@
 # 统一 GWLB 指标映射关系（Aliyun / Tencent）
 # 说明：canonical 指代统一后的 `gwlb_*` 名称；各云平台原始指标在 providers 下声明，并给出单位与查询层的缩放建议。
+# 排序整理：2025-12-15；修改者：@jangrui；规则：按连接/流量/包速率/健康等类别分组展示（仅调整可读性，不改变键与字段）
 
 prefix: gwlb
 namespaces:

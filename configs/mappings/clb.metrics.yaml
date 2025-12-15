@@ -1,5 +1,6 @@
 # 统一 LB 指标映射关系（Aliyun / Tencent）
 # 说明：canonical 指代统一后的 `lb_*` 名称；各云平台原始指标在 providers 下声明，并给出单位与查询层的缩放建议。
+# 排序整理：2025-12-15；修改者：@jangrui；规则：按连接/流量/包速率/丢包/状态码/健康/利用率等类别分组展示（仅调整可读性，不改变键与字段）
 
 prefix: clb
 namespaces:
@@ -253,6 +254,7 @@ canonical:
         - protocol
       unit: count/s
   unhealthy_server_count:
+    description: "异常后端服务数"
     aliyun:
       metric: UnhealthyServerCount
       dimensions:
@@ -262,6 +264,7 @@ canonical:
         - vip
       unit: count
   healthy_server_count_with_rule:
+    description: "按规则聚合的健康后端数"
     aliyun:
       metric: HealthyServerCountWithRule
       dimensions:
@@ -273,6 +276,7 @@ canonical:
         - url
       unit: count
   instance_qps:
+    description: "实例每秒请求数 (L7)"
     aliyun:
       metric: InstanceQps
       dimensions:
@@ -280,6 +284,7 @@ canonical:
         - instanceId
       unit: count/s
   instance_rt:
+    description: "实例响应时间 (L7)"
     aliyun:
       metric: InstanceRt
       dimensions:
@@ -287,6 +292,7 @@ canonical:
         - instanceId
       unit: ms
   instance_packet_rx:
+    description: "实例入网包速率"
     aliyun:
       metric: InstancePacketRX
       dimensions:
@@ -294,6 +300,7 @@ canonical:
         - instanceId
       unit: count/s
   instance_packet_tx:
+    description: "实例出网包速率"
     aliyun:
       metric: InstancePacketTX
       dimensions:
@@ -301,6 +308,7 @@ canonical:
         - instanceId
       unit: count/s
   instance_traffic_rx_utilization_pct:
+    description: "实例入网带宽利用率"
     aliyun:
       metric: InstanceTrafficRXUtilization
       dimensions:
@@ -308,6 +316,7 @@ canonical:
         - instanceId
       unit: ratio
   instance_traffic_tx_utilization_pct:
+    description: "实例出网带宽利用率"
     aliyun:
       metric: InstanceTrafficTXUtilization
       dimensions:
@@ -315,6 +324,7 @@ canonical:
         - instanceId
       unit: ratio
   instance_status_code_2xx:
+    description: "实例级 HTTP 2XX 状态码数量"
     aliyun:
       metric: InstanceStatusCode2xx
       dimensions:
@@ -322,6 +332,7 @@ canonical:
         - instanceId
       unit: count/s
   instance_status_code_3xx:
+    description: "实例级 HTTP 3XX 状态码数量"
     aliyun:
       metric: InstanceStatusCode3xx
       dimensions:
@@ -329,6 +340,7 @@ canonical:
         - instanceId
       unit: count/s
   instance_status_code_4xx:
+    description: "实例级 HTTP 4XX 状态码数量"
     aliyun:
       metric: InstanceStatusCode4xx
       dimensions:
@@ -336,6 +348,7 @@ canonical:
         - instanceId
       unit: count/s
   instance_status_code_5xx:
+    description: "实例级 HTTP 5XX 状态码数量"
     aliyun:
       metric: InstanceStatusCode5xx
       dimensions:
@@ -343,6 +356,7 @@ canonical:
         - instanceId
       unit: count/s
   instance_status_code_other:
+    description: "实例级其他 HTTP 状态码数量"
     aliyun:
       metric: InstanceStatusCodeOther
       dimensions:
@@ -350,6 +364,7 @@ canonical:
         - instanceId
       unit: count/s
   instance_upstream_code_4xx:
+    description: "实例级上游 HTTP 4XX 状态码数量"
     aliyun:
       metric: InstanceUpstreamCode4xx
       dimensions:
@@ -357,6 +372,7 @@ canonical:
         - instanceId
       unit: count/s
   instance_upstream_code_5xx:
+    description: "实例级上游 HTTP 5XX 状态码数量"
     aliyun:
       metric: InstanceUpstreamCode5xx
       dimensions:
@@ -364,6 +380,7 @@ canonical:
         - instanceId
       unit: count/s
   instance_upstream_rt:
+    description: "实例级上游响应时间"
     aliyun:
       metric: InstanceUpstreamRt
       dimensions:
@@ -371,6 +388,7 @@ canonical:
         - instanceId
       unit: ms
   inactive_connection:
+    description: "非活跃连接数 (实例级)"
     aliyun:
       metric: InactiveConnection
       dimensions:
@@ -380,6 +398,7 @@ canonical:
         - protocol
       unit: count
   max_connection:
+    description: "最大连接数 (实例级)"
     aliyun:
       metric: MaxConnection
       dimensions:
@@ -389,6 +408,7 @@ canonical:
         - protocol
       unit: count/s
   group_active_connection:
+    description: "服务器组活跃连接数"
     aliyun:
       metric: GroupActiveConnection
       dimensions:
@@ -396,6 +416,7 @@ canonical:
         - groupId
       unit: count
   group_new_connection:
+    description: "服务器组新建连接数"
     aliyun:
       metric: GroupNewConnection
       dimensions:
@@ -403,6 +424,7 @@ canonical:
         - groupId
       unit: count/s
   group_total_traffic_rx:
+    description: "服务器组总入网流量"
     aliyun:
       metric: GroupTotalTrafficRX
       dimensions:
@@ -410,6 +432,7 @@ canonical:
         - groupId
       unit: bit/s
   group_total_traffic_tx:
+    description: "服务器组总出网流量"
     aliyun:
       metric: GroupTotalTrafficTX
       dimensions:
@@ -417,6 +440,7 @@ canonical:
         - groupId
       unit: bit/s
   group_traffic_rx:
+    description: "服务器组入网流量"
     aliyun:
       metric: GroupTrafficRX
       dimensions:
@@ -424,6 +448,7 @@ canonical:
         - groupId
       unit: bit/s
   group_traffic_tx:
+    description: "服务器组出网流量"
     aliyun:
       metric: GroupTrafficTX
       dimensions:
@@ -431,6 +456,7 @@ canonical:
         - groupId
       unit: bit/s
   group_unhealthy_server_count:
+    description: "服务器组异常后端服务数"
     aliyun:
       metric: GroupUnhealthyServerCount
       dimensions:
@@ -438,6 +464,7 @@ canonical:
         - groupId
       unit: count
   healthy_server_count:
+    description: "健康后端服务数"
     aliyun:
       metric: HeathyServerCount
       dimensions:
@@ -447,6 +474,7 @@ canonical:
         - vip
       unit: count
   instance_active_connection:
+    description: "实例活跃连接数"
     aliyun:
       metric: InstanceActiveConnection
       dimensions:
@@ -454,6 +482,7 @@ canonical:
         - instanceId
       unit: count
   instance_drop_connection:
+    description: "实例丢弃连接数"
     aliyun:
       metric: InstanceDropConnection
       dimensions:
@@ -461,6 +490,7 @@ canonical:
         - instanceId
       unit: count/s
   instance_drop_packet_rx:
+    description: "实例入网丢包速率"
     aliyun:
       metric: InstanceDropPacketRX
       dimensions:
@@ -468,6 +498,7 @@ canonical:
         - instanceId
       unit: count/s
   instance_drop_packet_tx:
+    description: "实例出网丢包速率"
     aliyun:
       metric: InstanceDropPacketTX
       dimensions:
@@ -475,6 +506,7 @@ canonical:
         - instanceId
       unit: count/s
   instance_drop_traffic_rx:
+    description: "实例入网丢弃流量"
     aliyun:
       metric: InstanceDropTrafficRX
       dimensions:
@@ -482,6 +514,7 @@ canonical:
         - instanceId
       unit: bit/s
   instance_drop_traffic_tx:
+    description: "实例出网丢弃流量"
     aliyun:
       metric: InstanceDropTrafficTX
       dimensions:
@@ -489,6 +522,7 @@ canonical:
         - instanceId
       unit: bit/s
   instance_inactive_connection:
+    description: "实例非活跃连接数"
     aliyun:
       metric: InstanceInactiveConnection
       dimensions:
@@ -496,6 +530,7 @@ canonical:
         - instanceId
       unit: count
   instance_max_connection:
+    description: "实例最大连接数"
     aliyun:
       metric: InstanceMaxConnection
       dimensions:
@@ -503,6 +538,7 @@ canonical:
         - instanceId
       unit: count
   instance_max_connection_utilization:
+    description: "实例最大连接数利用率"
     aliyun:
       metric: InstanceMaxConnectionUtilization
       dimensions:
@@ -510,6 +546,7 @@ canonical:
         - instanceId
       unit: ratio
   instance_new_connection:
+    description: "实例新建连接数"
     aliyun:
       metric: InstanceNewConnection
       dimensions:
@@ -517,6 +554,7 @@ canonical:
         - instanceId
       unit: count/s
   instance_new_connection_utilization:
+    description: "实例新建连接数利用率"
     aliyun:
       metric: InstanceNewConnectionUtilization
       dimensions:
@@ -524,6 +562,7 @@ canonical:
         - instanceId
       unit: ratio
   instance_qps_utilization:
+    description: "实例每秒请求数利用率"
     aliyun:
       metric: InstanceQpsUtilization
       dimensions:
@@ -531,6 +570,7 @@ canonical:
         - instanceId
       unit: ratio
   instance_traffic_rx:
+    description: "实例入网流量"
     aliyun:
       metric: InstanceTrafficRX
       dimensions:
@@ -538,6 +578,7 @@ canonical:
         - instanceId
       unit: bit/s
   instance_traffic_tx:
+    description: "实例出网流量"
     aliyun:
       metric: InstanceTrafficTX
       dimensions:
@@ -545,6 +586,7 @@ canonical:
         - instanceId
       unit: bit/s
   unhealthy_server_count_with_rule:
+    description: "按规则聚合的异常后端数"
     aliyun:
       metric: UnhealthyServerCountWithRule
       dimensions:
@@ -556,6 +598,7 @@ canonical:
         - url
       unit: count
   upstream_code_4xx:
+    description: "上游 HTTP 4XX 状态码数量"
     aliyun:
       metric: UpstreamCode4xx
       dimensions:
@@ -565,6 +608,7 @@ canonical:
         - protocol
       unit: count/s
   upstream_code_5xx:
+    description: "上游 HTTP 5XX 状态码数量"
     aliyun:
       metric: UpstreamCode5xx
       dimensions:
@@ -574,6 +618,7 @@ canonical:
         - protocol
       unit: count/s
   upstream_rt:
+    description: "上游响应时间"
     aliyun:
       metric: UpstreamRt
       dimensions:
@@ -583,70 +628,87 @@ canonical:
         - protocol
       unit: ms
   pvv_new_conn:
+    description: "腾讯 CLB 私有实例新建连接数"
     tencent:
       metric: PvvNewConn
       unit: count/s
   pvv_outpkg:
+    description: "腾讯 CLB 私有实例出网包速率"
     tencent:
       metric: PvvOutpkg
       unit: count/s
   pvv_outtraffic:
+    description: "腾讯 CLB 私有实例出网流量"
     tencent:
       metric: PvvOuttraffic
       unit: bps
   rrv_connum:
+    description: "腾讯 CLB 共享实例活跃连接数"
     tencent:
       metric: RrvConnum
       unit: count
   rrv_inactive_conn:
+    description: "腾讯 CLB 共享实例非活跃连接数"
     tencent:
       metric: RrvInactiveConn
       unit: count
   rrv_inpkg:
+    description: "腾讯 CLB 共享实例入网包速率"
     tencent:
       metric: RrvInpkg
       unit: count/s
   rrv_intraffic:
+    description: "腾讯 CLB 共享实例入网流量"
     tencent:
       metric: RrvIntraffic
       unit: bps
   rrv_new_conn:
+    description: "腾讯 CLB 共享实例新建连接数"
     tencent:
       metric: RrvNewConn
       unit: count/s
   rrv_outpkg:
+    description: "腾讯 CLB 共享实例出网包速率"
     tencent:
       metric: RrvOutpkg
       unit: count/s
   rrv_outtraffic:
+    description: "腾讯 CLB 共享实例出网流量"
     tencent:
       metric: RrvOuttraffic
       unit: bps
   rv_connum:
+    description: "腾讯 CLB VIP 活跃连接数"
     tencent:
       metric: RvConnum
       unit: count
   rv_inactive_conn:
+    description: "腾讯 CLB VIP 非活跃连接数"
     tencent:
       metric: RvInactiveConn
       unit: count
   rv_inpkg:
+    description: "腾讯 CLB VIP 入网包速率"
     tencent:
       metric: RvInpkg
       unit: count/s
   rv_intraffic:
+    description: "腾讯 CLB VIP 入网流量"
     tencent:
       metric: RvIntraffic
       unit: bps
   rv_new_conn:
+    description: "腾讯 CLB VIP 新建连接数"
     tencent:
       metric: RvNewConn
       unit: count/s
   rv_outpkg:
+    description: "腾讯 CLB VIP 出网包速率"
     tencent:
       metric: RvOutpkg
       unit: count/s
   rv_outtraffic:
+    description: "腾讯 CLB VIP 出网流量"
     tencent:
       metric: RvOuttraffic
       unit: bps

@@ -111,6 +111,11 @@ func GetMetricAlias(namespace, metric string) string {
 	return aliasMetricForNamespace(namespace, metric)
 }
 
+// GetNamespacePrefix 返回命名空间的统一前缀（用于 resource_type）
+func GetNamespacePrefix(namespace string) string {
+	return aliasPrefixForNamespace(namespace)
+}
+
 func aliasPrefixForNamespace(namespace string) string {
 	if p, ok := prefixByNamespace[namespace]; ok {
 		return p

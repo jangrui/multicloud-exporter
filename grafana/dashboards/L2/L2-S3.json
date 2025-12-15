@@ -1,0 +1,432 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "grafana"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 1,
+  "graphTooltip": 0,
+  "links": [],
+  "panels": [
+    {
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "panels": [],
+      "title": "$region 区域总览",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue"
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "A"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "short"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "B"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byFrameRefID",
+              "options": "C"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "MB"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 3,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "same_as_value",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "value_and_name",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.6.1",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "count(count by (account_id) (s3_storage_usage_bytes{cloud_provider=~\"$cloud_provider\"}))",
+          "instant": true,
+          "legendFormat": "账号总数",
+          "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "avg(s3_availability_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"})",
+          "instant": true,
+          "legendFormat": "平均可用性",
+          "refId": "B"
+        },
+        {
+          "editorMode": "code",
+          "expr": "sum(s3_traffic_internet_tx_bytes{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"}) / 1048576",
+          "instant": true,
+          "legendFormat": "总公网出流量",
+          "refId": "C"
+        }
+      ],
+      "title": "📊 区域总览",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "decimals": 2,
+            "filterable": true,
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "可用性"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "percent"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "公网入流量"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "MB"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "公网出流量"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "MB"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "存储用量"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "GB"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "id": 3,
+      "options": {
+        "cellHeight": "sm",
+        "footer": {
+          "countRows": false,
+          "fields": "",
+          "reducer": [
+            "sum"
+          ],
+          "show": false
+        },
+        "showHeader": true,
+        "sortBy": []
+      },
+      "pluginVersion": "11.6.1",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum by (cloud_provider, account_id, region, resource_id, code_name) (s3_availability_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"})",
+          "instant": true,
+          "legendFormat": "{{resource_id}}",
+          "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "sum by (cloud_provider, account_id, region, resource_id, code_name) (s3_traffic_internet_rx_bytes{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"}) / 1048576",
+          "instant": true,
+          "legendFormat": "{{resource_id}}",
+          "refId": "B"
+        },
+        {
+          "editorMode": "code",
+          "expr": "sum by (cloud_provider, account_id, region, resource_id, code_name) (s3_traffic_internet_tx_bytes{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"}) / 1048576",
+          "instant": true,
+          "legendFormat": "{{resource_id}}",
+          "refId": "C"
+        },
+        {
+          "editorMode": "code",
+          "expr": "sum by (cloud_provider, account_id, region, resource_id, code_name) (s3_requests_total{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"})",
+          "instant": true,
+          "legendFormat": "{{resource_id}}",
+          "refId": "D"
+        },
+        {
+          "editorMode": "code",
+          "expr": "sum by (cloud_provider, account_id, region, resource_id, code_name) (s3_storage_usage_bytes{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"}) / 1073741824",
+          "instant": true,
+          "legendFormat": "{{resource_id}}",
+          "refId": "E"
+        }
+      ],
+      "title": "Bucket 列表",
+      "type": "table"
+    }
+  ],
+  "preload": false,
+  "refresh": "30s",
+  "schemaVersion": 41,
+  "tags": [
+    "storage",
+    "mce"
+  ],
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "text": "vm-cluster",
+          "value": "PBF65911BEAADD538"
+        },
+        "label": "数据源",
+        "name": "datasource",
+        "options": [],
+        "query": "prometheus",
+        "refresh": 1,
+        "type": "datasource"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
+        },
+        "definition": "label_values(s3_storage_usage_bytes,cloud_provider)",
+        "includeAll": true,
+        "label": "云厂商",
+        "name": "cloud_provider",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(s3_storage_usage_bytes,cloud_provider)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
+        },
+        "includeAll": true,
+        "label": "账号",
+        "name": "account_id",
+        "options": [],
+        "query": "label_values(s3_storage_usage_bytes{cloud_provider=~\"$cloud_provider\"}, account_id)",
+        "refresh": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
+        },
+        "definition": "label_values(s3_storage_usage_bytes{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\"},region)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "区域",
+        "name": "region",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(s3_storage_usage_bytes{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\"},region)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
+        },
+        "definition": "label_values(s3_storage_usage_bytes{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"},resource_id)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "资源 ID",
+        "name": "resource_id",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(s3_storage_usage_bytes{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"},resource_id)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "$datasource"
+        },
+        "definition": "label_values(s3_storage_usage_bytes{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"},code_name)",
+        "hide": 2,
+        "includeAll": true,
+        "label": "code_name",
+        "name": "code_name",
+        "options": [],
+        "query": {
+          "qryType": 1,
+          "query": "label_values(s3_storage_usage_bytes{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"},code_name)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "title": "L2 对象存储（S3）",
+  "uid": "L2-S3",
+  "version": 1
+}

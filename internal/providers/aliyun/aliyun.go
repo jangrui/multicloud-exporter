@@ -346,7 +346,7 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 						tagLabels = a.fetchALBTags(account, region, resIDs)
 					case "nlb":
 						tagLabels = a.fetchNLBTags(account, region, resIDs)
-					case "s3":
+					case "oss":
 						tagLabels = a.fetchOSSBucketTags(account, region, resIDs)
 					}
 
@@ -645,11 +645,11 @@ func containsResource(list []string, r string) bool {
 func resourceTypeForNamespace(namespace string) string {
 	switch namespace {
 	case "acs_bandwidth_package":
-		return "bwp"
+		return "cbwp"
 	case "acs_slb_dashboard":
 		return "clb"
 	case "acs_oss_dashboard":
-		return "s3"
+		return "oss"
 	case "acs_alb":
 		return "alb"
 	case "acs_nlb":
@@ -664,12 +664,12 @@ func resourceTypeForNamespace(namespace string) string {
 func (a *Collector) resourceIDsForNamespace(account config.CloudAccount, region string, namespace string) ([]string, string, map[string]interface{}) {
 	switch namespace {
 	case "acs_bandwidth_package":
-		return a.listCBWPIDs(account, region), "bwp", nil
+		return a.listCBWPIDs(account, region), "cbwp", nil
 	case "acs_slb_dashboard":
 		ids, meta := a.listSLBIDs(account, region)
 		return ids, "clb", meta
 	case "acs_oss_dashboard":
-		return a.listOSSIDs(account, region), "s3", nil
+		return a.listOSSIDs(account, region), "oss", nil
 	case "acs_alb":
 		return a.listALBIDs(account, region), "alb", nil
 	case "acs_nlb":

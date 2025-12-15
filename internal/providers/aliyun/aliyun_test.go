@@ -62,13 +62,13 @@ func TestHasAnyDim(t *testing.T) {
 }
 
 func TestResourceTypeForNamespace(t *testing.T) {
-	if resourceTypeForNamespace("acs_bandwidth_package") != "bwp" {
+	if resourceTypeForNamespace("acs_bandwidth_package") != "cbwp" {
 		t.Fatalf("cbwp")
 	}
 	if resourceTypeForNamespace("acs_slb_dashboard") != "clb" {
 		t.Fatalf("slb")
 	}
-	if resourceTypeForNamespace("acs_oss_dashboard") != "s3" {
+	if resourceTypeForNamespace("acs_oss_dashboard") != "oss" {
 		t.Fatalf("oss")
 	}
 	if resourceTypeForNamespace("acs_alb") != "alb" {

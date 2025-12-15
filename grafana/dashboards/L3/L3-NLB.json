@@ -50,7 +50,7 @@
               }
             ]
           },
-          "unit": "percent"
+          "unit": "bps"
         },
         "overrides": []
       },
@@ -77,13 +77,13 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "nlb_bandwidth_utilization_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
+          "expr": "nlb_traffic_tx_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
           "legendFormat": "{{resource_id}}",
           "range": true,
           "refId": "A"
         }
       ],
-      "title": "NLB 带宽使用率 (Radial Gauge)",
+      "title": "NLB 出网带宽 (Radial Gauge)",
       "type": "gauge"
     },
     {
@@ -758,7 +758,8 @@
   "timepicker": {},
   "timezone": "browser",
   "title": "L3-网络负载均衡（NLB）",
-  "uid": "l3-nlb",
+  "uid": "L3-NLB",
   "version": 1,
+  "description": "",
   "weekStart": ""
 }

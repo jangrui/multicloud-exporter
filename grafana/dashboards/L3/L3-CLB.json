@@ -980,7 +980,8 @@
   "timepicker": {},
   "timezone": "",
   "title": "L3-传统负载均衡（CLB）",
-  "uid": "clb-l3",
+  "uid": "L3-CLB",
   "version": 1,
+  "description": "",
   "weekStart": ""
 }

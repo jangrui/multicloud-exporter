@@ -117,8 +117,12 @@ func (t *Collector) fetchCLBMonitor(account config.CloudAccount, region string, 
 			if resp == nil || resp.Response == nil || resp.Response.DataPoints == nil || len(resp.Response.DataPoints) == 0 {
 				// 输出 0 值样本以保证指标可见性
 				alias, count := metrics.NamespaceGauge(prod.Namespace, m)
+				rtype := metrics.GetNamespacePrefix(prod.Namespace)
+				if rtype == "" {
+					rtype = "clb"
+				}
 				for _, vip := range vips {
-					labels := []string{"tencent", account.AccountID, region, "lb", vip, prod.Namespace, m, ""}
+					labels := []string{"tencent", account.AccountID, region, rtype, vip, prod.Namespace, m, ""}
 					for len(labels) < count {
 						labels = append(labels, "")
 					}
@@ -140,8 +144,12 @@ func (t *Collector) fetchCLBMonitor(account config.CloudAccount, region string, 
 					val = *v
 				}
 				alias, count := metrics.NamespaceGauge(prod.Namespace, m)
+				rtype := metrics.GetNamespacePrefix(prod.Namespace)
+				if rtype == "" {
+					rtype = "clb"
+				}
 				scaled := scaleCLBMetric(prod.Namespace, m, val)
-				labels := []string{"tencent", account.AccountID, region, "lb", rid, prod.Namespace, m, ""}
+				labels := []string{"tencent", account.AccountID, region, rtype, rid, prod.Namespace, m, ""}
 				for len(labels) < count {
 					labels = append(labels, "")
 				}

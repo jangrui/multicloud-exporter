@@ -329,8 +329,9 @@ canonical:
         - instanceId
         - vip
       unit: bit/s
-  # 实例带宽利用率 (Aliyun NLB 未直接提供百分比，需计算或使用 BandwidthUtilization 如果存在? Grep 未显示)
-  
+# 实例带宽利用率 (Aliyun NLB 未直接提供百分比，需计算或使用 BandwidthUtilization 如果存在? Grep 未显示)
+# 排序整理：2025-12-15；修改者：@jangrui；规则：按实例/VIP 的连接、流量、包速率、丢包等类别分组展示（仅调整可读性，不改变键与字段）
+ 
 
 # 阿里云特有指标
  

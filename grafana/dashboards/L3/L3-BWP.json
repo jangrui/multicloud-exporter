@@ -76,7 +76,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "bwp_in_utilization_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
+          "expr": "bwp_utilization_rx_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
           "legendFormat": "{{resource_id}}",
           "range": true,
           "refId": "A"
@@ -177,7 +177,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "bwp_out_utilization_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
+          "expr": "bwp_utilization_tx_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
           "legendFormat": "{{resource_id}}",
           "range": true,
           "refId": "A"
@@ -247,7 +247,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
+          "expr": "bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
           "legendFormat": "{{resource_id}}",
           "range": true,
           "refId": "A"
@@ -308,7 +308,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "bwp_out_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
+          "expr": "bwp_traffic_tx_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
           "legendFormat": "{{resource_id}}",
           "range": true,
           "refId": "A"
@@ -448,7 +448,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "bwp_in_utilization_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
+          "expr": "bwp_utilization_rx_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -458,7 +458,7 @@
         },
         {
           "editorMode": "code",
-          "expr": "bwp_out_utilization_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
+          "expr": "bwp_utilization_tx_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -468,7 +468,7 @@
         },
         {
           "editorMode": "code",
-          "expr": "bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
+          "expr": "bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -478,7 +478,7 @@
         },
         {
           "editorMode": "code",
-          "expr": "bwp_out_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
+          "expr": "bwp_traffic_tx_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\", code_name=~\"$code_name\"}",
           "format": "table",
           "hide": false,
           "instant": true,
@@ -581,7 +581,7 @@
           "type": "prometheus",
           "uid": "$datasource"
         },
-        "definition": "label_values(bwp_in_bps,cloud_provider)",
+        "definition": "label_values(bwp_traffic_rx_bps,cloud_provider)",
         "hide": 0,
         "includeAll": true,
         "label": "云厂商",
@@ -590,7 +590,7 @@
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values(bwp_in_bps,cloud_provider)",
+          "query": "label_values(bwp_traffic_rx_bps,cloud_provider)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,
@@ -614,7 +614,7 @@
           "type": "prometheus",
           "uid": "$datasource"
         },
-        "definition": "label_values(bwp_in_bps{cloud_provider=~\"$cloud_provider\"},account_id)",
+        "definition": "label_values(bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\"},account_id)",
         "hide": 0,
         "includeAll": true,
         "label": "账号",
@@ -623,7 +623,7 @@
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values(bwp_in_bps{cloud_provider=~\"$cloud_provider\"},account_id)",
+          "query": "label_values(bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\"},account_id)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,
@@ -647,7 +647,7 @@
           "type": "prometheus",
           "uid": "$datasource"
         },
-        "definition": "label_values(bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\"},region)",
+        "definition": "label_values(bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\"},region)",
         "hide": 0,
         "includeAll": true,
         "label": "区域",
@@ -656,7 +656,7 @@
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values(bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\"},region)",
+          "query": "label_values(bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\"},region)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,
@@ -680,7 +680,7 @@
           "type": "prometheus",
           "uid": "$datasource"
         },
-        "definition": "label_values(bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"},resource_id)",
+        "definition": "label_values(bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"},resource_id)",
         "hide": 0,
         "includeAll": true,
         "label": "实例",
@@ -689,7 +689,7 @@
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values(bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"},resource_id)",
+          "query": "label_values(bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"},resource_id)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,
@@ -713,7 +713,7 @@
           "type": "prometheus",
           "uid": "$datasource"
         },
-        "definition": "label_values(bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"},code_name)",
+        "definition": "label_values(bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"},code_name)",
         "hide": 0,
         "includeAll": true,
         "label": "业务",
@@ -722,7 +722,7 @@
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values(bwp_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"},code_name)",
+          "query": "label_values(bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"},code_name)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,
@@ -740,7 +740,7 @@
   "timepicker": {},
   "timezone": "",
   "title": "L3-BWP实例详情",
-  "uid": "bwp-l3",
+  "uid": "L3-BWP",
   "version": 1,
   "weekStart": ""
 }

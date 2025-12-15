@@ -1,4 +1,5 @@
 # Unified Object Storage Metrics (Aliyun OSS / Tencent COS)
+# 排序整理：2025-12-15；修改者：@jangrui；规则：按存储用量/流量/请求/可用性与错误/延迟/带宽/归档/复制等类别分组展示（仅调整可读性，不改变键与字段）
 prefix: s3
 namespaces:
   aliyun: acs_oss_dashboard
@@ -92,12 +93,6 @@ canonical:
         - BucketName
       unit: Bytes
       scale: 1
-    tencent:
-      metric: CdnOriginTraffic # Assuming exists based on pattern, or omit if unsure
-      dimensions:
-        - bucket
-      unit: Bytes
-      scale: 1
   traffic_cdn_tx_bytes:
     description: "CDN 回源出流量"
     aliyun:
@@ -108,7 +103,7 @@ canonical:
       unit: Bytes
       scale: 1
     tencent:
-      metric: CdnTrafficDown
+      metric: CdnOriginTraffic
       dimensions:
         - bucket
       unit: Bytes
@@ -175,6 +170,54 @@ canonical:
         - bucket
       unit: count
       scale: 1
+  requests_append:
+    description: "AppendObject 请求数"
+    aliyun:
+      metric: AppendObjectCount
+      dimensions:
+        - userId
+        - BucketName
+      unit: count
+      scale: 1
+  requests_delete:
+    description: "DELETE 请求数"
+    aliyun:
+      metric: DeleteObjectCount
+      dimensions:
+        - userId
+        - BucketName
+      unit: count
+      scale: 1
+  requests_copy:
+    description: "CopyObject 请求数"
+    aliyun:
+      metric: CopyObjectCount
+      dimensions:
+        - userId
+        - BucketName
+      unit: count
+      scale: 1
+  requests_delete_qps:
+    description: "DELETE 请求 QPS"
+    tencent:
+      metric: DeleteObjectRequestsPs
+      dimensions:
+        - bucket
+      unit: count/s
+  requests_delete_multi_qps:
+    description: "DeleteMultipleObjects 请求 QPS"
+    tencent:
+      metric: DeleteMultiObjRequestsPs
+      dimensions:
+        - bucket
+      unit: count/s
+  requests_copy_qps:
+    description: "PutObjectCopy 请求 QPS"
+    tencent:
+      metric: PutObjectCopyRequestsPs
+      dimensions:
+        - bucket
+      unit: count/s
 
   # Availability & Errors
   availability_pct:
@@ -206,6 +249,74 @@ canonical:
       dimensions:
         - bucket
       unit: count
+      scale: 1
+  response_2xx_rate_pct:
+    description: "2xx 响应占比"
+    tencent:
+      metric: 2xxResponseRate
+      dimensions:
+        - bucket
+      unit: percent
+      scale: 1
+  response_3xx_rate_pct:
+    description: "3xx 响应占比"
+    tencent:
+      metric: 3xxResponseRate
+      dimensions:
+        - bucket
+      unit: percent
+      scale: 1
+  response_4xx_rate_pct:
+    description: "4xx 响应占比"
+    tencent:
+      metric: 4xxResponseRate
+      dimensions:
+        - bucket
+      unit: percent
+      scale: 1
+  response_5xx_rate_pct:
+    description: "5xx 响应占比"
+    tencent:
+      metric: 5xxResponseRate
+      dimensions:
+        - bucket
+      unit: percent
+      scale: 1
+  authorization_error_count:
+    description: "授权错误请求数（403 等）"
+    aliyun:
+      metric: AuthorizationErrorCount
+      dimensions:
+        - userId
+        - BucketName
+      unit: count
+      scale: 1
+  authorization_error_rate_pct:
+    description: "授权错误占比（占总请求百分比）"
+    aliyun:
+      metric: AuthorizationErrorRate
+      dimensions:
+        - userId
+        - BucketName
+      unit: percent
+      scale: 1
+  client_timeout_error_count:
+    description: "客户端超时错误请求数（如 408）"
+    aliyun:
+      metric: ClientTimeoutErrorCount
+      dimensions:
+        - userId
+        - BucketName
+      unit: count
+      scale: 1
+  client_timeout_error_rate_pct:
+    description: "客户端超时错误占比（占总请求百分比）"
+    aliyun:
+      metric: ClientTimeoutErrorRate
+      dimensions:
+        - userId
+        - BucketName
+      unit: percent
       scale: 1
 
   latency_e2e_get_ms:
@@ -240,6 +351,45 @@ canonical:
         - userId
         - BucketName
       unit: ms
+  latency_e2e_append_ms:
+    description: "AppendObject 端到端延迟"
+    aliyun:
+      metric: AppendObjectE2eLatency
+      dimensions:
+        - userId
+        - BucketName
+      unit: ms
+  latency_server_append_ms:
+    description: "AppendObject 服务端延迟"
+    aliyun:
+      metric: AppendObjectServerLatency
+      dimensions:
+        - userId
+        - BucketName
+      unit: ms
+  latency_e2e_copy_ms:
+    description: "CopyObject 端到端延迟"
+    aliyun:
+      metric: CopyObjectE2eLatency
+      dimensions:
+        - userId
+        - BucketName
+      unit: ms
+  latency_server_copy_ms:
+    description: "CopyObject 服务端延迟"
+    aliyun:
+      metric: CopyObjectServerLatency
+      dimensions:
+        - userId
+        - BucketName
+      unit: ms
+  latency_first_byte_ms:
+    description: "首字节延迟"
+    tencent:
+      metric: FirstByteDelay
+      dimensions:
+        - bucket
+      unit: ms
   bandwidth_internet_rx_bps:
     description: "公网入带宽"
     aliyun:
@@ -272,6 +422,13 @@ canonical:
         - userId
         - BucketName
       unit: bit/s
+  bandwidth_fetch_bps:
+    description: "远程拉取带宽（Fetch）"
+    tencent:
+      metric: FetchBandwidth
+      dimensions:
+        - bucket
+      unit: bps
   cache_recv_bytes:
     description: "缓存入流量 (Bytes)"
     aliyun:
@@ -351,12 +508,85 @@ canonical:
       dimensions:
         - bucket
       unit: Bytes
+      scale: 1048576
+  storage_archive_multipart_bytes:
+    description: "归档碎片容量 (Bytes)"
+    tencent:
+      metric: DeepArcMultipartStorage
+      dimensions:
+        - bucket
+      unit: Bytes
+      scale: 1048576
+  storage_archive_multipart_count:
+    description: "归档碎片文件数"
+    tencent:
+      metric: DeepArcMultipartNumber
+      dimensions:
+        - bucket
+      unit: count
+  storage_archive_object_count:
+    description: "归档对象数量"
+    tencent:
+      metric: DeepArcObjectNumber
+      dimensions:
+        - bucket
+      unit: count
+  storage_archive_retrieval_standard_bytes:
+    description: "归档标准取回量 (Bytes)"
+    tencent:
+      metric: DeepArcStandardRetrieval
+      dimensions:
+        - bucket
+      unit: Bytes
+      scale: 1048576
+  storage_archive_retrieval_bulk_bytes:
+    description: "归档批量取回量 (Bytes)"
+    tencent:
+      metric: DeepArcBulkRetrieval
+      dimensions:
+        - bucket
+      unit: Bytes
+      scale: 1048576
+  storage_archive_read_requests:
+    description: "归档读请求数"
+    tencent:
+      metric: DeepArcReadRequests
+      dimensions:
+        - bucket
+      unit: count
+  storage_archive_write_requests:
+    description: "归档写请求数"
+    tencent:
+      metric: DeepArcWriteRequests
+      dimensions:
+        - bucket
+      unit: count
   traffic_replication_bytes:
     description: "跨区域复制流量 (Bytes)"
     tencent:
       metric: CrossRegionReplicationTraffic
       dimensions:
         - bucket
+      unit: Bytes
+  traffic_replication_rx_bytes:
+    description: "跨区域复制入流量 (Bytes)"
+    aliyun:
+      metric: MeteringSyncRX
+      dimensions:
+        - userId
+        - BucketName
+        - region
+        - storageType
+      unit: Bytes
+  traffic_replication_tx_bytes:
+    description: "跨区域复制出流量 (Bytes)"
+    aliyun:
+      metric: MeteringSyncTX
+      dimensions:
+        - userId
+        - BucketName
+        - region
+        - storageType
       unit: Bytes
 
  
