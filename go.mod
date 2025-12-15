@@ -22,6 +22,7 @@ require (
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/cvm v1.3.2
 	github.com/tencentyun/cos-go-sdk-v5 v0.7.71
 	go.uber.org/zap v1.27.1
+	golang.org/x/sync v0.7.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 

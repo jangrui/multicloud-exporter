@@ -2,6 +2,7 @@
 package metrics
 
 import (
+	"fmt"
 	"strings"
 	"sync"
 
@@ -70,12 +71,12 @@ var (
 	aliasByNamespace  = make(map[string]map[string]string)
 	helpByNamespace   = make(map[string]func(string) string)
 	aliasFuncByNS     = make(map[string]func(string) string)
-    scaleByNamespace  = make(map[string]map[string]float64)
+	scaleByNamespace  = make(map[string]map[string]float64)
 )
 
 var (
-    sampleCountsMu sync.Mutex
-    sampleCounts   = make(map[string]int)
+	sampleCountsMu sync.Mutex
+	sampleCounts   = make(map[string]int)
 )
 
 func RegisterNamespacePrefix(namespace, prefix string) {
@@ -156,7 +157,21 @@ func NamespaceGauge(namespace, metric string, extraLabels ...string) (*prometheu
 	// cloud_provider, account_id, region, resource_type, resource_id, namespace, metric_name, code_name
 	// 加上动态维度标签
 	labels := []string{"cloud_provider", "account_id", "region", "resource_type", "resource_id", "namespace", "metric_name", "code_name"}
-	labels = append(labels, extraLabels...)
+	seen := make(map[string]bool)
+	for _, l := range labels {
+		seen[l] = true
+	}
+	for _, l := range extraLabels {
+		sanitized := sanitizeName(l)
+		base := sanitized
+		idx := 2
+		for seen[sanitized] {
+			sanitized = fmt.Sprintf("%s_%d", base, idx)
+			idx++
+		}
+		seen[sanitized] = true
+		labels = append(labels, sanitized)
+	}
 
 	g := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -165,34 +180,48 @@ func NamespaceGauge(namespace, metric string, extraLabels ...string) (*prometheu
 		},
 		labels,
 	)
-	prometheus.MustRegister(g)
+	if err := prometheus.Register(g); err != nil {
+		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
+			// If already registered, use the existing one
+			if existingVec, ok := are.ExistingCollector.(*prometheus.GaugeVec); ok {
+				nsGauges[key] = gaugeInfo{vec: existingVec, count: len(labels)}
+				return existingVec, len(labels)
+			}
+		}
+		// Log error and return the unregistered gauge (it won't be scraped but won't crash)
+		fmt.Printf("Failed to register metric: name=%q labels=%v err=%v. Returning unregistered gauge.\n", name, labels, err)
+		// We still return g, but it's not registered.
+		// We also cache it so we don't try to register again and log error every time.
+		nsGauges[key] = gaugeInfo{vec: g, count: len(labels)}
+		return g, len(labels)
+	}
 	nsGauges[key] = gaugeInfo{vec: g, count: len(labels)}
 	return g, len(labels)
 }
 
 func IncSampleCount(namespace string, n int) {
-    if n <= 0 {
-        return
-    }
-    sampleCountsMu.Lock()
-    sampleCounts[namespace] += n
-    sampleCountsMu.Unlock()
+	if n <= 0 {
+		return
+	}
+	sampleCountsMu.Lock()
+	sampleCounts[namespace] += n
+	sampleCountsMu.Unlock()
 }
 
 func ResetSampleCounts() {
-    sampleCountsMu.Lock()
-    sampleCounts = make(map[string]int)
-    sampleCountsMu.Unlock()
+	sampleCountsMu.Lock()
+	sampleCounts = make(map[string]int)
+	sampleCountsMu.Unlock()
 }
 
 func GetSampleCounts() map[string]int {
-    sampleCountsMu.Lock()
-    defer sampleCountsMu.Unlock()
-    out := make(map[string]int, len(sampleCounts))
-    for k, v := range sampleCounts {
-        out[k] = v
-    }
-    return out
+	sampleCountsMu.Lock()
+	defer sampleCountsMu.Unlock()
+	out := make(map[string]int, len(sampleCounts))
+	for k, v := range sampleCounts {
+		out[k] = v
+	}
+	return out
 }
 
 func aliasMetricForNamespace(namespace, metric string) string {

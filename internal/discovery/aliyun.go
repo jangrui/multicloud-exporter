@@ -73,6 +73,12 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 		sk = cfg.Credential.AccessSecret
 	}
 	prods := make([]config.Product, 0)
+	var namespaces []string
+	for ns := range nsSet {
+		namespaces = append(namespaces, ns)
+	}
+
+	// Fetch meta for each namespace
 	for ns := range nsSet {
 		region := "cn-hangzhou"
 		if len(accounts) > 0 && len(accounts[0].Regions) > 0 && accounts[0].Regions[0] != "*" {
@@ -84,30 +90,160 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 			targetAK = accounts[0].AccessKeyID
 			targetSK = accounts[0].AccessKeySecret
 		}
+
+		// Pre-defined fallback metrics for each namespace
+		// These are used when:
+		// 1. Meta API fails (network error, permission denied, etc.)
+		// 2. Meta API returns empty list
+		// 3. To ensure core metrics are always collected even if API doesn't return them
+		fallbackMap := map[string][]string{
+			"acs_bandwidth_package": {
+				"net_rx.rate", "net_tx.rate",
+				"net_rx.Pkgs", "net_tx.Pkgs",
+				"in_bandwidth_utilization", "out_bandwidth_utilization",
+				"in_ratelimit_drop_pps", "out_ratelimit_drop_pps",
+				"net_rx.ratePercent", "net_tx.ratePercent",
+			},
+			"acs_slb_dashboard": {
+				"InstanceTrafficRX", "InstanceTrafficTX",
+				"InstancePacketRX", "InstancePacketTX",
+				"InstanceDropPacketRX", "InstanceDropPacketTX",
+				"InstanceDropTrafficRX", "InstanceDropTrafficTX",
+				"NewConnection", "ActiveConnection", "DropConnection",
+				"Qps", "Rt",
+				"StatusCode2xx", "StatusCode3xx", "StatusCode4xx", "StatusCode5xx", "StatusCodeOther",
+				"UnhealthyServerCount", "HealthyServerCountWithRule",
+				"InstanceQps", "InstanceRt",
+				"InstanceTrafficRXUtilization", "InstanceTrafficTXUtilization",
+				"InstanceStatusCode2xx", "InstanceStatusCode3xx",
+				"InstanceStatusCode4xx", "InstanceStatusCode5xx", "InstanceStatusCodeOther",
+				"InstanceUpstreamCode4xx", "InstanceUpstreamCode5xx", "InstanceUpstreamRt",
+				"InactiveConnection", "MaxConnection",
+				"GroupActiveConnection", "GroupNewConnection",
+				"GroupTotalTrafficRX", "GroupTotalTrafficTX",
+				"GroupTrafficRX", "GroupTrafficTX",
+				"GroupUnhealthyServerCount", "HeathyServerCount",
+				"InstanceActiveConnection", "InstanceDropConnection",
+				"InstanceInactiveConnection", "InstanceMaxConnection",
+				"InstanceMaxConnectionUtilization", "InstanceNewConnection",
+				"InstanceNewConnectionUtilization", "InstanceQpsUtilization",
+				"UnhealthyServerCountWithRule",
+				"UpstreamCode4xx", "UpstreamCode5xx", "UpstreamRt",
+			},
+			"acs_oss_dashboard": {
+				"UserStorage",
+				"InternetRecv", "InternetSend",
+				"IntranetRecv", "IntranetSend",
+				"UserCdnRecv", "UserCdnSend",
+				"TotalRequestCount",
+				"GetObjectCount", "PutObjectCount", "HeadObjectCount",
+				"AppendObjectCount", "DeleteObjectCount", "CopyObjectCount",
+				"UserAvailability",
+				"ServerErrorCount",
+				"AuthorizationErrorCount", "AuthorizationErrorRate",
+				"ClientTimeoutErrorCount", "ClientTimeoutErrorRate",
+				"GetObjectE2eLatency", "GetObjectServerLatency",
+				"PutObjectE2eLatency", "PutObjectServerLatency",
+				"AppendObjectE2eLatency", "AppendObjectServerLatency",
+				"CopyObjectE2eLatency", "CopyObjectServerLatency",
+				"InternetRecvBandwidth", "InternetSendBandwidth",
+				"IntranetRecvBandwidth", "IntranetSendBandwidth",
+				"CacheRecv", "CacheSend",
+				"CacheOriginRecv", "CacheOriginSend",
+				"ObjectCount",
+				"MeteringSyncRX", "MeteringSyncTX",
+			},
+			"acs_alb": {
+				"LoadBalancerActiveConnection", "LoadBalancerNewConnection", "LoadBalancerRejectedConnection",
+				"LoadBalancerInBits", "LoadBalancerOutBits",
+				"LoadBalancerQPS", "LoadBalancerRequestTime",
+				"LoadBalancerHTTPCode2XX", "LoadBalancerHTTPCode3XX",
+				"LoadBalancerHTTPCode4XX", "LoadBalancerHTTPCode5XX",
+				"ListenerActiveConnection", "ListenerClientTLSNegotiationError",
+				"ListenerHTTPCode2XX", "ListenerHTTPCode3XX",
+				"ListenerHTTPCode4XX", "ListenerHTTPCode500",
+				"ListenerHTTPCode502", "ListenerHTTPCode503",
+				"ListenerHTTPCode504", "ListenerHTTPCode5XX",
+				"ListenerHTTPCodeUpstream2XX", "ListenerHTTPCodeUpstream3XX",
+				"ListenerHTTPCodeUpstream4XX", "ListenerHTTPCodeUpstream5XX",
+				"ListenerHTTPFixedResponse", "ListenerHTTPRedirect",
+				"ListenerHealthyHostCount", "ListenerInBits",
+				"ListenerInactiveConnection", "ListenerMaxConnection",
+				"ListenerNewConnection", "ListenerNonStickyRequest",
+				"ListenerOutBits", "ListenerQPS", "ListenerRejectedConnection",
+				"ListenerRequestTime", "ListenerUnHealthyHostCount",
+				"ListenerUpstreamConnectionError", "ListenerUpstreamResponseTime",
+				"ListenerUpstreamTLSNegotiationError",
+				"VipActiveConnection", "VipClientTLSNegotiationError",
+				"VipHTTPCode2XX", "VipHTTPCode3XX",
+				"VipHTTPCode4XX", "VipHTTPCode500",
+				"VipHTTPCode502", "VipHTTPCode503",
+				"VipHTTPCode504", "VipHTTPCode5XX",
+				"VipHTTPFixedResponse", "VipHTTPRedirect",
+				"VipInBits", "VipInactiveConnection",
+				"VipMaxConnection", "VipNewConnection",
+				"VipNonStickyRequest", "VipOutBits",
+				"VipQPS", "VipRejectedConnection",
+				"VipRequestTime", "VipUpstreamConnectionError",
+				"VipUpstreamResponseTime", "VipUpstreamTLSNegotiationError",
+				"ServerGroupHTTPCodeUpstream2XX", "ServerGroupHTTPCodeUpstream3XX",
+				"ServerGroupHTTPCodeUpstream4XX", "ServerGroupHTTPCodeUpstream5XX",
+				"ServerGroupHealthyHostCount", "ServerGroupNonStickyRequest",
+				"ServerGroupQPS", "ServerGroupRequestTime",
+				"ServerGroupUnHealthyHostCount", "ServerGroupUpstreamConnectionError",
+				"ServerGroupUpstreamResponseTime", "ServerGroupUpstreamTLSNegotiationError",
+				"RuleHTTPCodeUpstream2XX",
+			},
+			"acs_nlb": {
+				"InstanceActiveConnection", "InstanceNewConnection", "DropConnection",
+				"InstanceTrafficRX", "InstanceTrafficTX",
+				"InstanceDropPacketRX", "InstanceDropPacketTX",
+				"InstancePacketRX", "InstancePacketTX",
+				"ListenerHeathyServerCount", "ListenerUnhealthyServerCount",
+				"ListenerPacketRX", "ListenerPacketTX",
+				"DropPacketRX", "DropPacketTX",
+				"DropTrafficRX", "DropTrafficTX",
+				"InstanceInactiveConnection", "InstanceMaxConnection",
+				"InstanceDropConnection",
+				"InstanceDropTrafficRX", "InstanceDropTrafficTX",
+				"VipActiveConnection", "VipClientResetPacket",
+				"VipDropConnection",
+				"VipDropPacketRX", "VipDropPacketTX",
+				"VipDropTrafficRX", "VipDropTrafficTX",
+				"VipPacketRX", "VipPacketTX",
+				"VipTrafficRX", "VipTrafficTX",
+			},
+			"acs_gwlb": {
+				"ActiveConnection", "NewConnection",
+				"TrafficRX", "TrafficTX",
+				"PacketRX", "PacketTX",
+				"ServerGroupUnhealthyHostCount", "ServerGroupHealthyHostCount",
+			},
+		}
+
 		client, err := newAliyunCMSClient(region, targetAK, targetSK)
 		if err != nil {
+			if list, ok := fallbackMap[ns]; ok {
+				logger.Log.Warnf("Aliyun CMS client creation failed for namespace=%s, using fallback metrics. error=%v", ns, err)
+				prods = append(prods, config.Product{Namespace: ns, AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: list}}})
+			}
 			continue
 		}
 		req := cms.CreateDescribeMetricMetaListRequest()
 		req.Namespace = ns
 		resp, err := client.DescribeMetricMetaList(req)
 		var metrics []string
+
+		// 1. Handle API Failure: Use fallback directly
 		if err != nil || resp == nil || resp.Resources.Resource == nil {
-			if ns == "acs_bandwidth_package" {
+			if list, ok := fallbackMap[ns]; ok {
 				logger.Log.Infof("Aliyun discovery fallback enabled namespace=%s reason=meta_unavailable", ns)
-				metrics = []string{
-					"DownstreamBandwidth", "UpstreamBandwidth",
-					"DownstreamPacket", "UpstreamPacket",
-					"in_bandwidth_utilization", "out_bandwidth_utilization",
-					"net_rx.rate", "net_tx.rate",
-					"net_rx.Pkgs", "net_tx.Pkgs",
-					"in_ratelimit_drop_pps", "out_ratelimit_drop_pps",
-				}
+				metrics = list
 			} else {
 				continue
 			}
-		}
-		if err == nil && resp != nil && resp.Resources.Resource != nil {
+		} else {
+			// 2. Handle API Success: Parse metrics
 			mapping := config.DefaultResourceDimMapping()
 			key := "aliyun." + ns
 			required := mapping[key]
@@ -147,46 +283,27 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 				metrics = append(metrics, name)
 			}
 		}
-		if ns == "acs_slb_dashboard" {
-			fallback := []string{
-				"TrafficRXNew", "TrafficTXNew",
-				"DropTrafficRX", "DropTrafficTX",
-				"PacketRX", "PacketTX",
-				"DropPacketRX", "DropPacketTX",
-				"StatusCode2xx", "StatusCode3xx", "StatusCode4xx", "StatusCode5xx", "StatusCodeOther",
-				"Qps", "Rt",
-				"ActiveConnection", "InactiveConnection", "NewConnection", "MaxConnection",
-				"UnhealthyServerCount", "HealthyServerCountWithRule",
-				"InstanceQps", "InstanceRt",
-				"InstancePacketRX", "InstancePacketTX",
-				"InstanceTrafficRXUtilization", "InstanceTrafficTXUtilization",
-				"InstanceStatusCode2xx", "InstanceStatusCode3xx", "InstanceStatusCode4xx", "InstanceStatusCode5xx", "InstanceStatusCodeOther",
-				"InstanceUpstreamCode4xx", "InstanceUpstreamCode5xx", "InstanceUpstreamRt",
-			}
+
+		// 3. Ensure Core Metrics: Append fallback metrics if missing
+		if list, ok := fallbackMap[ns]; ok {
 			cur := make(map[string]struct{}, len(metrics))
 			for _, m := range metrics {
 				cur[m] = struct{}{}
 			}
-			for _, m := range fallback {
+			added := 0
+			for _, m := range list {
 				if _, ok := cur[m]; !ok {
 					metrics = append(metrics, m)
+					added++
 				}
 			}
-			logger.Log.Infof("Aliyun discovery appended slb fallback metrics added=%d", len(metrics)-len(cur))
+			if added > 0 {
+				logger.Log.Infof("Aliyun discovery appended fallback metrics namespace=%s added=%d", ns, added)
+			}
 		}
+
 		if len(metrics) == 0 {
-			if ns == "acs_bandwidth_package" {
-				metrics = []string{
-					"DownstreamBandwidth", "UpstreamBandwidth",
-					"DownstreamPacket", "UpstreamPacket",
-					"in_bandwidth_utilization", "out_bandwidth_utilization",
-					"net_rx.rate", "net_tx.rate",
-					"net_rx.Pkgs", "net_tx.Pkgs",
-					"in_ratelimit_drop_pps", "out_ratelimit_drop_pps",
-				}
-			} else {
-				continue
-			}
+			continue
 		}
 		prods = append(prods, config.Product{Namespace: ns, AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: metrics}}})
 	}

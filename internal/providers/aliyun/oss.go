@@ -42,51 +42,70 @@ func (a *Collector) listOSSIDs(account config.CloudAccount, region string) []str
 	if valid {
 		buckets = entry.Buckets
 	} else {
-		// Fetch from API
-		// OSS ListBuckets is a global operation, but we need an endpoint.
-		// Using the current region's endpoint is fine.
-		client, err := a.clientFactory.NewOSSClient(region, account.AccessKeyID, account.AccessKeySecret)
-		if err != nil {
-			ctxLog.Errorf("Init OSS client error: %v", err)
-			return []string{}
-		}
-
-		var allBuckets []ossBucketInfo
-		marker := ""
-		for {
-			start := time.Now()
-			lsRes, err := client.ListBuckets(oss.Marker(marker), oss.MaxKeys(100))
-			if err != nil {
-				metrics.RequestTotal.WithLabelValues("aliyun", "ListBuckets", "error").Inc()
-				metrics.RecordRequest("aliyun", "ListBuckets", "error")
-				ctxLog.Errorf("ListBuckets error: %v", err)
-				break
-			}
-			metrics.RequestTotal.WithLabelValues("aliyun", "ListBuckets", "success").Inc()
-			metrics.RecordRequest("aliyun", "ListBuckets", "success")
-			metrics.RequestDuration.WithLabelValues("aliyun", "ListBuckets").Observe(time.Since(start).Seconds())
-
-			for _, bucket := range lsRes.Buckets {
-				allBuckets = append(allBuckets, ossBucketInfo{
-					Name:     bucket.Name,
-					Location: strings.TrimPrefix(bucket.Location, "oss-"),
-				})
-			}
-
-			if !lsRes.IsTruncated {
-				break
-			}
-			marker = lsRes.NextMarker
-		}
-
-		if len(allBuckets) > 0 {
+		// Use singleflight to prevent concurrent ListBuckets calls for the same account
+		// regardless of which region triggered the call.
+		key := "oss_list_buckets_" + account.AccountID
+		val, err, _ := a.sf.Do(key, func() (interface{}, error) {
+			// Double-check cache inside singleflight to ensure we don't fetch if just updated
 			a.ossMu.Lock()
-			a.ossCache[account.AccountID] = ossCacheEntry{
-				Buckets:   allBuckets,
-				UpdatedAt: time.Now(),
+			if e, ok := a.ossCache[account.AccountID]; ok && time.Since(e.UpdatedAt) < ttlDur {
+				a.ossMu.Unlock()
+				return e.Buckets, nil
 			}
 			a.ossMu.Unlock()
-			buckets = allBuckets
+
+			// Fetch from API
+			// OSS ListBuckets is a global operation, but we need an endpoint.
+			// Using the current region's endpoint is fine.
+			client, err := a.clientFactory.NewOSSClient(region, account.AccessKeyID, account.AccessKeySecret)
+			if err != nil {
+				ctxLog.Errorf("Init OSS client error: %v", err)
+				return nil, err
+			}
+
+			var allBuckets []ossBucketInfo
+			marker := ""
+			for {
+				start := time.Now()
+				lsRes, err := client.ListBuckets(oss.Marker(marker), oss.MaxKeys(100))
+				if err != nil {
+					metrics.RequestTotal.WithLabelValues("aliyun", "ListBuckets", "error").Inc()
+					metrics.RecordRequest("aliyun", "ListBuckets", "error")
+					ctxLog.Errorf("ListBuckets error: %v", err)
+					return nil, err
+				}
+				metrics.RequestTotal.WithLabelValues("aliyun", "ListBuckets", "success").Inc()
+				metrics.RecordRequest("aliyun", "ListBuckets", "success")
+				metrics.RequestDuration.WithLabelValues("aliyun", "ListBuckets").Observe(time.Since(start).Seconds())
+
+				for _, bucket := range lsRes.Buckets {
+					allBuckets = append(allBuckets, ossBucketInfo{
+						Name:     bucket.Name,
+						Location: strings.TrimPrefix(bucket.Location, "oss-"),
+					})
+				}
+
+				if !lsRes.IsTruncated {
+					break
+				}
+				marker = lsRes.NextMarker
+			}
+
+			if len(allBuckets) > 0 {
+				a.ossMu.Lock()
+				a.ossCache[account.AccountID] = ossCacheEntry{
+					Buckets:   allBuckets,
+					UpdatedAt: time.Now(),
+				}
+				a.ossMu.Unlock()
+			}
+			return allBuckets, nil
+		})
+
+		if err == nil {
+			if b, ok := val.([]ossBucketInfo); ok {
+				buckets = b
+			}
 		}
 	}
 
@@ -97,6 +116,7 @@ func (a *Collector) listOSSIDs(account config.CloudAccount, region string) []str
 			regionBuckets = append(regionBuckets, b.Name)
 		}
 	}
+	ctxLog.Debugf("ListOSSIDs total=%d region_match=%d region=%s", len(buckets), len(regionBuckets), region)
 
 	if len(regionBuckets) > 0 {
 		max := 5

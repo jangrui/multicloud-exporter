@@ -60,15 +60,15 @@ func DefaultResourceDimMapping() map[string][]string {
 	return map[string][]string{
 		// Aliyun
 		"aliyun.acs_ecs_dashboard":     {"InstanceId", "instanceId", "instance_id"},
-		"aliyun.acs_slb_dashboard":     {"InstanceId", "instanceId", "instance_id"},
+		"aliyun.acs_slb_dashboard":     {"InstanceId", "instanceId", "instance_id", "groupId", "group_id"},
 		"aliyun.acs_bandwidth_package": {"BandwidthPackageId", "bandwidthPackageId", "sharebandwidthpackages"},
 		"aliyun.acs_oss_dashboard":     {"BucketName", "bucketName", "bucket_name"},
-		"aliyun.acs_alb":               {"loadBalancerId", "LoadBalancerId"},
-		"aliyun.acs_nlb":               {"InstanceId", "instanceId", "instance_id"},
+		"aliyun.acs_alb":               {"loadBalancerId", "LoadBalancerId", "serverGroupId", "listenerId", "vip"},
+		"aliyun.acs_nlb":               {"InstanceId", "instanceId", "instance_id", "listenerId", "vip"},
 		"aliyun.acs_gwlb":              {"instanceId", "InstanceId", "instance_id"},
 		// Tencent
-		"tencent.QCE/CVM": {"InstanceId"},
-		"tencent.QCE/LB":  {"LoadBalancerId", "vip"},
+		"tencent.QCE/CVM":  {"InstanceId"},
+		"tencent.QCE/LB":   {"LoadBalancerId", "vip"},
 		"tencent.qce/gwlb": {"gwLoadBalancerId", "GwLoadBalancerId"},
 		// AWS (Example)
 		"aws.AWS/EC2": {"InstanceId"},
@@ -172,12 +172,12 @@ type ServerConf struct {
 	// Deprecated: use Log.File.Path instead
 	LogDir string `yaml:"log_dir"`
 	// Deprecated: use Log.Level instead
-	LogLevel    string     `yaml:"log_level"`
-	Log         *LogConfig `yaml:"log"`
-	HttpProxy   string     `yaml:"http_proxy"`
-	HttpsProxy  string     `yaml:"https_proxy"`
-	NoProxy     string     `yaml:"no_proxy"`
-	NoMeta      bool       `yaml:"no_meta"`
+	LogLevel   string     `yaml:"log_level"`
+	Log        *LogConfig `yaml:"log"`
+	HttpProxy  string     `yaml:"http_proxy"`
+	HttpsProxy string     `yaml:"https_proxy"`
+	NoProxy    string     `yaml:"no_proxy"`
+	NoMeta     bool       `yaml:"no_meta"`
 	// DiscoveryTTL 控制资源自动发现结果的缓存生命周期。
 	// 支持的时间单位：
 	//   - s: 秒 (second)

@@ -24,6 +24,7 @@ import (
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/ecs"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/sts"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/tag"
+	"golang.org/x/sync/singleflight"
 )
 
 // Collector 封装阿里云资源采集逻辑
@@ -39,6 +40,7 @@ type Collector struct {
 	ossCache      map[string]ossCacheEntry
 	ossMu         sync.Mutex
 	clientFactory ClientFactory
+	sf            singleflight.Group
 }
 
 // resCacheEntry 缓存资源ID及元数据
@@ -193,6 +195,7 @@ func (a *Collector) getAllRegions(account config.CloudAccount) []string {
 	for _, region := range response.Regions.Region {
 		regions = append(regions, region.RegionId)
 	}
+	logger.Log.Debugf("Aliyun DescribeRegions success count=%d account_id=%s", len(regions), account.AccountID)
 	return regions
 }
 
@@ -267,7 +270,18 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 			continue
 		}
 		rfilter := resourceTypeForNamespace(prod.Namespace)
-		if rfilter == "" || !containsResource(account.Resources, rfilter) {
+		// Check for resource permission, including aliases (s3->oss, bwp->cbwp)
+		allowed := false
+		if rfilter != "" {
+			if containsResource(account.Resources, rfilter) {
+				allowed = true
+			} else if rfilter == "oss" && containsResource(account.Resources, "s3") {
+				allowed = true
+			} else if rfilter == "cbwp" && containsResource(account.Resources, "bwp") {
+				allowed = true
+			}
+		}
+		if !allowed {
 			continue
 		}
 		pwg.Add(1)
@@ -432,66 +446,67 @@ func (a *Collector) getMetricMeta(client CMSClient, namespace, metric string) me
 		}
 		break
 	}
+	var out metricMeta
 	if err != nil {
 		logger.Log.Warnf("Aliyun getMetricMeta error: namespace=%s metric=%s error=%v", namespace, metric, err)
 		st := classifyAliyunError(err)
 		metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricMetaList", st).Inc()
 		metrics.RecordRequest("aliyun", "DescribeMetricMetaList", st)
-		return metricMeta{}
-	}
-	metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricMetaList", "success").Inc()
-	metrics.RequestDuration.WithLabelValues("aliyun", "DescribeMetricMetaList").Observe(time.Since(start).Seconds())
-	metrics.RecordRequest("aliyun", "DescribeMetricMetaList", "success")
-	var out metricMeta
-	if len(resp.Resources.Resource) > 0 {
-		r := resp.Resources.Resource[0]
-		dims := strings.Split(r.Dimensions, ",")
-		var ds []string
-		for _, d := range dims {
-			d = strings.TrimSpace(d)
-			if d != "" && d != "userId" {
-				ds = append(ds, d)
-			}
-		}
-		out.Dimensions = ds
-		if len(out.Dimensions) == 0 {
-			key := "aliyun." + namespace
-			if a.cfg != nil && a.cfg.ServerConf != nil {
-				if req, ok := a.cfg.ServerConf.ResourceDimMapping[key]; ok && len(req) > 0 {
-					out.Dimensions = append(out.Dimensions, req...)
+		// Don't return empty meta on error, fall through to use default dimensions
+	} else {
+		metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricMetaList", "success").Inc()
+		metrics.RequestDuration.WithLabelValues("aliyun", "DescribeMetricMetaList").Observe(time.Since(start).Seconds())
+		metrics.RecordRequest("aliyun", "DescribeMetricMetaList", "success")
+		if len(resp.Resources.Resource) > 0 {
+			r := resp.Resources.Resource[0]
+			dims := strings.Split(r.Dimensions, ",")
+			var ds []string
+			for _, d := range dims {
+				d = strings.TrimSpace(d)
+				if d != "" && d != "userId" {
+					ds = append(ds, d)
 				}
 			}
+			out.Dimensions = ds
 			if len(out.Dimensions) == 0 {
-				defaults := config.DefaultResourceDimMapping()
-				if req, ok := defaults[key]; ok && len(req) > 0 {
-					out.Dimensions = append(out.Dimensions, req...)
+				key := "aliyun." + namespace
+				if a.cfg != nil && a.cfg.ServerConf != nil {
+					if req, ok := a.cfg.ServerConf.ResourceDimMapping[key]; ok && len(req) > 0 {
+						out.Dimensions = append(out.Dimensions, req...)
+					}
 				}
-			}
-		}
-		if r.Statistics != "" {
-			parts := strings.Split(r.Statistics, ",")
-			for i := range parts {
-				parts[i] = strings.TrimSpace(parts[i])
-			}
-			out.Statistics = parts
-		}
-		if r.Periods != "" {
-			// 解析 Periods (如 "60,300") 取最小值，避免直接透传导致 API 报错
-			parts := strings.Split(r.Periods, ",")
-			minP := 0
-			for _, p := range parts {
-				p = strings.TrimSpace(p)
-				if val, err := strconv.Atoi(p); err == nil && val > 0 {
-					if minP == 0 || val < minP {
-						minP = val
+				if len(out.Dimensions) == 0 {
+					defaults := config.DefaultResourceDimMapping()
+					if req, ok := defaults[key]; ok && len(req) > 0 {
+						out.Dimensions = append(out.Dimensions, req...)
 					}
 				}
 			}
-			if minP > 0 {
-				out.MinPeriod = strconv.Itoa(minP)
-			} else {
-				// fallback
-				out.MinPeriod = strings.TrimSpace(r.Periods)
+			if r.Statistics != "" {
+				parts := strings.Split(r.Statistics, ",")
+				for i := range parts {
+					parts[i] = strings.TrimSpace(parts[i])
+				}
+				out.Statistics = parts
+			}
+			if r.Periods != "" {
+				// 解析 Periods (如 "60,300") 取最小值，避免直接透传导致 API 报错
+				parts := strings.Split(r.Periods, ",")
+				minP := 0
+				for _, p := range parts {
+					p = strings.TrimSpace(p)
+					if val, err := strconv.Atoi(p); err == nil && val > 0 {
+						if minP == 0 || val < minP {
+							minP = val
+						}
+					}
+				}
+				if minP > 0 {
+					out.MinPeriod = strconv.Itoa(minP)
+				} else {
+					// fallback
+					out.MinPeriod = strings.TrimSpace(r.Periods)
+				}
 			}
 		}
 	}
@@ -1311,10 +1326,26 @@ func parseContentCodeName(content []byte) map[string]string {
 }
 func (a *Collector) buildMetricDimensions(ids []string, dkey string, metricDims []string, meta map[string]interface{}) ([]map[string]string, []string) {
 	var dynamicDims []string
+	reserved := map[string]struct{}{
+		"region":         {},
+		"userid":         {},
+		"cloud_provider": {},
+		"account_id":     {},
+		"resource_type":  {},
+		"resource_id":    {},
+		"namespace":      {},
+		"metric_name":    {},
+		"code_name":      {},
+	}
 	for _, d := range metricDims {
-		if !strings.EqualFold(d, dkey) && !strings.EqualFold(d, "userId") {
-			dynamicDims = append(dynamicDims, d)
+		lower := strings.ToLower(d)
+		if strings.EqualFold(d, dkey) {
+			continue
 		}
+		if _, ok := reserved[lower]; ok {
+			continue
+		}
+		dynamicDims = append(dynamicDims, d)
 	}
 	sort.Strings(dynamicDims)
 	hasDynamicDims := len(dynamicDims) > 0
@@ -1469,6 +1500,7 @@ func (a *Collector) processMetricBatch(client CMSClient, req *cms.DescribeMetric
 		}
 
 		if len(points) == 0 {
+			ctxLog.Debugf("Metric %s has 0 points, filling 0 for %d dims", m, len(dims))
 			for _, dim := range dims {
 				rid := dim[dkey]
 				var codeNameVal string

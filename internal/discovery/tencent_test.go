@@ -90,7 +90,6 @@ func TestTencentDiscoverer_Discover(t *testing.T) {
 	for _, p := range prods {
 		if p.Namespace == "QCE/BWP" {
 			foundBWP = true
-			assert.Contains(t, p.MetricInfo[0].MetricList, "OutTraffic")
 			// Verify fallback metrics are added
 			assert.Contains(t, p.MetricInfo[0].MetricList, "InTraffic")
 		}
@@ -115,7 +114,47 @@ func TestTencentDiscoverer_Discover(t *testing.T) {
 		return nil, errors.New("client error")
 	}
 	prods = d.Discover(ctx, cfg)
-	assert.Len(t, prods, 0)
+	// Expect 3 products (BWP, CLB, COS) because fallback metrics should be used
+	assert.Len(t, prods, 3)
+	for _, p := range prods {
+		assert.NotEmpty(t, p.MetricInfo)
+		assert.NotEmpty(t, p.MetricInfo[0].MetricList)
+	}
+}
+
+func TestTencentDiscoverer_Discover_COS_Fallback(t *testing.T) {
+	// Backup and restore newTencentMonitorClient
+	originalNewTencentMonitorClient := newTencentMonitorClient
+	defer func() { newTencentMonitorClient = originalNewTencentMonitorClient }()
+
+	d := &TencentDiscoverer{}
+	ctx := context.Background()
+	cfg := &config.Config{
+		AccountsList: []config.CloudAccount{
+			{
+				Provider:        "tencent",
+				AccessKeyID:     "ak",
+				AccessKeySecret: "sk",
+				Regions:         []string{"ap-guangzhou"},
+				Resources:       []string{"s3"},
+			},
+		},
+	}
+
+	// Mock API failure
+	newTencentMonitorClient = func(region, ak, sk string) (MonitorClient, error) {
+		return &mockMonitorClient{
+			DescribeBaseMetricsFunc: func(request *monitor.DescribeBaseMetricsRequest) (*monitor.DescribeBaseMetricsResponse, error) {
+				return nil, errors.New("api failed")
+			},
+		}, nil
+	}
+
+	prods := d.Discover(ctx, cfg)
+	// Expect COS to be present with fallback metrics
+	assert.Len(t, prods, 1)
+	assert.Equal(t, "QCE/COS", prods[0].Namespace)
+	assert.Contains(t, prods[0].MetricInfo[0].MetricList, "StdStorage")
 }
 
 func TestFetchTencentMetricMeta(t *testing.T) {

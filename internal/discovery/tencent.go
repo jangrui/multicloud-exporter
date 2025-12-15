@@ -76,31 +76,35 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 		}
 		ak := accounts[0].AccessKeyID
 		sk := accounts[0].AccessKeySecret
-		client, err := newTencentMonitorClient(region, ak, sk)
-		if err != nil {
-			return prods
-		}
-		req := monitor.NewDescribeBaseMetricsRequest()
-		req.Namespace = common.StringPtr("QCE/BWP")
-		resp, err := client.DescribeBaseMetrics(req)
-		if err != nil {
-			logger.Log.Warnf("Tencent DescribeBaseMetrics QCE/BWP error: %v", err)
-		}
-		var metrics []string
-		if err == nil && resp != nil && resp.Response != nil && resp.Response.MetricSet != nil {
-			for _, m := range resp.Response.MetricSet {
-				if m == nil || m.MetricName == nil {
-					continue
-				}
-				metrics = append(metrics, *m.MetricName)
-			}
-		}
+
 		// 兜底补充常用 BWP 指标
 		fallback := []string{
 			"InTraffic", "OutTraffic",
 			"InPkg", "OutPkg",
 			"IntrafficBwpRatio", "OuttrafficBwpRatio",
 		}
+
+		var metrics []string
+		client, err := newTencentMonitorClient(region, ak, sk)
+		if err != nil {
+			logger.Log.Warnf("Tencent client creation failed for QCE/BWP: %v", err)
+		} else {
+			req := monitor.NewDescribeBaseMetricsRequest()
+			req.Namespace = common.StringPtr("QCE/BWP")
+			resp, err := client.DescribeBaseMetrics(req)
+			if err != nil {
+				logger.Log.Warnf("Tencent DescribeBaseMetrics QCE/BWP error: %v", err)
+			}
+			if err == nil && resp != nil && resp.Response != nil && resp.Response.MetricSet != nil {
+				for _, m := range resp.Response.MetricSet {
+					if m == nil || m.MetricName == nil {
+						continue
+					}
+					metrics = append(metrics, *m.MetricName)
+				}
+			}
+		}
+
 		cur := make(map[string]struct{}, len(metrics))
 		for _, m := range metrics {
 			cur[m] = struct{}{}
@@ -121,8 +125,18 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 		}
 		ak := accounts[0].AccessKeyID
 		sk := accounts[0].AccessKeySecret
+
+		fallback := []string{
+			"InTraffic", "OutTraffic",
+			"NewConn", "ConcurConn",
+			"Unhealthyrscount",
+		}
+
+		var metrics []string
 		client, err := newTencentMonitorClient(region, ak, sk)
-		if err == nil {
+		if err != nil {
+			logger.Log.Warnf("Tencent client creation failed for qce/gwlb: %v", err)
+		} else {
 			ns := "qce/gwlb"
 			req := monitor.NewDescribeBaseMetricsRequest()
 			req.Namespace = common.StringPtr(ns)
@@ -130,7 +144,6 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 			if err != nil {
 				logger.Log.Warnf("Tencent DescribeBaseMetrics %s error: %v", ns, err)
 			}
-			var metrics []string
 			if resp != nil && resp.Response != nil && resp.Response.MetricSet != nil {
 				for _, m := range resp.Response.MetricSet {
 					if m == nil || m.MetricName == nil {
@@ -139,22 +152,19 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 					metrics = append(metrics, *m.MetricName)
 				}
 			}
-			fallback := []string{
-				"InTraffic", "OutTraffic",
-				"NewConn", "ConcurConn",
+		}
+
+		cur := make(map[string]struct{}, len(metrics))
+		for _, m := range metrics {
+			cur[m] = struct{}{}
+		}
+		for _, m := range fallback {
+			if _, ok := cur[m]; !ok {
+				metrics = append(metrics, m)
 			}
-			cur := make(map[string]struct{}, len(metrics))
-			for _, m := range metrics {
-				cur[m] = struct{}{}
-			}
-			for _, m := range fallback {
-				if _, ok := cur[m]; !ok {
-					metrics = append(metrics, m)
-				}
-			}
-			if len(metrics) > 0 {
-				prods = append(prods, config.Product{Namespace: ns, AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: metrics}}})
-			}
+		}
+		if len(metrics) > 0 {
+			prods = append(prods, config.Product{Namespace: "qce/gwlb", AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: metrics}}})
 		}
 	}
 	if needCLB {
@@ -164,8 +174,23 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 		}
 		ak := accounts[0].AccessKeyID
 		sk := accounts[0].AccessKeySecret
+
+		fallback := []string{
+			"VipIntraffic", "VipOuttraffic",
+			"VipInpkg", "VipOutpkg",
+			"Vipindroppkts", "Vipoutdroppkts",
+			"IntrafficVipRatio", "OuttrafficVipRatio",
+			"VNewConn", "VConnum",
+			"PvvNewConn", "PvvOutpkg", "PvvOuttraffic",
+			"RrvConnum", "RrvInactiveConn", "RrvInpkg", "RrvIntraffic", "RrvNewConn", "RrvOutpkg", "RrvOuttraffic",
+			"RvConnum", "RvInactiveConn", "RvInpkg", "RvIntraffic", "RvNewConn", "RvOutpkg", "RvOuttraffic",
+		}
+
+		var metrics []string
 		client, err := newTencentMonitorClient(region, ak, sk)
-		if err == nil {
+		if err != nil {
+			logger.Log.Warnf("Tencent client creation failed for QCE/LB: %v", err)
+		} else {
 			ns := "QCE/LB"
 			req := monitor.NewDescribeBaseMetricsRequest()
 			req.Namespace = common.StringPtr(ns)
@@ -173,7 +198,6 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 			if err != nil {
 				logger.Log.Warnf("Tencent DescribeBaseMetrics %s error: %v", ns, err)
 			}
-			var metrics []string
 			if resp != nil && resp.Response != nil && resp.Response.MetricSet != nil {
 				for _, m := range resp.Response.MetricSet {
 					if m == nil || m.MetricName == nil {
@@ -182,24 +206,19 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 					metrics = append(metrics, *m.MetricName)
 				}
 			}
-			fallback := []string{
-				"VipIntraffic", "VipOuttraffic",
-				"VipInpkg", "VipOutpkg",
-				"Vipindroppkts", "Vipoutdroppkts",
-				"IntrafficVipRatio", "OuttrafficVipRatio",
+		}
+
+		cur := make(map[string]struct{}, len(metrics))
+		for _, m := range metrics {
+			cur[m] = struct{}{}
+		}
+		for _, m := range fallback {
+			if _, ok := cur[m]; !ok {
+				metrics = append(metrics, m)
 			}
-			cur := make(map[string]struct{}, len(metrics))
-			for _, m := range metrics {
-				cur[m] = struct{}{}
-			}
-			for _, m := range fallback {
-				if _, ok := cur[m]; !ok {
-					metrics = append(metrics, m)
-				}
-			}
-			if len(metrics) > 0 {
-				prods = append(prods, config.Product{Namespace: ns, AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: metrics}}})
-			}
+		}
+		if len(metrics) > 0 {
+			prods = append(prods, config.Product{Namespace: "QCE/LB", AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: metrics}}})
 		}
 	}
 	if needCOS {
@@ -209,44 +228,59 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 		}
 		ak := accounts[0].AccessKeyID
 		sk := accounts[0].AccessKeySecret
+
+		// 兜底补充常用 COS 指标
+		fallback := []string{
+			"StdStorage", "SiaStorage", "ArcStorage", "DeepArcStorage",
+			"ItFreqStorage", "ItInfreqStorage",
+			"InternetTraffic", "InternalTraffic", "CdnOriginTraffic",
+			"InternetTrafficUp", "InternetTrafficDown",
+			"InternalTrafficUp", "InternalTrafficDown",
+			"TotalRequests", "GetRequests", "PutRequests", "HeadRequests",
+			"DeleteObjectRequestsPs", "DeleteMultiObjRequestsPs", "PutObjectCopyRequestsPs",
+			"4xxResponse", "5xxResponse",
+			"2xxResponse", "3xxResponse",
+			"2xxResponseRate", "3xxResponseRate", "4xxResponseRate", "5xxResponseRate",
+			"RequestsSuccessRate",
+			"CrossRegionReplicationTraffic",
+			"FirstByteDelay",
+			"FetchBandwidth",
+			"DeepArcMultipartStorage", "DeepArcMultipartNumber", "DeepArcObjectNumber",
+			"DeepArcStandardRetrieval", "DeepArcBulkRetrieval", "DeepArcReadRequests", "DeepArcWriteRequests",
+		}
+
+		var metrics []string
 		client, err := newTencentMonitorClient(region, ak, sk)
-		if err == nil {
+		if err != nil {
+			logger.Log.Warnf("Tencent client creation failed for QCE/COS: %v", err)
+		} else {
 			req := monitor.NewDescribeBaseMetricsRequest()
 			req.Namespace = common.StringPtr("QCE/COS")
 			resp, err := client.DescribeBaseMetrics(req)
-			if err == nil && resp != nil && resp.Response != nil {
-				var metrics []string
-				if resp.Response.MetricSet != nil {
-					for _, m := range resp.Response.MetricSet {
-						if m == nil || m.MetricName == nil {
-							continue
-						}
-						metrics = append(metrics, *m.MetricName)
+			if err != nil {
+				logger.Log.Warnf("Tencent DescribeBaseMetrics QCE/COS error: %v", err)
+			}
+			if err == nil && resp != nil && resp.Response != nil && resp.Response.MetricSet != nil {
+				for _, m := range resp.Response.MetricSet {
+					if m == nil || m.MetricName == nil {
+						continue
 					}
-				}
-				// 兜底补充常用 COS 指标
-				fallback := []string{
-					"StdStorage", "SiaStorage", "ArcStorage", "DeepArcStorage",
-					"ItFreqStorage", "ItInfreqStorage",
-					"InternetTraffic", "InternalTraffic", "CdnOriginTraffic",
-					"TotalRequests", "GetRequests", "PutRequests",
-					"4xxResponse", "5xxResponse",
-					"2xxResponse", "3xxResponse",
-					"CrossRegionReplicationTraffic",
-				}
-				cur := make(map[string]struct{}, len(metrics))
-				for _, m := range metrics {
-					cur[m] = struct{}{}
-				}
-				for _, m := range fallback {
-					if _, ok := cur[m]; !ok {
-						metrics = append(metrics, m)
-					}
-				}
-				if len(metrics) > 0 {
-					prods = append(prods, config.Product{Namespace: "QCE/COS", AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: metrics}}})
+					metrics = append(metrics, *m.MetricName)
 				}
 			}
+		}
+
+		cur := make(map[string]struct{}, len(metrics))
+		for _, m := range metrics {
+			cur[m] = struct{}{}
+		}
+		for _, m := range fallback {
+			if _, ok := cur[m]; !ok {
+				metrics = append(metrics, m)
+			}
+		}
+		if len(metrics) > 0 {
+			prods = append(prods, config.Product{Namespace: "QCE/COS", AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: metrics}}})
 		}
 	}
 	return prods

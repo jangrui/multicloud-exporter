@@ -497,7 +497,7 @@ canonical:
   storage_ia_bytes:
     description: "低频存储用量 (Bytes)"
     tencent:
-      metric: IaStorage
+      metric: SiaStorage
       dimensions:
         - bucket
       unit: Bytes

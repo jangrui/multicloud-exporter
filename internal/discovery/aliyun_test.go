@@ -64,47 +64,128 @@ func TestAliyunDiscoverer_Discover(t *testing.T) {
 	assert.Equal(t, "acs_slb_dashboard", prods[0].Namespace)
 	assert.Contains(t, prods[0].MetricInfo[0].MetricList, "InstanceTrafficRXUtilization")
 	// Check fallback metrics
-	assert.Contains(t, prods[0].MetricInfo[0].MetricList, "TrafficRXNew")
+	assert.Contains(t, prods[0].MetricInfo[0].MetricList, "InstanceTrafficRX")
 }
 
 func TestAliyunDiscoverer_Discover_BWP_Fallback(t *testing.T) {
-    oldFactory := newAliyunCMSClient
-    defer func() { newAliyunCMSClient = oldFactory }()
+	oldFactory := newAliyunCMSClient
+	defer func() { newAliyunCMSClient = oldFactory }()
 
-    mock := &mockCMSClient{
-        DescribeMetricMetaListFunc: func(request *cms.DescribeMetricMetaListRequest) (response *cms.DescribeMetricMetaListResponse, err error) {
-            return nil, errors.New("error")
-        },
-    }
-    newAliyunCMSClient = func(region, ak, sk string) (CMSClient, error) {
-        return mock, nil
-    }
+	mock := &mockCMSClient{
+		DescribeMetricMetaListFunc: func(request *cms.DescribeMetricMetaListRequest) (response *cms.DescribeMetricMetaListResponse, err error) {
+			return nil, errors.New("error")
+		},
+	}
+	newAliyunCMSClient = func(region, ak, sk string) (CMSClient, error) {
+		return mock, nil
+	}
 
-    d := &AliyunDiscoverer{}
-    cfg := &config.Config{
-        AccountsList: []config.CloudAccount{
-            {
-                Provider:        "aliyun",
-                AccessKeyID:     "ak",
-                AccessKeySecret: "sk",
-                Regions:         []string{"cn-hangzhou"},
-                Resources:       []string{"bwp"},
-            },
-        },
-    }
+	d := &AliyunDiscoverer{}
+	cfg := &config.Config{
+		AccountsList: []config.CloudAccount{
+			{
+				Provider:        "aliyun",
+				AccessKeyID:     "ak",
+				AccessKeySecret: "sk",
+				Regions:         []string{"cn-hangzhou"},
+				Resources:       []string{"bwp"},
+			},
+		},
+	}
 
-    prods := d.Discover(context.Background(), cfg)
-    assert.NotEmpty(t, prods)
-    found := false
-    for _, p := range prods {
-        if p.Namespace == "acs_bandwidth_package" {
-            found = true
-            assert.Contains(t, p.MetricInfo[0].MetricList, "DownstreamBandwidth")
-            assert.Contains(t, p.MetricInfo[0].MetricList, "UpstreamBandwidth")
-            break
-        }
-    }
-    assert.True(t, found)
+	prods := d.Discover(context.Background(), cfg)
+	assert.NotEmpty(t, prods)
+	found := false
+	for _, p := range prods {
+		if p.Namespace == "acs_bandwidth_package" {
+			found = true
+			assert.Contains(t, p.MetricInfo[0].MetricList, "net_rx.rate")
+			assert.Contains(t, p.MetricInfo[0].MetricList, "net_tx.rate")
+			break
+		}
+	}
+	assert.True(t, found)
+}
+
+func TestAliyunDiscoverer_Discover_OSS_Fallback(t *testing.T) {
+	oldFactory := newAliyunCMSClient
+	defer func() { newAliyunCMSClient = oldFactory }()
+
+	mock := &mockCMSClient{
+		DescribeMetricMetaListFunc: func(request *cms.DescribeMetricMetaListRequest) (response *cms.DescribeMetricMetaListResponse, err error) {
+			return nil, errors.New("error")
+		},
+	}
+	newAliyunCMSClient = func(region, ak, sk string) (CMSClient, error) {
+		return mock, nil
+	}
+
+	d := &AliyunDiscoverer{}
+	cfg := &config.Config{
+		AccountsList: []config.CloudAccount{
+			{
+				Provider:        "aliyun",
+				AccessKeyID:     "ak",
+				AccessKeySecret: "sk",
+				Regions:         []string{"cn-hangzhou"},
+				Resources:       []string{"s3"},
+			},
+		},
+	}
+
+	prods := d.Discover(context.Background(), cfg)
+	assert.NotEmpty(t, prods)
+	found := false
+	for _, p := range prods {
+		if p.Namespace == "acs_oss_dashboard" {
+			found = true
+			assert.Contains(t, p.MetricInfo[0].MetricList, "UserStorage")
+			assert.Contains(t, p.MetricInfo[0].MetricList, "InternetRecv")
+			break
+		}
+	}
+	assert.True(t, found)
+}
+
+func TestAliyunDiscoverer_Discover_NewProducts_Fallback(t *testing.T) {
+	oldFactory := newAliyunCMSClient
+	defer func() { newAliyunCMSClient = oldFactory }()
+
+	mock := &mockCMSClient{
+		DescribeMetricMetaListFunc: func(request *cms.DescribeMetricMetaListRequest) (response *cms.DescribeMetricMetaListResponse, err error) {
+			return nil, errors.New("error")
+		},
+	}
+	newAliyunCMSClient = func(region, ak, sk string) (CMSClient, error) {
+		return mock, nil
+	}
+
+	d := &AliyunDiscoverer{}
+	cfg := &config.Config{
+		AccountsList: []config.CloudAccount{
+			{
+				Provider:        "aliyun",
+				AccessKeyID:     "ak",
+				AccessKeySecret: "sk",
+				Regions:         []string{"cn-hangzhou"},
+				Resources:       []string{"alb", "nlb", "gwlb"},
+			},
+		},
+	}
+
+	prods := d.Discover(context.Background(), cfg)
+	assert.Len(t, prods, 3)
+
+	for _, p := range prods {
+		switch p.Namespace {
+		case "acs_alb":
+			assert.Contains(t, p.MetricInfo[0].MetricList, "LoadBalancerQPS")
+		case "acs_nlb":
+			assert.Contains(t, p.MetricInfo[0].MetricList, "InstanceTrafficRX")
+		case "acs_gwlb":
+			assert.Contains(t, p.MetricInfo[0].MetricList, "ActiveConnection")
+		}
+	}
 }
 
 func TestFetchAliyunMetricMeta(t *testing.T) {
