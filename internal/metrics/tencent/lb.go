@@ -8,11 +8,17 @@ func init() {
 	metrics.RegisterNamespacePrefix("QCE/LB", "clb")
 	metrics.RegisterNamespaceMetricAlias("QCE/LB", map[string]string{
 		"VipIntraffic":       "traffic_rx_bps",
+		"ClientIntraffic":    "traffic_rx_bps",
 		"VipOuttraffic":      "traffic_tx_bps",
+		"ClientOuttraffic":   "traffic_tx_bps",
 		"VipInpkg":           "packet_rx",
+		"ClientInpkg":        "packet_rx",
 		"VipOutpkg":          "packet_tx",
+		"ClientOutpkg":       "packet_tx",
 		"Vipindroppkts":      "drop_packet_rx",
+		"InDropPkts":         "drop_packet_rx",
 		"Vipoutdroppkts":     "drop_packet_tx",
+		"OutDropPkts":        "drop_packet_tx",
 		"IntrafficVipRatio":  "traffic_rx_utilization_pct",
 		"OuttrafficVipRatio": "traffic_tx_utilization_pct",
 		"VNewConn":           "vip_new_connection",

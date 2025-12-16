@@ -173,7 +173,7 @@ func scaleCLBMetric(namespace, metric string, val float64) float64 {
 	if s := metrics.GetMetricScale(namespace, metric); s != 0 && s != 1 {
 		return val * s
 	}
-	if metric == "VipIntraffic" || metric == "VipOuttraffic" {
+	if metric == "VipIntraffic" || metric == "VipOuttraffic" || metric == "ClientIntraffic" || metric == "ClientOuttraffic" {
 		return val * 1000000
 	}
 	return val

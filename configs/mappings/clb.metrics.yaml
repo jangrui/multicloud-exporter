@@ -18,9 +18,9 @@ canonical:
       unit: bit/s
       scale: 1
     tencent:
-      metric: VipIntraffic
+      metric: ClientIntraffic
       dimensions:
-        - eip
+        - vip
       unit: Mbps
       scale: 1000000
   traffic_tx_bps:
@@ -33,9 +33,9 @@ canonical:
       unit: bit/s
       scale: 1
     tencent:
-      metric: VipOuttraffic
+      metric: ClientOuttraffic
       dimensions:
-        - eip
+        - vip
       unit: Mbps
       scale: 1000000
   packet_rx:
@@ -48,9 +48,9 @@ canonical:
       unit: count/s
       scale: 1
     tencent:
-      metric: VipInpkg
+      metric: ClientInpkg
       dimensions:
-        - eip
+        - vip
       unit: count/s
       scale: 1
   packet_tx:
@@ -63,9 +63,9 @@ canonical:
       unit: count/s
       scale: 1
     tencent:
-      metric: VipOutpkg
+      metric: ClientOutpkg
       dimensions:
-        - eip
+        - vip
       unit: count/s
       scale: 1
   drop_packet_rx:
@@ -78,9 +78,9 @@ canonical:
       unit: count/s
       scale: 1
     tencent:
-      metric: Vipindroppkts
+      metric: InDropPkts
       dimensions:
-        - eip
+        - vip
       unit: pps
       scale: 1
   drop_packet_tx:
@@ -93,9 +93,9 @@ canonical:
       unit: count/s
       scale: 1
     tencent:
-      metric: Vipoutdroppkts
+      metric: OutDropPkts
       dimensions:
-        - eip
+        - vip
       unit: pps
       scale: 1
   drop_traffic_rx_bps:
