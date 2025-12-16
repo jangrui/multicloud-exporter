@@ -33,6 +33,10 @@ func canonicalizeSLB(metric string) string {
 		return "traffic_rx_bps"
 	case "traffic_tx_new":
 		return "traffic_tx_bps"
+	case "instance_traffic_rx":
+		return "traffic_rx_bps"
+	case "instance_traffic_tx":
+		return "traffic_tx_bps"
 	case "drop_traffic_rx":
 		return "drop_traffic_rx_bps"
 	case "drop_traffic_tx":

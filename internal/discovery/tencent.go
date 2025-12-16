@@ -184,6 +184,11 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 			"ClientInpkg", "ClientOutpkg",
 			"InDropPkts", "OutDropPkts",
 			"VNewConn", "VConnum",
+			// 核心指标：配置文件中的主要映射指标
+			"VIntraffic", "VOuttraffic", // 流量指标（实际采集到的指标名）
+			"VInpkg", "VOutpkg", // 包速率指标（实际采集到的指标名）
+			"NewConn", // 新建连接数
+			// 腾讯云特殊实例类型指标
 			"PvvNewConn", "PvvOutpkg", "PvvOuttraffic",
 			"RrvConnum", "RrvInactiveConn", "RrvInpkg", "RrvIntraffic", "RrvNewConn", "RrvOutpkg", "RrvOuttraffic",
 			"RvConnum", "RvInactiveConn", "RvInpkg", "RvIntraffic", "RvNewConn", "RvOutpkg", "RvOuttraffic",

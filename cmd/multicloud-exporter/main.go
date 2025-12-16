@@ -5,8 +5,10 @@ import (
 	"context"
 	"crypto/subtle"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
+	"sort"
 	"strconv"
 	"time"
 
@@ -35,7 +37,57 @@ func main() {
 	}
 	defer logger.Sync()
 
-	logger.Log.Infof("配置加载完成，账号配置集合 sizes: accounts=%d products=%d", len(cfg.AccountsList)+len(cfg.AccountsByProvider)+len(cfg.AccountsByProviderLegacy), len(cfg.ProductsList)+len(cfg.ProductsByProvider)+len(cfg.ProductsByProviderLegacy))
+	// 统计账号数量
+	totalAccounts := len(cfg.AccountsList)
+	for _, accounts := range cfg.AccountsByProvider {
+		totalAccounts += len(accounts)
+	}
+	for _, accounts := range cfg.AccountsByProviderLegacy {
+		totalAccounts += len(accounts)
+	}
+
+	// 统计按云平台分组的账号数量
+	accountsByProvider := make(map[string]int)
+	for provider, accounts := range cfg.AccountsByProvider {
+		accountsByProvider[provider] = len(accounts)
+	}
+	for provider, accounts := range cfg.AccountsByProviderLegacy {
+		accountsByProvider[provider] += len(accounts)
+	}
+	// 统计AccountsList中的账号
+	for _, account := range cfg.AccountsList {
+		accountsByProvider[account.Provider]++
+	}
+
+	// 构建账号统计信息
+	var accountInfo strings.Builder
+	if len(accountsByProvider) > 0 {
+		accountInfo.WriteString(" (")
+		providers := make([]string, 0, len(accountsByProvider))
+		for provider := range accountsByProvider {
+			providers = append(providers, provider)
+		}
+		// 按云平台名称排序
+		sort.Strings(providers)
+		for i, provider := range providers {
+			if i > 0 {
+				accountInfo.WriteString(", ")
+			}
+			accountInfo.WriteString(fmt.Sprintf("%s=%d", provider, accountsByProvider[provider]))
+		}
+		accountInfo.WriteString(")")
+	}
+
+	// 统计产品数量
+	totalProducts := len(cfg.ProductsList)
+	for _, products := range cfg.ProductsByProvider {
+		totalProducts += len(products)
+	}
+	for _, products := range cfg.ProductsByProviderLegacy {
+		totalProducts += len(products)
+	}
+
+	logger.Log.Infof("配置加载完成，账号配置集合 sizes: accounts=%d%s products=%d", totalAccounts, accountInfo.String(), totalProducts)
 
 	// 加载指标映射配置
 	if mappingPath := os.Getenv("MAPPING_PATH"); mappingPath != "" {

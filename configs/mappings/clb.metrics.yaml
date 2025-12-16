@@ -151,7 +151,7 @@ canonical:
       unit: count
       scale: 1
     tencent:
-      metric: VNewConn
+      metric: NewConn
       dimensions:
         - vip
       unit: count/s
@@ -291,22 +291,6 @@ canonical:
         - userId
         - instanceId
       unit: ms
-  instance_packet_rx:
-    description: "实例入网包速率"
-    aliyun:
-      metric: InstancePacketRX
-      dimensions:
-        - userId
-        - instanceId
-      unit: count/s
-  instance_packet_tx:
-    description: "实例出网包速率"
-    aliyun:
-      metric: InstancePacketTX
-      dimensions:
-        - userId
-        - instanceId
-      unit: count/s
   instance_traffic_rx_utilization_pct:
     description: "实例入网带宽利用率"
     aliyun:
@@ -489,38 +473,6 @@ canonical:
         - userId
         - instanceId
       unit: count/s
-  instance_drop_packet_rx:
-    description: "实例入网丢包速率"
-    aliyun:
-      metric: InstanceDropPacketRX
-      dimensions:
-        - userId
-        - instanceId
-      unit: count/s
-  instance_drop_packet_tx:
-    description: "实例出网丢包速率"
-    aliyun:
-      metric: InstanceDropPacketTX
-      dimensions:
-        - userId
-        - instanceId
-      unit: count/s
-  instance_drop_traffic_rx:
-    description: "实例入网丢弃流量"
-    aliyun:
-      metric: InstanceDropTrafficRX
-      dimensions:
-        - userId
-        - instanceId
-      unit: bit/s
-  instance_drop_traffic_tx:
-    description: "实例出网丢弃流量"
-    aliyun:
-      metric: InstanceDropTrafficTX
-      dimensions:
-        - userId
-        - instanceId
-      unit: bit/s
   instance_inactive_connection:
     description: "实例非活跃连接数"
     aliyun:
@@ -569,22 +521,6 @@ canonical:
         - userId
         - instanceId
       unit: ratio
-  instance_traffic_rx:
-    description: "实例入网流量"
-    aliyun:
-      metric: InstanceTrafficRX
-      dimensions:
-        - userId
-        - instanceId
-      unit: bit/s
-  instance_traffic_tx:
-    description: "实例出网流量"
-    aliyun:
-      metric: InstanceTrafficTX
-      dimensions:
-        - userId
-        - instanceId
-      unit: bit/s
   unhealthy_server_count_with_rule:
     description: "按规则聚合的异常后端数"
     aliyun:

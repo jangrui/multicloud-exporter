@@ -25,10 +25,10 @@ func init() {
 		"OutDropPkts":        "drop_packet_tx",
 		"IntrafficVipRatio":  "traffic_rx_utilization_pct",
 		"OuttrafficVipRatio": "traffic_tx_utilization_pct",
-		// 注意：VNewConn 在配置文件中同时映射到 vip_new_connection 和 new_connection
-		// 配置文件加载时会覆盖硬编码映射，最终映射由配置文件决定
-		// 这里保留硬编码映射作为向后兼容，但会被配置文件覆盖
-		"VNewConn": "vip_new_connection", // 配置文件会覆盖为 new_connection
+		// VNewConn 映射到 vip_new_connection（VIP 新建连接数）
+		// NewConn 映射到 new_connection（新建连接数）
+		// 配置文件会覆盖硬编码映射，但两者映射关系一致，不会产生冲突
+		"VNewConn": "vip_new_connection",
 		"NewConn":  "new_connection",
 		"Connum":   "active_connection",
 		"VConnum":  "active_connection", // VIP 活跃连接数指标（实际采集到的指标名）

@@ -197,22 +197,6 @@ canonical:
         - userId
         - instanceId
       unit: count/s
-  instance_drop_packet_rx:
-    description: "实例入网丢包速率"
-    aliyun:
-      metric: InstanceDropPacketRX
-      dimensions:
-        - userId
-        - instanceId
-      unit: count/s
-  instance_drop_packet_tx:
-    description: "实例出网丢包速率"
-    aliyun:
-      metric: InstanceDropPacketTX
-      dimensions:
-        - userId
-        - instanceId
-      unit: count/s
   instance_drop_traffic_rx_bps:
     description: "实例入网丢弃流量"
     aliyun:
