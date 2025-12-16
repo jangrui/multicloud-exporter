@@ -84,11 +84,23 @@ func RegisterNamespacePrefix(namespace, prefix string) {
 }
 
 func RegisterNamespaceMetricAlias(namespace string, aliases map[string]string) {
-	aliasByNamespace[namespace] = aliases
+	if aliasByNamespace[namespace] == nil {
+		aliasByNamespace[namespace] = make(map[string]string)
+	}
+	// 合并映射而不是覆盖，允许后续注册补充新的映射
+	for k, v := range aliases {
+		aliasByNamespace[namespace][k] = v
+	}
 }
 
 func RegisterNamespaceMetricScale(namespace string, scales map[string]float64) {
-	scaleByNamespace[namespace] = scales
+	if scaleByNamespace[namespace] == nil {
+		scaleByNamespace[namespace] = make(map[string]float64)
+	}
+	// 合并缩放因子而不是覆盖，允许后续注册补充新的缩放因子
+	for k, v := range scales {
+		scaleByNamespace[namespace][k] = v
+	}
 }
 
 func RegisterNamespaceHelp(namespace string, help func(string) string) {
