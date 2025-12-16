@@ -33,3 +33,4 @@ configs/products/
 
 # Local Resources
 local/
+.cursor/

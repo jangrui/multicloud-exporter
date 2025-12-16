@@ -33,4 +33,4 @@ coverage/
 
 # Local Resources
 local/
-internal/discovery/configs/products.auto.yaml
+.cursor/
