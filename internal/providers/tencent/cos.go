@@ -12,6 +12,7 @@ import (
 
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
 	monitor "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/monitor/v20180724"
+	"github.com/tencentyun/cos-go-sdk-v5"
 )
 
 func (t *Collector) collectCOS(account config.CloudAccount, region string) {
@@ -60,14 +61,33 @@ func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) [
 
 	start := time.Now()
 	// Get Service lists all buckets
-	s, _, err := client.GetService(context.Background())
-	if err != nil {
-		metrics.RequestTotal.WithLabelValues("tencent", "ListBuckets", "error").Inc()
-		logger.Log.Errorf("Tencent ListBuckets 错误: %v", err)
+	var s *cos.ServiceGetResult
+	var callErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		s, _, callErr = client.GetService(context.Background())
+		if callErr == nil {
+			metrics.RequestTotal.WithLabelValues("tencent", "ListBuckets", "success").Inc()
+			metrics.RequestDuration.WithLabelValues("tencent", "ListBuckets").Observe(time.Since(start).Seconds())
+			metrics.RecordRequest("tencent", "ListBuckets", "success")
+			break
+		}
+		status := classifyTencentError(callErr)
+		metrics.RequestTotal.WithLabelValues("tencent", "ListBuckets", status).Inc()
+		metrics.RecordRequest("tencent", "ListBuckets", status)
+		if status == "limit_error" {
+			// 记录限流指标
+			metrics.RateLimitTotal.WithLabelValues("tencent", "ListBuckets").Inc()
+		}
+		if status == "auth_error" {
+			logger.Log.Errorf("Tencent ListBuckets 错误: %v", callErr)
+			return []string{}
+		}
+		time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
+	}
+	if callErr != nil {
+		logger.Log.Errorf("Tencent ListBuckets 错误: %v", callErr)
 		return []string{}
 	}
-	metrics.RequestTotal.WithLabelValues("tencent", "ListBuckets", "success").Inc()
-	metrics.RequestDuration.WithLabelValues("tencent", "ListBuckets").Observe(time.Since(start).Seconds())
 
 	var buckets []string
 	for _, b := range s.Buckets {
@@ -85,10 +105,10 @@ func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) [
 			max = len(buckets)
 		}
 		preview := buckets[:max]
-        logger.Log.Debugf("Tencent COS 存储桶已枚举，账号ID=%s 区域=%s 数量=%d 预览=%v", account.AccountID, region, len(buckets), preview)
-    } else {
-        logger.Log.Debugf("Tencent COS 存储桶已枚举，账号ID=%s 区域=%s 数量=%d", account.AccountID, region, len(buckets))
-    }
+		logger.Log.Debugf("Tencent COS 存储桶已枚举，账号ID=%s 区域=%s 数量=%d 预览=%v", account.AccountID, region, len(buckets), preview)
+	} else {
+		logger.Log.Debugf("Tencent COS 存储桶已枚举，账号ID=%s 区域=%s 数量=%d", account.AccountID, region, len(buckets))
+	}
 	return buckets
 }
 
@@ -107,8 +127,24 @@ func (t *Collector) fetchCOSBucketCodeNames(account config.CloudAccount, region 
 		go func(bucket string) {
 			defer wg.Done()
 			defer func() { <-sem }()
-			tags, err := client.GetBucketTagging(context.Background(), bucket, region)
-			if err != nil || len(tags) == 0 {
+			var tags map[string]string
+			var callErr error
+			for attempt := 0; attempt < 3; attempt++ {
+				tags, callErr = client.GetBucketTagging(context.Background(), bucket, region)
+				if callErr == nil {
+					break
+				}
+				status := classifyTencentError(callErr)
+				if status == "limit_error" {
+					// 记录限流指标
+					metrics.RateLimitTotal.WithLabelValues("tencent", "GetBucketTagging").Inc()
+				}
+				if status == "auth_error" {
+					return
+				}
+				time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
+			}
+			if callErr != nil || len(tags) == 0 {
 				return
 			}
 			for k, v := range tags {
@@ -183,6 +219,10 @@ func (t *Collector) fetchCOSMonitor(account config.CloudAccount, region string, 
 					status := classifyTencentError(err)
 					metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", status).Inc()
 					metrics.RecordRequest("tencent", "GetMonitorData", status)
+					if status == "limit_error" {
+						// 记录限流指标
+						metrics.RateLimitTotal.WithLabelValues("tencent", "GetMonitorData").Inc()
+					}
 					logger.Log.Warnf("GetMonitorData 错误，指标=%s 错误=%v", m, err)
 					continue
 				}

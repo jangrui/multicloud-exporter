@@ -13,8 +13,8 @@ import (
 )
 
 func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []string {
-    ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region)
-    ctxLog.Debugf("枚举共享带宽包开始")
+	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region)
+	ctxLog.Debugf("枚举共享带宽包开始")
 	client, err := a.clientFactory.NewVPCClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
 		return []string{}
@@ -63,6 +63,10 @@ func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []st
 			status := classifyAliyunError(callErr)
 			metrics.RequestTotal.WithLabelValues("aliyun", "DescribeCommonBandwidthPackages", status).Inc()
 			metrics.RecordRequest("aliyun", "DescribeCommonBandwidthPackages", status)
+			if status == "limit_error" {
+				// 记录限流指标
+				metrics.RateLimitTotal.WithLabelValues("aliyun", "DescribeCommonBandwidthPackages").Inc()
+			}
 			if status == "region_skip" || status == "auth_error" {
 				ctxLog.Warnf("CBWP describe error page=%d status=%s: %v", page, status, callErr)
 				break
@@ -84,18 +88,18 @@ func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []st
 		page++
 		time.Sleep(50 * time.Millisecond)
 	}
-    // 打印缩略的 ID 列表，便于定位
-    if len(ids) > 0 {
-        max := 5
-        if len(ids) < max {
-            max = len(ids)
-        }
-        preview := ids[:max]
-        ctxLog.Debugf("枚举共享带宽包完成 数量=%d 预览=%v", len(ids), preview)
-    } else {
-        ctxLog.Debugf("枚举共享带宽包完成 数量=%d", len(ids))
-    }
-    return ids
+	// 打印缩略的 ID 列表，便于定位
+	if len(ids) > 0 {
+		max := 5
+		if len(ids) < max {
+			max = len(ids)
+		}
+		preview := ids[:max]
+		ctxLog.Debugf("枚举共享带宽包完成 数量=%d 预览=%v", len(ids), preview)
+	} else {
+		ctxLog.Debugf("枚举共享带宽包完成 数量=%d", len(ids))
+	}
+	return ids
 }
 
 func (a *Collector) fetchCBWPTags(account config.CloudAccount, region string, ids []string) map[string]string {
@@ -140,6 +144,8 @@ func (a *Collector) fetchCBWPTags(account config.CloudAccount, region string, id
 				status := "error"
 				if strings.Contains(msg, "Throttling") || strings.Contains(msg, "flow control") {
 					status = "limit_error"
+					// 记录限流指标
+					metrics.RateLimitTotal.WithLabelValues("aliyun", "ListTagResources").Inc()
 				} else if strings.Contains(msg, "timeout") || strings.Contains(msg, "Temporary network") || strings.Contains(msg, "unreachable") {
 					status = "network_error"
 				} else if strings.Contains(msg, "InvalidAccessKeyId") || strings.Contains(msg, "Forbidden") || strings.Contains(msg, "SignatureDoesNotMatch") {

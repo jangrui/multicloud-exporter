@@ -436,11 +436,15 @@ func (a *Collector) getMetricMeta(client CMSClient, namespace, metric string) me
 		if err == nil {
 			break
 		}
-		if classifyAliyunError(err) == "limit_error" {
+		status := classifyAliyunError(err)
+		if status == "limit_error" {
+			// 记录限流指标
+			metrics.RateLimitTotal.WithLabelValues("aliyun", "DescribeMetricMetaList").Inc()
 			sleep := time.Duration(200*(1<<attempt)) * time.Millisecond
 			if sleep > 5*time.Second {
 				sleep = 5 * time.Second
 			}
+			logger.Log.Debugf("Aliyun getMetricMeta 限流重试，命名空间=%s 指标=%s 重试次数=%d/%d 延迟=%v", namespace, metric, attempt+1, 5, sleep)
 			time.Sleep(sleep)
 			continue
 		}
@@ -448,8 +452,12 @@ func (a *Collector) getMetricMeta(client CMSClient, namespace, metric string) me
 	}
 	var out metricMeta
 	if err != nil {
-		logger.Log.Warnf("Aliyun getMetricMeta 错误，命名空间=%s 指标=%s 错误=%v", namespace, metric, err)
 		st := classifyAliyunError(err)
+		if st == "limit_error" {
+			logger.Log.Warnf("Aliyun getMetricMeta 错误（重试5次后仍失败），命名空间=%s 指标=%s 错误=%v", namespace, metric, err)
+		} else {
+			logger.Log.Warnf("Aliyun getMetricMeta 错误，命名空间=%s 指标=%s 错误=%v", namespace, metric, err)
+		}
 		metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricMetaList", st).Inc()
 		metrics.RecordRequest("aliyun", "DescribeMetricMetaList", st)
 		// Don't return empty meta on error, fall through to use default dimensions
@@ -724,7 +732,34 @@ func (a *Collector) listALBIDs(account config.CloudAccount, region string) []str
 			if nextToken != "" {
 				req.NextToken = tea.String(nextToken)
 			}
-			resp, callErr := albClient.ListLoadBalancers(req)
+			var resp *alb20200616.ListLoadBalancersResponse
+			var callErr error
+			for attempt := 0; attempt < 3; attempt++ {
+				startReq := time.Now()
+				resp, callErr = albClient.ListLoadBalancers(req)
+				if callErr == nil && resp != nil && resp.Body != nil {
+					metrics.RequestTotal.WithLabelValues("aliyun", "ListLoadBalancers", "success").Inc()
+					metrics.RequestDuration.WithLabelValues("aliyun", "ListLoadBalancers").Observe(time.Since(startReq).Seconds())
+					metrics.RecordRequest("aliyun", "ListLoadBalancers", "success")
+					break
+				}
+				if callErr != nil {
+					status := classifyAliyunError(callErr)
+					metrics.RequestTotal.WithLabelValues("aliyun", "ListLoadBalancers", status).Inc()
+					metrics.RecordRequest("aliyun", "ListLoadBalancers", status)
+					if status == "limit_error" {
+						// 记录限流指标
+						metrics.RateLimitTotal.WithLabelValues("aliyun", "ListLoadBalancers").Inc()
+					}
+					if status == "auth_error" || status == "region_skip" {
+						out = []string{}
+						break
+					}
+					time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
+				} else {
+					break
+				}
+			}
 			if callErr != nil || resp == nil || resp.Body == nil {
 				out = []string{}
 				break
@@ -789,7 +824,34 @@ func (a *Collector) listNLBIDs(account config.CloudAccount, region string) []str
 			if nextToken != "" {
 				req.NextToken = tea.String(nextToken)
 			}
-			resp, callErr := nlbClient.ListLoadBalancers(req)
+			var resp *nlb20220430.ListLoadBalancersResponse
+			var callErr error
+			for attempt := 0; attempt < 3; attempt++ {
+				startReq := time.Now()
+				resp, callErr = nlbClient.ListLoadBalancers(req)
+				if callErr == nil && resp != nil && resp.Body != nil {
+					metrics.RequestTotal.WithLabelValues("aliyun", "ListLoadBalancers", "success").Inc()
+					metrics.RequestDuration.WithLabelValues("aliyun", "ListLoadBalancers").Observe(time.Since(startReq).Seconds())
+					metrics.RecordRequest("aliyun", "ListLoadBalancers", "success")
+					break
+				}
+				if callErr != nil {
+					status := classifyAliyunError(callErr)
+					metrics.RequestTotal.WithLabelValues("aliyun", "ListLoadBalancers", status).Inc()
+					metrics.RecordRequest("aliyun", "ListLoadBalancers", status)
+					if status == "limit_error" {
+						// 记录限流指标
+						metrics.RateLimitTotal.WithLabelValues("aliyun", "ListLoadBalancers").Inc()
+					}
+					if status == "auth_error" || status == "region_skip" {
+						out = []string{}
+						break
+					}
+					time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
+				} else {
+					break
+				}
+			}
 			if callErr != nil || resp == nil || resp.Body == nil {
 				out = []string{}
 				break
@@ -870,6 +932,10 @@ func (a *Collector) listIDsByCMS(client CMSClient, region, namespace, metric, id
 		status := classifyAliyunError(callErr)
 		metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricList", status).Inc()
 		metrics.RecordRequest("aliyun", "DescribeMetricList", status)
+		if status == "limit_error" {
+			// 记录限流指标
+			metrics.RateLimitTotal.WithLabelValues("aliyun", "DescribeMetricList").Inc()
+		}
 		if status == "auth_error" || status == "region_skip" {
 			break
 		}
@@ -1209,7 +1275,34 @@ func (a *Collector) fetchNLBTags(account config.CloudAccount, region string, ids
 		req := tag.CreateListTagResourcesRequest()
 		req.RegionId = region
 		req.ResourceARN = &arns
-		resp, callErr := tagClient.ListTagResources(req)
+		var resp *tag.ListTagResourcesResponse
+		var callErr error
+		for attempt := 0; attempt < 3; attempt++ {
+			startReq := time.Now()
+			resp, callErr = tagClient.ListTagResources(req)
+			if callErr == nil && resp != nil {
+				metrics.RequestTotal.WithLabelValues("aliyun", "ListTagResources", "success").Inc()
+				metrics.RequestDuration.WithLabelValues("aliyun", "ListTagResources").Observe(time.Since(startReq).Seconds())
+				metrics.RecordRequest("aliyun", "ListTagResources", "success")
+				break
+			}
+			if callErr != nil {
+				status := classifyAliyunError(callErr)
+				metrics.RequestTotal.WithLabelValues("aliyun", "ListTagResources", status).Inc()
+				metrics.RecordRequest("aliyun", "ListTagResources", status)
+				if status == "limit_error" {
+					// 记录限流指标
+					metrics.RateLimitTotal.WithLabelValues("aliyun", "ListTagResources").Inc()
+				}
+				if status == "auth_error" {
+					time.Sleep(50 * time.Millisecond)
+					continue
+				}
+				time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
+			} else {
+				break
+			}
+		}
 		if callErr != nil || resp == nil {
 			time.Sleep(50 * time.Millisecond)
 			continue
@@ -1448,6 +1541,10 @@ func (a *Collector) processMetricBatch(client CMSClient, req *cms.DescribeMetric
 			if status == "auth_error" || status == "region_skip" {
 				ctxLog.Warnf("CMS DescribeMetricLast error status=%s: %v", status, callErr)
 				break
+			}
+			if status == "limit_error" {
+				// 记录限流指标
+				metrics.RateLimitTotal.WithLabelValues("aliyun", "DescribeMetricLast").Inc()
 			}
 
 			// 指数退避重试

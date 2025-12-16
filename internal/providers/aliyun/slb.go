@@ -54,6 +54,10 @@ func (a *Collector) listSLBIDs(account config.CloudAccount, region string) ([]st
 			}
 			status := classifyAliyunError(callErr)
 			metrics.RequestTotal.WithLabelValues("aliyun", "DescribeLoadBalancers", status).Inc()
+			if status == "limit_error" {
+				// 记录限流指标
+				metrics.RateLimitTotal.WithLabelValues("aliyun", "DescribeLoadBalancers").Inc()
+			}
 			if status == "region_skip" || status == "auth_error" {
 				ctxLog.Warnf("SLB describe error page=%d status=%s: %v", page, status, callErr)
 				break
@@ -98,8 +102,22 @@ func (a *Collector) listSLBIDs(account config.CloudAccount, region string) ([]st
 				var resp *slb.DescribeLoadBalancerAttributeResponse
 				var err error
 				for i := 0; i < 3; i++ {
+					startReq := time.Now()
 					resp, err = client.DescribeLoadBalancerAttribute(req)
 					if err == nil {
+						metrics.RequestTotal.WithLabelValues("aliyun", "DescribeLoadBalancerAttribute", "success").Inc()
+						metrics.RequestDuration.WithLabelValues("aliyun", "DescribeLoadBalancerAttribute").Observe(time.Since(startReq).Seconds())
+						metrics.RecordRequest("aliyun", "DescribeLoadBalancerAttribute", "success")
+						break
+					}
+					status := classifyAliyunError(err)
+					metrics.RequestTotal.WithLabelValues("aliyun", "DescribeLoadBalancerAttribute", status).Inc()
+					metrics.RecordRequest("aliyun", "DescribeLoadBalancerAttribute", status)
+					if status == "limit_error" {
+						// 记录限流指标
+						metrics.RateLimitTotal.WithLabelValues("aliyun", "DescribeLoadBalancerAttribute").Inc()
+					}
+					if status == "auth_error" || status == "region_skip" {
 						break
 					}
 					time.Sleep(time.Duration(100*(i+1)) * time.Millisecond)
@@ -190,6 +208,10 @@ func (a *Collector) fetchSLBTags(account config.CloudAccount, region, namespace,
 			status := classifyAliyunError(callErr)
 			metrics.RequestTotal.WithLabelValues("aliyun", "ListTagResources", status).Inc()
 			metrics.RecordRequest("aliyun", "ListTagResources", status)
+			if status == "limit_error" {
+				// 记录限流指标
+				metrics.RateLimitTotal.WithLabelValues("aliyun", "ListTagResources").Inc()
+			}
 			if status == "auth_error" {
 				break
 			}
@@ -219,7 +241,7 @@ func (a *Collector) fetchSLBTags(account config.CloudAccount, region, namespace,
 								out[id] = v
 							}
 						}
-                    }
+					}
 				}
 			} else {
 				content := resp.GetHttpContentBytes()

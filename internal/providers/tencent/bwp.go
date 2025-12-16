@@ -24,16 +24,31 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 	}
 	req := vpc.NewDescribeBandwidthPackagesRequest()
 	start := time.Now()
-	resp, err := client.DescribeBandwidthPackages(req)
-	if err != nil {
-		status := classifyTencentError(err)
+	var resp *vpc.DescribeBandwidthPackagesResponse
+	var callErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		resp, callErr = client.DescribeBandwidthPackages(req)
+		if callErr == nil {
+			metrics.RequestTotal.WithLabelValues("tencent", "DescribeBandwidthPackages", "success").Inc()
+			metrics.RecordRequest("tencent", "DescribeBandwidthPackages", "success")
+			metrics.RequestDuration.WithLabelValues("tencent", "DescribeBandwidthPackages").Observe(time.Since(start).Seconds())
+			break
+		}
+		status := classifyTencentError(callErr)
 		metrics.RequestTotal.WithLabelValues("tencent", "DescribeBandwidthPackages", status).Inc()
 		metrics.RecordRequest("tencent", "DescribeBandwidthPackages", status)
+		if status == "limit_error" {
+			// 记录限流指标
+			metrics.RateLimitTotal.WithLabelValues("tencent", "DescribeBandwidthPackages").Inc()
+		}
+		if status == "auth_error" {
+			return []string{}
+		}
+		time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
+	}
+	if callErr != nil {
 		return []string{}
 	}
-	metrics.RequestTotal.WithLabelValues("tencent", "DescribeBandwidthPackages", "success").Inc()
-	metrics.RecordRequest("tencent", "DescribeBandwidthPackages", "success")
-	metrics.RequestDuration.WithLabelValues("tencent", "DescribeBandwidthPackages").Observe(time.Since(start).Seconds())
 
 	if resp == nil || resp.Response == nil || resp.Response.BandwidthPackageSet == nil {
 		return []string{}

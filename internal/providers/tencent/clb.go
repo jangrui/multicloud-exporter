@@ -24,16 +24,31 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 	}
 	req := clb.NewDescribeLoadBalancersRequest()
 	start := time.Now()
-	resp, err := client.DescribeLoadBalancers(req)
-	if err != nil {
-		status := classifyTencentError(err)
+	var resp *clb.DescribeLoadBalancersResponse
+	var callErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		resp, callErr = client.DescribeLoadBalancers(req)
+		if callErr == nil {
+			metrics.RequestTotal.WithLabelValues("tencent", "DescribeLoadBalancers", "success").Inc()
+			metrics.RecordRequest("tencent", "DescribeLoadBalancers", "success")
+			metrics.RequestDuration.WithLabelValues("tencent", "DescribeLoadBalancers").Observe(time.Since(start).Seconds())
+			break
+		}
+		status := classifyTencentError(callErr)
 		metrics.RequestTotal.WithLabelValues("tencent", "DescribeLoadBalancers", status).Inc()
 		metrics.RecordRequest("tencent", "DescribeLoadBalancers", status)
+		if status == "limit_error" {
+			// 记录限流指标
+			metrics.RateLimitTotal.WithLabelValues("tencent", "DescribeLoadBalancers").Inc()
+		}
+		if status == "auth_error" {
+			return []string{}
+		}
+		time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
+	}
+	if callErr != nil {
 		return []string{}
 	}
-	metrics.RequestTotal.WithLabelValues("tencent", "DescribeLoadBalancers", "success").Inc()
-	metrics.RecordRequest("tencent", "DescribeLoadBalancers", "success")
-	metrics.RequestDuration.WithLabelValues("tencent", "DescribeLoadBalancers").Observe(time.Since(start).Seconds())
 
 	if resp == nil || resp.Response == nil || resp.Response.LoadBalancerSet == nil {
 		return []string{}

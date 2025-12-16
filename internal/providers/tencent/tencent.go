@@ -75,11 +75,33 @@ func (t *Collector) getAllRegions(account config.CloudAccount) []string {
 	}
 	req := cvm.NewDescribeRegionsRequest()
 	start := time.Now()
-	resp, err := client.DescribeRegions(req)
-	if err != nil || resp == nil || resp.Response == nil || resp.Response.RegionSet == nil {
-		status := classifyTencentError(err)
-		metrics.RequestTotal.WithLabelValues("tencent", "DescribeRegions", status).Inc()
-		metrics.RecordRequest("tencent", "DescribeRegions", status)
+	var resp *cvm.DescribeRegionsResponse
+	var callErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		resp, callErr = client.DescribeRegions(req)
+		if callErr == nil && resp != nil && resp.Response != nil && resp.Response.RegionSet != nil {
+			metrics.RequestTotal.WithLabelValues("tencent", "DescribeRegions", "success").Inc()
+			metrics.RecordRequest("tencent", "DescribeRegions", "success")
+			metrics.RequestDuration.WithLabelValues("tencent", "DescribeRegions").Observe(time.Since(start).Seconds())
+			break
+		}
+		if callErr != nil {
+			status := classifyTencentError(callErr)
+			metrics.RequestTotal.WithLabelValues("tencent", "DescribeRegions", status).Inc()
+			metrics.RecordRequest("tencent", "DescribeRegions", status)
+			if status == "limit_error" {
+				// 记录限流指标
+				metrics.RateLimitTotal.WithLabelValues("tencent", "DescribeRegions").Inc()
+			}
+			if status == "auth_error" {
+				break
+			}
+			time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
+		} else {
+			break
+		}
+	}
+	if callErr != nil || resp == nil || resp.Response == nil || resp.Response.RegionSet == nil {
 		def := os.Getenv("DEFAULT_REGIONS")
 		if def != "" {
 			parts := strings.Split(def, ",")
@@ -96,9 +118,6 @@ func (t *Collector) getAllRegions(account config.CloudAccount) []string {
 		}
 		return []string{"ap-guangzhou"}
 	}
-	metrics.RequestTotal.WithLabelValues("tencent", "DescribeRegions", "success").Inc()
-	metrics.RecordRequest("tencent", "DescribeRegions", "success")
-	metrics.RequestDuration.WithLabelValues("tencent", "DescribeRegions").Observe(time.Since(start).Seconds())
 	var regions []string
 	for _, r := range resp.Response.RegionSet {
 		if r != nil && r.Region != nil {
@@ -252,13 +271,35 @@ var (
 		req := monitor.NewDescribeBaseMetricsRequest()
 		req.Namespace = common.StringPtr(namespace)
 		start := time.Now()
-		resp, err := client.DescribeBaseMetrics(req)
-		if err != nil || resp == nil || resp.Response == nil {
-			return nil, err
+		var resp *monitor.DescribeBaseMetricsResponse
+		var callErr error
+		for attempt := 0; attempt < 3; attempt++ {
+			resp, callErr = client.DescribeBaseMetrics(req)
+			if callErr == nil && resp != nil && resp.Response != nil {
+				metrics.RequestTotal.WithLabelValues("tencent", "DescribeBaseMetrics", "success").Inc()
+				metrics.RequestDuration.WithLabelValues("tencent", "DescribeBaseMetrics").Observe(time.Since(start).Seconds())
+				metrics.RecordRequest("tencent", "DescribeBaseMetrics", "success")
+				break
+			}
+			if callErr != nil {
+				status := classifyTencentError(callErr)
+				metrics.RequestTotal.WithLabelValues("tencent", "DescribeBaseMetrics", status).Inc()
+				metrics.RecordRequest("tencent", "DescribeBaseMetrics", status)
+				if status == "limit_error" {
+					// 记录限流指标
+					metrics.RateLimitTotal.WithLabelValues("tencent", "DescribeBaseMetrics").Inc()
+				}
+				if status == "auth_error" {
+					return nil, callErr
+				}
+				time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
+			} else {
+				return nil, callErr
+			}
 		}
-		metrics.RequestTotal.WithLabelValues("tencent", "DescribeBaseMetrics", "success").Inc()
-		metrics.RequestDuration.WithLabelValues("tencent", "DescribeBaseMetrics").Observe(time.Since(start).Seconds())
-		metrics.RecordRequest("tencent", "DescribeBaseMetrics", "success")
+		if callErr != nil || resp == nil || resp.Response == nil {
+			return nil, callErr
+		}
 		return json.Marshal(resp.Response)
 	}
 )
