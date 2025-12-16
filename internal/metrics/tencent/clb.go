@@ -9,21 +9,29 @@ func init() {
 	metrics.RegisterNamespaceMetricAlias("QCE/LB", map[string]string{
 		"VipIntraffic":       "traffic_rx_bps",
 		"ClientIntraffic":    "traffic_rx_bps",
+		"VIntraffic":         "traffic_rx_bps", // VIP 入流量指标（实际采集到的指标名）
 		"VipOuttraffic":      "traffic_tx_bps",
 		"ClientOuttraffic":   "traffic_tx_bps",
+		"VOuttraffic":        "traffic_tx_bps", // VIP 出流量指标（实际采集到的指标名）
 		"VipInpkg":           "packet_rx",
 		"ClientInpkg":        "packet_rx",
+		"VInpkg":             "packet_rx", // VIP 入包速率指标（实际采集到的指标名）
 		"VipOutpkg":          "packet_tx",
 		"ClientOutpkg":       "packet_tx",
+		"VOutpkg":            "packet_tx", // VIP 出包速率指标（实际采集到的指标名）
 		"Vipindroppkts":      "drop_packet_rx",
 		"InDropPkts":         "drop_packet_rx",
 		"Vipoutdroppkts":     "drop_packet_tx",
 		"OutDropPkts":        "drop_packet_tx",
 		"IntrafficVipRatio":  "traffic_rx_utilization_pct",
 		"OuttrafficVipRatio": "traffic_tx_utilization_pct",
-		"VNewConn":           "vip_new_connection",
-		"NewConn":            "new_connection",
-		"Connum":             "active_connection",
+		// 注意：VNewConn 在配置文件中同时映射到 vip_new_connection 和 new_connection
+		// 配置文件加载时会覆盖硬编码映射，最终映射由配置文件决定
+		// 这里保留硬编码映射作为向后兼容，但会被配置文件覆盖
+		"VNewConn": "vip_new_connection", // 配置文件会覆盖为 new_connection
+		"NewConn":  "new_connection",
+		"Connum":   "active_connection",
+		"VConnum":  "active_connection", // VIP 活跃连接数指标（实际采集到的指标名）
 	})
 	metrics.RegisterNamespaceHelp("QCE/LB", func(metric string) string {
 		switch metric {

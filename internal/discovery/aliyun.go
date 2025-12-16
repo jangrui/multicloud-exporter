@@ -224,7 +224,7 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 		client, err := newAliyunCMSClient(region, targetAK, targetSK)
 		if err != nil {
 			if list, ok := fallbackMap[ns]; ok {
-				logger.Log.Warnf("Aliyun CMS client creation failed for namespace=%s, using fallback metrics. error=%v", ns, err)
+				logger.Log.Warnf("Aliyun CMS 客户端创建失败，命名空间=%s，使用备用指标，错误=%v", ns, err)
 				prods = append(prods, config.Product{Namespace: ns, AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: list}}})
 			}
 			continue
@@ -237,7 +237,7 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 		// 1. Handle API Failure: Use fallback directly
 		if err != nil || resp == nil || resp.Resources.Resource == nil {
 			if list, ok := fallbackMap[ns]; ok {
-				logger.Log.Infof("Aliyun discovery fallback enabled namespace=%s reason=meta_unavailable", ns)
+				logger.Log.Infof("Aliyun 发现服务启用备用指标，命名空间=%s 原因=元数据不可用", ns)
 				metrics = list
 			} else {
 				continue
@@ -298,7 +298,7 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 				}
 			}
 			if added > 0 {
-				logger.Log.Infof("Aliyun discovery appended fallback metrics namespace=%s added=%d", ns, added)
+				logger.Log.Infof("Aliyun 发现服务已追加备用指标，命名空间=%s 新增数量=%d", ns, added)
 			}
 		}
 

@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestLBHelp(t *testing.T) {
+func TestCLBHelp(t *testing.T) {
 	// This triggers the help function internally to cover the switch cases in init()
 	metrics.NamespaceGauge("QCE/LB", "traffic_rx_bps")
 	metrics.NamespaceGauge("QCE/LB", "traffic_tx_bps")

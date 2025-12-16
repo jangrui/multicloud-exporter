@@ -13,8 +13,8 @@ import (
 )
 
 func (t *Collector) listCLBVips(account config.CloudAccount, region string) []string {
-	if ids, hit := t.getCachedIDs(account, region, "QCE/LB", "lb"); hit {
-		logger.Log.Debugf("Tencent CLB VIPs cache hit account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
+	if ids, hit := t.getCachedIDs(account, region, "QCE/LB", "clb"); hit {
+		logger.Log.Debugf("Tencent CLB VIPs 缓存命中，账号ID=%s 区域=%s 数量=%d", account.AccountID, region, len(ids))
 		return ids
 	}
 
@@ -49,16 +49,16 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 			}
 		}
 	}
-	t.setCachedIDs(account, region, "QCE/LB", "lb", vips)
+	t.setCachedIDs(account, region, "QCE/LB", "clb", vips)
 	if len(vips) > 0 {
 		max := 5
 		if len(vips) < max {
 			max = len(vips)
 		}
 		preview := vips[:max]
-		logger.Log.Debugf("Tencent CLB VIPs enumerated account_id=%s region=%s count=%d preview=%v", account.AccountID, region, len(vips), preview)
+		logger.Log.Debugf("Tencent CLB VIPs 已枚举，账号ID=%s 区域=%s 数量=%d 预览=%v", account.AccountID, region, len(vips), preview)
 	} else {
-		logger.Log.Debugf("Tencent CLB VIPs enumerated account_id=%s region=%s count=%d", account.AccountID, region, len(vips))
+		logger.Log.Debugf("Tencent CLB VIPs 已枚举，账号ID=%s 区域=%s 数量=%d", account.AccountID, region, len(vips))
 	}
 	return vips
 }
@@ -149,6 +149,11 @@ func (t *Collector) fetchCLBMonitor(account config.CloudAccount, region string, 
 					rtype = "clb"
 				}
 				scaled := scaleCLBMetric(prod.Namespace, m, val)
+				// 调试日志：记录指标映射信息
+				metricAlias := metrics.GetMetricAlias(prod.Namespace, m)
+				if metricAlias != "" {
+					logger.Log.Debugf("Tencent CLB 指标映射: 命名空间=%s 原始=%s 别名=%s 最终名称=%s_%s", prod.Namespace, m, metricAlias, rtype, metricAlias)
+				}
 				labels := []string{"tencent", account.AccountID, region, rtype, rid, prod.Namespace, m, ""}
 				for len(labels) < count {
 					labels = append(labels, "")
@@ -173,7 +178,10 @@ func scaleCLBMetric(namespace, metric string, val float64) float64 {
 	if s := metrics.GetMetricScale(namespace, metric); s != 0 && s != 1 {
 		return val * s
 	}
-	if metric == "VipIntraffic" || metric == "VipOuttraffic" || metric == "ClientIntraffic" || metric == "ClientOuttraffic" {
+	// 兼容多种指标名称的流量指标（单位从 Mbps 转换为 bit/s）
+	if metric == "VipIntraffic" || metric == "VipOuttraffic" ||
+		metric == "ClientIntraffic" || metric == "ClientOuttraffic" ||
+		metric == "VIntraffic" || metric == "VOuttraffic" {
 		return val * 1000000
 	}
 	return val

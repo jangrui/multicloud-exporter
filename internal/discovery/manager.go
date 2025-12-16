@@ -113,7 +113,7 @@ func (m *Manager) Refresh(ctx context.Context) error {
 	if changed {
 		m.version++
 		m.updatedAt = time.Now()
-		logger.Log.Infof("discovery refreshed version=%d", m.version)
+		logger.Log.Infof("发现服务已刷新，版本=%d", m.version)
 	}
 	m.mu.Unlock()
 	if changed {

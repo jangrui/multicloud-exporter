@@ -31,24 +31,24 @@ func (h *Collector) Collect(account config.CloudAccount) {
 			case "eip":
 				h.collectEIP(account, region)
 			default:
-				logger.Log.Warnf("Huawei resource type %s not implemented yet", resource)
+				logger.Log.Warnf("Huawei 资源类型 %s 尚未实现", resource)
 			}
 		}
 	}
 }
 
 func (h *Collector) collectRDS(account config.CloudAccount, region string) {
-	logger.Log.Warnf("Collecting Huawei RDS in region %s (not implemented)", region)
+	logger.Log.Warnf("正在采集 Huawei RDS，区域=%s (未实现)", region)
 }
 
 func (h *Collector) collectRedis(account config.CloudAccount, region string) {
-	logger.Log.Warnf("Collecting Huawei Redis in region %s (not implemented)", region)
+	logger.Log.Warnf("正在采集 Huawei Redis，区域=%s (未实现)", region)
 }
 
 func (h *Collector) collectELB(account config.CloudAccount, region string) {
-	logger.Log.Warnf("Collecting Huawei ELB in region %s (not implemented)", region)
+	logger.Log.Warnf("正在采集 Huawei ELB，区域=%s (未实现)", region)
 }
 
 func (h *Collector) collectEIP(account config.CloudAccount, region string) {
-	logger.Log.Warnf("Collecting Huawei EIP in region %s (not implemented)", region)
+	logger.Log.Warnf("正在采集 Huawei EIP，区域=%s (未实现)", region)
 }

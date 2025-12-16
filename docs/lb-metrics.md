@@ -1,6 +1,6 @@
 # 负载均衡（CLB）指标规范与映射
 
-> 更新记录：2025-12-09；修改者：@jangrui；内容：统一 LB 指标命名与映射。
+> 更新记录：2025-12-17；修改者：@jangrui；内容：修复腾讯云指标映射问题，统一使用实际采集到的指标名称（VIntraffic/VOuttraffic 等）。
 
 ## 统一命名
 
@@ -28,8 +28,8 @@
 - 命名空间：`acs_slb_dashboard`
 - 维度键：`instanceId`, `port`, `protocol`
 - 指标映射：
-  - `TrafficRXNew` → `clb_traffic_rx_bps`
-  - `TrafficTXNew` → `clb_traffic_tx_bps`
+  - `InstanceTrafficRX` → `clb_traffic_rx_bps` (实例级入流量)
+  - `InstanceTrafficTX` → `clb_traffic_tx_bps` (实例级出流量)
   - `PacketRX` → `clb_packet_rx`
   - `PacketTX` → `clb_packet_tx`
   - `DropPacketRX` → `clb_drop_packet_rx`
@@ -46,17 +46,23 @@
 - 命名空间：`QCE/LB`
 - 维度键：`vip`
 - 指标映射：
-  - `VipIntraffic` → `clb_traffic_rx_bps` (自动转换 Mbps -> bit/s)
-  - `VipOuttraffic` → `clb_traffic_tx_bps` (自动转换 Mbps -> bit/s)
-  - `VipInpkg` → `clb_packet_rx`
-  - `VipOutpkg` → `clb_packet_tx`
+  - `VIntraffic` → `clb_traffic_rx_bps` (自动转换 Mbps -> bit/s，实际采集到的指标名)
+  - `VOuttraffic` → `clb_traffic_tx_bps` (自动转换 Mbps -> bit/s，实际采集到的指标名)
+  - `VInpkg` → `clb_packet_rx` (实际采集到的指标名)
+  - `VOutpkg` → `clb_packet_tx` (实际采集到的指标名)
   - `Vipindroppkts` → `clb_drop_packet_rx`
   - `Vipoutdroppkts` → `clb_drop_packet_tx`
+  - `InDropPkts` → `clb_drop_packet_rx`
+  - `OutDropPkts` → `clb_drop_packet_tx`
   - `IntrafficVipRatio` → `clb_traffic_rx_utilization_pct`
   - `OuttrafficVipRatio` → `clb_traffic_tx_utilization_pct`
+  - `VConnum` → `clb_active_connection` (实际采集到的指标名)
+  - `VNewConn` → `clb_vip_new_connection` / `clb_new_connection` (实际采集到的指标名)
+- **注意**：腾讯云 API 实际返回的指标名称可能因实例类型而异，代码中已兼容多种指标名称（`VipIntraffic`/`ClientIntraffic`/`VIntraffic` 等），确保都能正确映射到统一指标名。
 
 ## Prometheus 暴露示例
 
+### 阿里云示例
 ```
 clb_traffic_rx_bps{
   cloud_provider="aliyun",
@@ -65,9 +71,25 @@ clb_traffic_rx_bps{
   resource_type="clb",
   resource_id="lb-bp1...",
   namespace="acs_slb_dashboard",
-  metric_name="TrafficRXNew",
+  metric_name="InstanceTrafficRX",
   code_name="my-clb",
-  port="80",
-  protocol="http"
+  port="",
+  protocol=""
 } 102400
+```
+
+### 腾讯云示例
+```
+clb_traffic_rx_bps{
+  cloud_provider="tencent",
+  account_id="tencent-prod",
+  region="ap-guangzhou",
+  resource_type="clb",
+  resource_id="43.153.253.128",
+  namespace="QCE/LB",
+  metric_name="VIntraffic",
+  code_name="",
+  port="",
+  protocol=""
+} 4998912.8
 ```

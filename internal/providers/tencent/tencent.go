@@ -112,7 +112,7 @@ func (t *Collector) getAllRegions(account config.CloudAccount) []string {
 }
 
 func (t *Collector) collectRegion(account config.CloudAccount, region string) {
-	logger.Log.Debugf("Start collecting Tencent region %s", region)
+	logger.Log.Debugf("开始采集 Tencent 区域 %s", region)
 	for _, resource := range account.Resources {
 		r := strings.ToLower(resource)
 		if resource == "*" {
@@ -133,7 +133,7 @@ func (t *Collector) collectRegion(account config.CloudAccount, region string) {
 			case "gwlb":
 				t.collectGWLB(account, region)
 			default:
-				logger.Log.Warnf("Tencent resource type %s not implemented yet", resource)
+				logger.Log.Warnf("Tencent 资源类型 %s 尚未实现", resource)
 			}
 		}
 	}

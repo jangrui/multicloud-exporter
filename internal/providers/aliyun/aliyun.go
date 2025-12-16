@@ -91,14 +91,14 @@ func (a *Collector) getAccountUID(account config.CloudAccount, region string) st
 	}
 	client, err := a.clientFactory.NewSTSClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
-		logger.Log.Errorf("Aliyun init STS client error: %v", err)
+		logger.Log.Errorf("Aliyun 初始化 STS 客户端错误: %v", err)
 		return account.AccountID // 回退到配置ID
 	}
 
 	req := sts.CreateGetCallerIdentityRequest()
 	resp, err := client.GetCallerIdentity(req)
 	if err != nil {
-		logger.Log.Errorf("Aliyun GetCallerIdentity error: %v", err)
+		logger.Log.Errorf("Aliyun GetCallerIdentity 错误: %v", err)
 		return account.AccountID // 回退到配置ID
 	}
 
@@ -155,7 +155,7 @@ func (a *Collector) Collect(account config.CloudAccount) {
 func (a *Collector) getAllRegions(account config.CloudAccount) []string {
 	client, err := a.clientFactory.NewECSClient("cn-hangzhou", account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
-		logger.Log.Errorf("Aliyun get regions error account_id=%s: %v", account.AccountID, err)
+		logger.Log.Errorf("Aliyun 获取区域列表错误，账号ID=%s 错误=%v", account.AccountID, err)
 		return []string{"cn-hangzhou"}
 	}
 
@@ -170,7 +170,7 @@ func (a *Collector) getAllRegions(account config.CloudAccount) []string {
 		} else if strings.Contains(msg, "timeout") || strings.Contains(msg, "unreachable") || strings.Contains(msg, "Temporary network") {
 			status = "network_error"
 		}
-		logger.Log.Errorf("Aliyun describe regions error account_id=%s status=%s: %v", account.AccountID, status, err)
+		logger.Log.Errorf("Aliyun 描述区域错误，账号ID=%s 状态=%s 错误=%v", account.AccountID, status, err)
 		metrics.RequestTotal.WithLabelValues("aliyun", "DescribeRegions", status).Inc()
 		def := os.Getenv("DEFAULT_REGIONS")
 		if def != "" {
@@ -195,7 +195,7 @@ func (a *Collector) getAllRegions(account config.CloudAccount) []string {
 	for _, region := range response.Regions.Region {
 		regions = append(regions, region.RegionId)
 	}
-	logger.Log.Debugf("Aliyun DescribeRegions success count=%d account_id=%s", len(regions), account.AccountID)
+	logger.Log.Debugf("Aliyun DescribeRegions 成功，数量=%d 账号ID=%s", len(regions), account.AccountID)
 	return regions
 }
 
@@ -227,7 +227,7 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 
 	client, err := a.clientFactory.NewCMSClient(region, ak, sk)
 	if err != nil {
-		logger.Log.Errorf("Aliyun CMS client error: %v", err)
+		logger.Log.Errorf("Aliyun CMS 客户端错误: %v", err)
 		return
 	}
 	// Endpoint 使用地域默认配置，如需自定义可在此处扩展
@@ -448,7 +448,7 @@ func (a *Collector) getMetricMeta(client CMSClient, namespace, metric string) me
 	}
 	var out metricMeta
 	if err != nil {
-		logger.Log.Warnf("Aliyun getMetricMeta error: namespace=%s metric=%s error=%v", namespace, metric, err)
+		logger.Log.Warnf("Aliyun getMetricMeta 错误，命名空间=%s 指标=%s 错误=%v", namespace, metric, err)
 		st := classifyAliyunError(err)
 		metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricMetaList", st).Inc()
 		metrics.RecordRequest("aliyun", "DescribeMetricMetaList", st)

@@ -40,7 +40,7 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 			accounts = append(accounts, xs...)
 		}
 	}
-	logger.Log.Debugf("Starting Tencent discovery with %d accounts", len(accounts))
+	logger.Log.Debugf("Tencent 发现服务开始，账号数量=%d", len(accounts))
 	if len(accounts) == 0 {
 		return nil
 	}
@@ -87,13 +87,13 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 		var metrics []string
 		client, err := newTencentMonitorClient(region, ak, sk)
 		if err != nil {
-			logger.Log.Warnf("Tencent client creation failed for QCE/BWP: %v", err)
+			logger.Log.Warnf("Tencent 客户端创建失败，命名空间=QCE/BWP 错误=%v", err)
 		} else {
 			req := monitor.NewDescribeBaseMetricsRequest()
 			req.Namespace = common.StringPtr("QCE/BWP")
 			resp, err := client.DescribeBaseMetrics(req)
 			if err != nil {
-				logger.Log.Warnf("Tencent DescribeBaseMetrics QCE/BWP error: %v", err)
+				logger.Log.Warnf("Tencent DescribeBaseMetrics 错误，命名空间=QCE/BWP 错误=%v", err)
 			}
 			if err == nil && resp != nil && resp.Response != nil && resp.Response.MetricSet != nil {
 				for _, m := range resp.Response.MetricSet {
@@ -135,14 +135,14 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 		var metrics []string
 		client, err := newTencentMonitorClient(region, ak, sk)
 		if err != nil {
-			logger.Log.Warnf("Tencent client creation failed for qce/gwlb: %v", err)
+			logger.Log.Warnf("Tencent 客户端创建失败，命名空间=qce/gwlb 错误=%v", err)
 		} else {
 			ns := "qce/gwlb"
 			req := monitor.NewDescribeBaseMetricsRequest()
 			req.Namespace = common.StringPtr(ns)
 			resp, err := client.DescribeBaseMetrics(req)
 			if err != nil {
-				logger.Log.Warnf("Tencent DescribeBaseMetrics %s error: %v", ns, err)
+				logger.Log.Warnf("Tencent DescribeBaseMetrics 错误，命名空间=%s 错误=%v", ns, err)
 			}
 			if resp != nil && resp.Response != nil && resp.Response.MetricSet != nil {
 				for _, m := range resp.Response.MetricSet {
@@ -192,14 +192,14 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 		var metrics []string
 		client, err := newTencentMonitorClient(region, ak, sk)
 		if err != nil {
-			logger.Log.Warnf("Tencent client creation failed for QCE/LB: %v", err)
+			logger.Log.Warnf("Tencent 客户端创建失败，命名空间=QCE/LB 错误=%v", err)
 		} else {
 			ns := "QCE/LB"
 			req := monitor.NewDescribeBaseMetricsRequest()
 			req.Namespace = common.StringPtr(ns)
 			resp, err := client.DescribeBaseMetrics(req)
 			if err != nil {
-				logger.Log.Warnf("Tencent DescribeBaseMetrics %s error: %v", ns, err)
+				logger.Log.Warnf("Tencent DescribeBaseMetrics 错误，命名空间=%s 错误=%v", ns, err)
 			}
 			if resp != nil && resp.Response != nil && resp.Response.MetricSet != nil {
 				for _, m := range resp.Response.MetricSet {
@@ -255,13 +255,13 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 		var metrics []string
 		client, err := newTencentMonitorClient(region, ak, sk)
 		if err != nil {
-			logger.Log.Warnf("Tencent client creation failed for QCE/COS: %v", err)
+			logger.Log.Warnf("Tencent 客户端创建失败，命名空间=QCE/COS 错误=%v", err)
 		} else {
 			req := monitor.NewDescribeBaseMetricsRequest()
 			req.Namespace = common.StringPtr("QCE/COS")
 			resp, err := client.DescribeBaseMetrics(req)
 			if err != nil {
-				logger.Log.Warnf("Tencent DescribeBaseMetrics QCE/COS error: %v", err)
+				logger.Log.Warnf("Tencent DescribeBaseMetrics 错误，命名空间=QCE/COS 错误=%v", err)
 			}
 			if err == nil && resp != nil && resp.Response != nil && resp.Response.MetricSet != nil {
 				for _, m := range resp.Response.MetricSet {

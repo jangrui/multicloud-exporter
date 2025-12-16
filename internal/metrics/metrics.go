@@ -89,6 +89,10 @@ func RegisterNamespaceMetricAlias(namespace string, aliases map[string]string) {
 	}
 	// 合并映射而不是覆盖，允许后续注册补充新的映射
 	for k, v := range aliases {
+		// 如果已存在映射，记录警告（用于调试）
+		if existing, exists := aliasByNamespace[namespace][k]; exists && existing != v {
+			fmt.Printf("WARNING: Metric alias conflict for namespace=%s metric=%s: existing=%s new=%s (new will override)\n", namespace, k, existing, v)
+		}
 		aliasByNamespace[namespace][k] = v
 	}
 }

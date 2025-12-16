@@ -54,7 +54,7 @@ func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) [
 	// We use the factory now.
 	client, err := t.clientFactory.NewCOSClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
-		logger.Log.Errorf("Tencent COS client error: %v", err)
+		logger.Log.Errorf("Tencent COS 客户端错误: %v", err)
 		return []string{}
 	}
 
@@ -63,7 +63,7 @@ func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) [
 	s, _, err := client.GetService(context.Background())
 	if err != nil {
 		metrics.RequestTotal.WithLabelValues("tencent", "ListBuckets", "error").Inc()
-		logger.Log.Errorf("Tencent ListBuckets error: %v", err)
+		logger.Log.Errorf("Tencent ListBuckets 错误: %v", err)
 		return []string{}
 	}
 	metrics.RequestTotal.WithLabelValues("tencent", "ListBuckets", "success").Inc()
@@ -85,9 +85,9 @@ func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) [
 			max = len(buckets)
 		}
 		preview := buckets[:max]
-        logger.Log.Debugf("Tencent COS buckets enumerated account_id=%s region=%s count=%d preview=%v", account.AccountID, region, len(buckets), preview)
+        logger.Log.Debugf("Tencent COS 存储桶已枚举，账号ID=%s 区域=%s 数量=%d 预览=%v", account.AccountID, region, len(buckets), preview)
     } else {
-        logger.Log.Debugf("Tencent COS buckets enumerated account_id=%s region=%s count=%d", account.AccountID, region, len(buckets))
+        logger.Log.Debugf("Tencent COS 存储桶已枚举，账号ID=%s 区域=%s 数量=%d", account.AccountID, region, len(buckets))
     }
 	return buckets
 }
@@ -126,7 +126,7 @@ func (t *Collector) fetchCOSBucketCodeNames(account config.CloudAccount, region 
 func (t *Collector) fetchCOSMonitor(account config.CloudAccount, region string, prod config.Product, buckets []string) {
 	client, err := t.clientFactory.NewMonitorClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
-		logger.Log.Errorf("Tencent Monitor client error: %v", err)
+		logger.Log.Errorf("Tencent Monitor 客户端错误: %v", err)
 		return
 	}
 
@@ -183,7 +183,7 @@ func (t *Collector) fetchCOSMonitor(account config.CloudAccount, region string, 
 					status := classifyTencentError(err)
 					metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", status).Inc()
 					metrics.RecordRequest("tencent", "GetMonitorData", status)
-					logger.Log.Warnf("GetMonitorData error metric=%s: %v", m, err)
+					logger.Log.Warnf("GetMonitorData 错误，指标=%s 错误=%v", m, err)
 					continue
 				}
 				metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", "success").Inc()

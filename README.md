@@ -129,7 +129,7 @@ server:
   - `configs/mappings/clb.metrics.yaml`：负载均衡
   - `configs/mappings/bwp.metrics.yaml`：共享带宽包
   - `configs/mappings/s3.metrics.yaml`：对象存储 (OSS/COS)
-  - 带宽：`clb_traffic_rx_bps` ← Aliyun `TrafficRXNew`；Tencent `VipIntraffic`（`Mbps`→`bit/s`，`scale: 1000000`）
+  - 带宽：`clb_traffic_rx_bps` ← Aliyun `InstanceTrafficRX`；Tencent `VIntraffic`（`Mbps`→`bit/s`，`scale: 1000000`）
   - 丢失带宽：`clb_drop_traffic_rx_bps` ← Aliyun `DropTrafficRX`；`clb_drop_traffic_tx_bps` ← Aliyun `DropTrafficTX`
   - 包速率/丢包：`clb_packet_rx/tx`、`clb_drop_packet_rx/tx`（Aliyun/Tencent 对齐）
   - 利用率：`clb_traffic_rx_utilization_pct/tx_utilization_pct` ← Tencent `IntrafficVipRatio/OuttrafficVipRatio`

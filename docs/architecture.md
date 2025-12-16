@@ -145,7 +145,7 @@ graph LR
   - `request_total` 与 `request_duration_seconds` 在各 provider 中记录云 API 成功/失败与耗时。
   - `rate_limit_total` 统计限流触发次数。
   - 资源指标：统一暴露在 `metrics.NamespaceMetric`/`metrics.ResourceMetric`，示例见 `internal/metrics/*`。
-- 统一命名与映射：通过 `configs/mappings/*.yaml` 与别名函数保持跨云一致（如 LB 与 BWP）；Aliyun SLB 别名函数见 `internal/metrics/aliyun/slb.go:22-46`，BWP 前缀注册见 `internal/metrics/tencent/bwp.go:9-18`。
+- 统一命名与映射：通过 `configs/mappings/*.yaml` 与别名函数保持跨云一致（如 ALB/BWP/CBWP/CLB/COS/NLB/GWLB/OSS）；Aliyun SLB 别名函数见 `internal/metrics/aliyun/slb.go:22-46`，Tencent CLB 别名注册见 `internal/metrics/tencent/clb.go:9-32`，BWP 前缀注册见 `internal/metrics/tencent/bwp.go:9-18`。
 
 ### 3.2 自动化部署
 

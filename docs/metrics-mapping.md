@@ -91,10 +91,20 @@
 - 命名规范：遵循 `<prefix>_<name>_<unit>`（如 `clb_traffic_rx_bps`、`s3_latency_e2e_get_ms`）
 - 描述规范：简洁一致的中文描述，包含关键语义与单位
 
-## 变更说明（2025-12-15）
+## 变更说明
 
-- 变更原因：补齐 ALB 描述、对齐 S3 与 OSS/COS 映射、修正 CDN 映射一致性
-- 具体变更：
+### 2025-12-17
+- **变更原因**：修复腾讯云 CLB 指标获取问题，统一文件命名规范
+- **具体变更**：
+  - 修复映射注册机制：`RegisterNamespaceMetricAlias` 和 `RegisterNamespaceMetricScale` 改为合并模式，避免覆盖
+  - 更新腾讯云 CLB 指标映射：使用实际采集到的指标名称（`VIntraffic`/`VOuttraffic`/`VInpkg`/`VOutpkg`/`VConnum`）
+  - 修复维度配置：腾讯云 CLB 所有指标统一使用 `vip` 维度（原配置误用 `eip`）
+  - 文件重命名：`internal/metrics/tencent/lb.go` → `clb.go`，统一使用云厂商产品名称
+  - 缓存键统一：腾讯云 CLB 缓存键从 `"lb"` 改为 `"clb"`
+
+### 2025-12-15
+- **变更原因**：补齐 ALB 描述、对齐 S3 与 OSS/COS 映射、修正 CDN 映射一致性
+- **具体变更**：
   - 为 `alb.metrics.yaml` 中所有缺失的 canonical 指标补充 `description`
   - S3 补充：授权错误（计数/占比）、客户端超时（计数/占比）、首字节延迟、Copy/Append 延迟与请求、腾讯云归档（容量/对象/碎片/取回/读写请求）、复制流量（Aliyun 计量 RX/TX，Tencent 总量）
   - 修正腾讯云 `CdnOriginTraffic` 的映射位置为“CDN 回源出流量”

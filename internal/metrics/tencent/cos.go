@@ -28,6 +28,8 @@ func canonicalizeCOS(metric string) string {
 }
 
 func init() {
+	// 注意：映射配置已迁移到 configs/mappings/s3.metrics.yaml
+	// 这里保留硬编码前缀作为向后兼容，但会被配置文件覆盖（配置文件使用 s3 前缀）
 	metrics.RegisterNamespacePrefix("QCE/COS", "cos")
 	metrics.RegisterNamespaceAliasFunc("QCE/COS", canonicalizeCOS)
 }

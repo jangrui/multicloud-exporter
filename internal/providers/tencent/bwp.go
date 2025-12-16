@@ -14,7 +14,7 @@ import (
 
 func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []string {
 	if ids, hit := t.getCachedIDs(account, region, "QCE/BWP", "bwp"); hit {
-		logger.Log.Debugf("Tencent BWP IDs cache hit account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
+		logger.Log.Debugf("Tencent BWP IDs 缓存命中，账号ID=%s 区域=%s 数量=%d", account.AccountID, region, len(ids))
 		return ids
 	}
 
@@ -52,9 +52,9 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 			max = len(ids)
 		}
 		preview := ids[:max]
-		logger.Log.Debugf("Tencent BWP enumerated account_id=%s region=%s count=%d preview=%v", account.AccountID, region, len(ids), preview)
+		logger.Log.Debugf("Tencent BWP 已枚举，账号ID=%s 区域=%s 数量=%d 预览=%v", account.AccountID, region, len(ids), preview)
 	} else {
-		logger.Log.Debugf("Tencent BWP enumerated account_id=%s region=%s count=%d", account.AccountID, region, len(ids))
+		logger.Log.Debugf("Tencent BWP 已枚举，账号ID=%s 区域=%s 数量=%d", account.AccountID, region, len(ids))
 	}
 	return ids
 }

@@ -59,7 +59,7 @@ func TestListCLBVips(t *testing.T) {
 
 	// Case 3: Error
 	c.cacheMu.Lock()
-	delete(c.resCache, c.cacheKey(config.CloudAccount{AccountID: "acc1"}, "ap-guangzhou", "QCE/LB", "lb"))
+	delete(c.resCache, c.cacheKey(config.CloudAccount{AccountID: "acc1"}, "ap-guangzhou", "QCE/LB", "clb"))
 	c.cacheMu.Unlock()
 
 	mockCLB.DescribeLoadBalancersFunc = func(request *clb.DescribeLoadBalancersRequest) (*clb.DescribeLoadBalancersResponse, error) {

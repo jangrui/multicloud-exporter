@@ -172,7 +172,7 @@ func (c *Collector) collectInternal(filterProvider, filterResource string) {
 func (c *Collector) collectAccount(account config.CloudAccount, filterResource string) {
 	p, ok := c.providers[account.Provider]
 	if !ok {
-		logger.Log.Warnf("Unknown provider: %s", account.Provider)
+		logger.Log.Warnf("未知的云平台: %s", account.Provider)
 		return
 	}
 

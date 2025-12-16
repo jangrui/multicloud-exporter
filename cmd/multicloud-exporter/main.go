@@ -48,63 +48,63 @@ func main() {
 			}
 			fi, err := os.Stat(p)
 			if err != nil {
-				logger.Log.Warnf("Mapping path not found: %s (%v)", p, err)
+				logger.Log.Warnf("映射路径未找到: %s (%v)", p, err)
 				continue
 			}
 			if fi.IsDir() {
 				files, err := filepath.Glob(filepath.Join(p, "*.yaml"))
 				if err != nil || len(files) == 0 {
-					logger.Log.Warnf("No mapping files in directory: %s", p)
+					logger.Log.Warnf("目录中无映射文件: %s", p)
 					continue
 				}
 				for _, f := range files {
 					if err := config.ValidateMappingStructure(f); err != nil {
-						logger.Log.Warnf("Mapping validation failed for %s: %v", f, err)
+						logger.Log.Warnf("指标映射验证失败，文件=%s 错误=%v", f, err)
 						continue
 					}
 					if err := config.LoadMetricMappings(f); err != nil {
-						logger.Log.Warnf("Failed to load metric mappings from %s: %v", f, err)
+						logger.Log.Warnf("加载指标映射失败，文件=%s 错误=%v", f, err)
 						continue
 					}
 					loaded++
-					logger.Log.Infof("Loaded metric mappings from %s", f)
+					logger.Log.Infof("已加载指标映射，文件=%s", f)
 				}
 			} else {
 				if err := config.ValidateMappingStructure(p); err != nil {
-					logger.Log.Warnf("Mapping validation failed for %s: %v", p, err)
+					logger.Log.Warnf("指标映射验证失败，文件=%s 错误=%v", p, err)
 				}
 				if err := config.LoadMetricMappings(p); err != nil {
-					logger.Log.Warnf("Failed to load metric mappings from %s: %v", p, err)
+					logger.Log.Warnf("加载指标映射失败，文件=%s 错误=%v", p, err)
 				} else {
 					loaded++
-					logger.Log.Infof("Loaded metric mappings from %s", p)
+					logger.Log.Infof("已加载指标映射，文件=%s", p)
 				}
 			}
 		}
 		if loaded == 0 {
-			logger.Log.Warnf("No metric mappings loaded from MAPPING_PATH=%s", mappingPath)
+			logger.Log.Warnf("未从 MAPPING_PATH=%s 加载任何指标映射", mappingPath)
 		} else {
-			logger.Log.Infof("Metric mappings loaded count=%d from MAPPING_PATH", loaded)
+			logger.Log.Infof("已加载指标映射，数量=%d 来源=MAPPING_PATH", loaded)
 		}
 	} else {
 		// 尝试加载默认位置的所有映射文件
 		mappingDir := "configs/mappings"
 		if err := config.ValidateAllMappings(mappingDir); err != nil {
-			logger.Log.Warnf("Mapping validation found issues:\n%v", err)
+			logger.Log.Warnf("指标映射验证发现问题:\n%v", err)
 		} else {
-			logger.Log.Infof("Mapping validation passed for directory %s", mappingDir)
+			logger.Log.Infof("指标映射验证通过，目录=%s", mappingDir)
 		}
 		files, err := filepath.Glob(filepath.Join(mappingDir, "*.yaml"))
 		if err == nil && len(files) > 0 {
 			for _, f := range files {
 				if err := config.ValidateMappingStructure(f); err != nil {
-					logger.Log.Warnf("Mapping validation failed for %s: %v", f, err)
+					logger.Log.Warnf("指标映射验证失败，文件=%s 错误=%v", f, err)
 					continue
 				}
 				if err := config.LoadMetricMappings(f); err != nil {
-					logger.Log.Warnf("Failed to load metric mappings from %s: %v", f, err)
+					logger.Log.Warnf("加载指标映射失败，文件=%s 错误=%v", f, err)
 				} else {
-					logger.Log.Infof("Loaded metric mappings from %s", f)
+					logger.Log.Infof("已加载指标映射，文件=%s", f)
 				}
 			}
 		} else {
@@ -112,12 +112,12 @@ func main() {
 			defaultPath := "configs/mappings/clb.metrics.yaml"
 			if _, err := os.Stat(defaultPath); err == nil {
 				if err := config.ValidateMappingStructure(defaultPath); err != nil {
-					logger.Log.Warnf("Mapping validation failed for %s: %v", defaultPath, err)
+					logger.Log.Warnf("指标映射验证失败，文件=%s 错误=%v", defaultPath, err)
 				}
 				if err := config.LoadMetricMappings(defaultPath); err != nil {
-					logger.Log.Warnf("Failed to load metric mappings from %s: %v", defaultPath, err)
+					logger.Log.Warnf("加载指标映射失败，文件=%s 错误=%v", defaultPath, err)
 				} else {
-					logger.Log.Infof("Loaded metric mappings from %s", defaultPath)
+					logger.Log.Infof("已加载指标映射，文件=%s", defaultPath)
 				}
 			}
 		}
@@ -142,7 +142,7 @@ func main() {
 		if d, err := time.ParseDuration(cfg.Server.ScrapeInterval); err == nil {
 			interval = d
 		} else {
-			logger.Log.Warnf("Warning: invalid scrape_interval in config: %v", err)
+			logger.Log.Warnf("警告: 配置中的 scrape_interval 无效: %v", err)
 		}
 	} else if cfg.ServerConf != nil && cfg.ServerConf.ScrapeInterval != "" {
 		if d, err := time.ParseDuration(cfg.ServerConf.ScrapeInterval); err == nil {
@@ -157,7 +157,7 @@ func main() {
 		} else if d, err := time.ParseDuration(envInterval); err == nil {
 			interval = d
 		} else {
-			logger.Log.Warnf("Warning: invalid SCRAPE_INTERVAL env: %v", err)
+			logger.Log.Warnf("警告: 环境变量 SCRAPE_INTERVAL 无效: %v", err)
 		}
 	}
 
