@@ -119,8 +119,11 @@ Exporter 暴露了 `/metrics` 端点，其中包含自身运行状态指标：
           access_key_secret: "${ALIYUN_SK}"
           regions: ["*"]
           resources:
+            - alb
             - bwp
             - clb
+            - nlb
+            - gwlb
             - s3
 
       tencent:
