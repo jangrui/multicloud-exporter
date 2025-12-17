@@ -4,6 +4,7 @@ prefix: s3
 namespaces:
   aliyun: acs_oss_dashboard
   tencent: QCE/COS
+  aws: AWS/S3
 
 canonical:
   # Storage Usage
@@ -20,6 +21,13 @@ canonical:
       metric: StdStorage # Approximation: Tencent separates storage types, Std is most common
       dimensions:
         - bucket
+      unit: Bytes
+      scale: 1
+    aws:
+      metric: BucketSizeBytes
+      dimensions:
+        - BucketName
+        - StorageType
       unit: Bytes
       scale: 1
 
@@ -472,6 +480,12 @@ canonical:
       dimensions:
         - userId
         - BucketName
+      unit: count
+    aws:
+      metric: NumberOfObjects
+      dimensions:
+        - BucketName
+        - StorageType
       unit: count
   response_2xx_count:
     description: "2xx 响应数"

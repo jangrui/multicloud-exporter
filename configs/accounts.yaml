@@ -5,15 +5,23 @@ accounts:
       access_key_secret: ""
       regions: ["*"] # 采集所有区域
       resources:
+        - alb
         - bwp
-        - lb
+        - clb
+        - nlb
+        - gwlb
+        - s3
     - account_id: ""
       access_key_id: ""
       access_key_secret: ""
       regions: ["*"]
       resources:
+        - alb
         - bwp
-        - lb
+        - clb
+        - nlb
+        - gwlb
+        - s3
   tencent:
     - account_id: ""
       access_key_id: ""
@@ -21,4 +29,16 @@ accounts:
       regions: ["*"] # 采集所有区域
       resources:
         - bwp
+        - clb
+        - gwlb
+        - s3
         # - lb
+
+  aws:
+    - account_id: ""
+      access_key_id: ""
+      access_key_secret: ""
+      # AWS 的 S3 采集使用全局接口（ListBuckets），regions 可留空
+      regions: []
+      resources:
+        - s3

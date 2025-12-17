@@ -12,6 +12,7 @@ import (
 	"multicloud-exporter/internal/metrics"
 	"multicloud-exporter/internal/providers"
 	_ "multicloud-exporter/internal/providers/aliyun"
+	_ "multicloud-exporter/internal/providers/aws"
 	_ "multicloud-exporter/internal/providers/huawei"
 	_ "multicloud-exporter/internal/providers/tencent"
 )

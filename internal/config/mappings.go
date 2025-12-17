@@ -19,6 +19,7 @@ type CanonicalEntry struct {
 	Description string    `yaml:"description"`
 	Aliyun      MetricDef `yaml:"aliyun"`
 	Tencent     MetricDef `yaml:"tencent"`
+	AWS         MetricDef `yaml:"aws"`
 }
 
 type MetricMapping struct {
@@ -40,9 +41,10 @@ func LoadMetricMappings(path string) error {
 	// Use configured namespaces
 	aliyunNS := mapping.Namespaces["aliyun"]
 	tencentNS := mapping.Namespaces["tencent"]
+	awsNS := mapping.Namespaces["aws"]
 	prefix := mapping.Prefix
 
-	if aliyunNS == "" && tencentNS == "" {
+	if aliyunNS == "" && tencentNS == "" && awsNS == "" {
 		return fmt.Errorf("no namespaces defined in mapping file %s", path)
 	}
 
@@ -54,6 +56,8 @@ func LoadMetricMappings(path string) error {
 	aliyunScales := make(map[string]float64)
 	tencentAliases := make(map[string]string)
 	tencentScales := make(map[string]float64)
+	awsAliases := make(map[string]string)
+	awsScales := make(map[string]float64)
 
 	// Canonical
 	for newName, entry := range mapping.Canonical {
@@ -69,6 +73,12 @@ func LoadMetricMappings(path string) error {
 				tencentScales[entry.Tencent.Metric] = entry.Tencent.Scale
 			}
 		}
+		if entry.AWS.Metric != "" {
+			awsAliases[entry.AWS.Metric] = newName
+			if entry.AWS.Scale != 0 {
+				awsScales[entry.AWS.Metric] = entry.AWS.Scale
+			}
+		}
 	}
 
 	// Register
@@ -82,6 +92,12 @@ func LoadMetricMappings(path string) error {
 		metrics.RegisterNamespacePrefix(tencentNS, prefix)
 		metrics.RegisterNamespaceMetricAlias(tencentNS, tencentAliases)
 		metrics.RegisterNamespaceMetricScale(tencentNS, tencentScales)
+	}
+
+	if awsNS != "" {
+		metrics.RegisterNamespacePrefix(awsNS, prefix)
+		metrics.RegisterNamespaceMetricAlias(awsNS, awsAliases)
+		metrics.RegisterNamespaceMetricScale(awsNS, awsScales)
 	}
 
 	return nil

@@ -136,6 +136,15 @@ Exporter 暴露了 `/metrics` 端点，其中包含自身运行状态指标：
             - bwp
             - clb
             - s3
+
+      aws:
+        - provider: aws
+          account_id: "aws-prod"
+          access_key_id: "${AWS_ACCESS_KEY_ID}"
+          access_key_secret: "${AWS_SECRET_ACCESS_KEY}"
+          regions: []
+          resources:
+            - s3
     ```
 
 - 调度与资源
