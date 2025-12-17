@@ -201,7 +201,8 @@ func TestBuildMetricDimensions(t *testing.T) {
 	dims, dyn := c.buildMetricDimensions([]string{"id1"}, "instanceId", []string{"instanceId", "region"}, nil)
 	assert.Len(t, dims, 1)
 	assert.Equal(t, "id1", dims[0]["instanceId"])
-	assert.Len(t, dyn, 1) // region is dynamic
+	// "region" is treated as a reserved label (not a CMS dimension key) in buildMetricDimensions.
+	assert.Len(t, dyn, 0)
 
 	// Case 2: With Meta (Sub-resources)
 	meta := map[string]interface{}{
