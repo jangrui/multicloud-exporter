@@ -182,7 +182,7 @@ func main() {
 		} else if cfg.ServerConf != nil && cfg.ServerConf.Port > 0 {
 			port = strconv.Itoa(cfg.ServerConf.Port)
 		} else {
-			port = "9100"
+			port = "9101"
 		}
 	}
 

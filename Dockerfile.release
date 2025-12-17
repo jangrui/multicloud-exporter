@@ -16,9 +16,9 @@ COPY configs/server.yaml ./configs/server.yaml
 # Environment variables matching the original Dockerfile
 ENV SERVER_PATH=/app/configs/server.yaml
 ENV PRODUCTS_PATH=/app/configs/products.yaml
-ENV EXPORTER_PORT=${EXPORTER_PORT}
+ENV EXPORTER_PORT=${EXPORTER_PORT:-9101}
 
-EXPOSE ${EXPORTER_PORT}
+EXPOSE ${EXPORTER_PORT:-9101}
 
 USER 65532:65532
 

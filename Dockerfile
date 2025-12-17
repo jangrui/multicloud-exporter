@@ -1,6 +1,6 @@
 FROM golang:1.25-alpine AS builder
 WORKDIR /app
-ENV GOTOOLCHAIN=auto
+ENV GOTOOLCHAIN=local
 COPY go.mod go.sum* ./
 RUN go mod download
 COPY . .
@@ -15,9 +15,9 @@ COPY --from=builder /app/configs/server.yaml ./configs/server.yaml
 
 ENV SERVER_PATH=/app/configs/server.yaml
 ENV PRODUCTS_PATH=/app/configs/products.yaml
-ENV EXPORTER_PORT=${EXPORTER_PORT}
+ENV EXPORTER_PORT=${EXPORTER_PORT:-9101}
 
-EXPOSE ${EXPORTER_PORT}
+EXPOSE ${EXPORTER_PORT:-9101}
 
 USER 65532:65532
 ENTRYPOINT ["./multicloud-exporter"]
