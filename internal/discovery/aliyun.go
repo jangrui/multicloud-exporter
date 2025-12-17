@@ -73,10 +73,6 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 		sk = cfg.Credential.AccessSecret
 	}
 	prods := make([]config.Product, 0)
-	var namespaces []string
-	for ns := range nsSet {
-		namespaces = append(namespaces, ns)
-	}
 
 	// Fetch meta for each namespace
 	for ns := range nsSet {

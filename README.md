@@ -365,7 +365,7 @@ curl -u admin:<secure-password> http://<host>:9101/api/discovery/config
 
 ### 4. 测试要求
 
-- 本地：`go vet ./... && golangci-lint run && go test -race -cover ./...`
+- 本地（与 CI 保持一致）：`make lint && go test -race -cover ./...`
 - 基准测试：`go test -bench . -benchmem -run ^$ ./...`
 - 压力测试：`go test -race -run . -parallel 16 ./...`
 - CI 强制全局覆盖率 ≥ 80%，目标 ≥ 90%
