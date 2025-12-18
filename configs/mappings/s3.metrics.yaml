@@ -47,6 +47,13 @@ canonical:
         - bucket
       unit: Bytes
       scale: 1
+    aws:
+      metric: BytesUploaded
+      dimensions:
+        - BucketName
+        - FilterId
+      unit: Bytes
+      scale: 1
   traffic_internet_tx_bytes:
     description: "公网出流量 (下载)"
     aliyun:
@@ -60,6 +67,13 @@ canonical:
       metric: InternetTrafficDown # Download from Cloud
       dimensions:
         - bucket
+      unit: Bytes
+      scale: 1
+    aws:
+      metric: BytesDownloaded
+      dimensions:
+        - BucketName
+        - FilterId
       unit: Bytes
       scale: 1
   traffic_intranet_rx_bytes:
@@ -133,6 +147,13 @@ canonical:
         - bucket
       unit: count
       scale: 1
+    aws:
+      metric: AllRequests
+      dimensions:
+        - BucketName
+        - FilterId
+      unit: count
+      scale: 1
   requests_get:
     description: "GET 请求数"
     aliyun:
@@ -146,6 +167,13 @@ canonical:
       metric: GetRequests
       dimensions:
         - bucket
+      unit: count
+      scale: 1
+    aws:
+      metric: GetRequests
+      dimensions:
+        - BucketName
+        - FilterId
       unit: count
       scale: 1
   requests_put:
@@ -163,6 +191,13 @@ canonical:
         - bucket
       unit: count
       scale: 1
+    aws:
+      metric: PutRequests
+      dimensions:
+        - BucketName
+        - FilterId
+      unit: count
+      scale: 1
   requests_head:
     description: "HEAD 请求数"
     aliyun:
@@ -176,6 +211,13 @@ canonical:
       metric: HeadRequests
       dimensions:
         - bucket
+      unit: count
+      scale: 1
+    aws:
+      metric: HeadRequests
+      dimensions:
+        - BucketName
+        - FilterId
       unit: count
       scale: 1
   requests_append:
@@ -256,6 +298,13 @@ canonical:
       metric: 5xxResponse
       dimensions:
         - bucket
+      unit: count
+      scale: 1
+    aws:
+      metric: 5xxErrors
+      dimensions:
+        - BucketName
+        - FilterId
       unit: count
       scale: 1
   response_2xx_rate_pct:
@@ -397,6 +446,12 @@ canonical:
       metric: FirstByteDelay
       dimensions:
         - bucket
+      unit: ms
+    aws:
+      metric: FirstByteLatency
+      dimensions:
+        - BucketName
+        - FilterId
       unit: ms
   bandwidth_internet_rx_bps:
     description: "公网入带宽"

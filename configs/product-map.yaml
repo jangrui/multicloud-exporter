@@ -1,0 +1,19 @@
+products:
+  # mapping prefix -> local products filename by provider
+  s3:
+    aliyun: oss
+    tencent: cos
+    aws: s3
+  clb:
+    aliyun: clb
+    tencent: clb
+  bwp:
+    aliyun: cbwp
+    tencent: bwp
+  alb:
+    aliyun: alb
+  nlb:
+    aliyun: nlb
+  gwlb:
+    aliyun: gwlb
+    tencent: gwlb

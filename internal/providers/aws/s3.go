@@ -79,13 +79,13 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 		return
 	}
 
-	period := int32(86400) // S3 存储类指标通常以天为粒度
+	defaultPeriod := int32(86400) // 默认按存储类（天粒度）回退
 	if s3Prod.Period != nil && *s3Prod.Period > 0 {
-		period = int32(*s3Prod.Period)
+		defaultPeriod = int32(*s3Prod.Period)
 	}
 
 	for _, group := range s3Prod.MetricInfo {
-		localPeriod := period
+		localPeriod := defaultPeriod
 		if group.Period != nil && *group.Period > 0 {
 			localPeriod = int32(*group.Period)
 		}
@@ -94,12 +94,14 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 			if metricName == "" {
 				continue
 			}
-			// 针对存储类指标，默认取 StandardStorage；后续可扩展为多 StorageType。
 			needStorageType := metricName == "BucketSizeBytes" || metricName == "NumberOfObjects"
+			needFilterID := !needStorageType
 			storageType := "StandardStorage"
+			filterID := "EntireBucket"
 			if metricName == "NumberOfObjects" {
 				storageType = "AllStorageTypes"
 			}
+			stat := statForS3Metric(metricName)
 			queries := make([]cwtypes.MetricDataQuery, 0, len(buckets))
 			ids := make([]string, 0, len(buckets))
 			for i, bn := range buckets {
@@ -108,6 +110,9 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 				dims := []cwtypes.Dimension{{Name: aws.String("BucketName"), Value: aws.String(bn)}}
 				if needStorageType {
 					dims = append(dims, cwtypes.Dimension{Name: aws.String("StorageType"), Value: aws.String(storageType)})
+				}
+				if needFilterID {
+					dims = append(dims, cwtypes.Dimension{Name: aws.String("FilterId"), Value: aws.String(filterID)})
 				}
 				queries = append(queries, cwtypes.MetricDataQuery{
 					Id: aws.String(id),
@@ -118,7 +123,7 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 							Dimensions: dims,
 						},
 						Period: aws.Int32(localPeriod),
-						Stat:   aws.String("Average"),
+						Stat:   aws.String(stat),
 					},
 					ReturnData: aws.Bool(true),
 				})
@@ -154,6 +159,18 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 					results[*r.Id] = r
 				}
 			}
+			// 在循环外确定 vecLabels，确保每个指标只调用一次 NamespaceGauge
+			var vecLabels []string
+			if needStorageType {
+				vecLabels = []string{"BucketName", "StorageType"}
+			} else {
+				vecLabels = []string{"BucketName", "FilterId"}
+			}
+			vec, count := metrics.NamespaceGauge(s3Prod.Namespace, metricName, vecLabels...)
+			rtype := metrics.GetNamespacePrefix(s3Prod.Namespace)
+			if rtype == "" {
+				rtype = "s3"
+			}
 			for i, bn := range buckets {
 				id := ids[i]
 				r, ok := results[id]
@@ -161,14 +178,23 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 					continue
 				}
 				val := r.Values[0]
-				vec, count := metrics.NamespaceGauge(s3Prod.Namespace, metricName, "BucketName", "StorageType")
-				rtype := metrics.GetNamespacePrefix(s3Prod.Namespace)
-				if rtype == "" {
-					rtype = "s3"
+				// 标准 labels: cloud_provider, account_id, region, resource_type, resource_id, namespace, metric_name, code_name
+				// 然后加上动态维度值（BucketName 的值就是 resource_id，所以只需要添加其他维度值）
+				labels := []string{"aws", account.AccountID, "global", rtype, bn, s3Prod.Namespace, metricName, codeNames[bn]}
+				if needStorageType {
+					// BucketName 维度值 = resource_id (bn)，StorageType 维度值 = storageType
+					labels = append(labels, bn, storageType)
+				} else {
+					// BucketName 维度值 = resource_id (bn)，FilterId 维度值 = filterID
+					labels = append(labels, bn, filterID)
 				}
-				labels := []string{"aws", account.AccountID, "global", rtype, bn, s3Prod.Namespace, metricName, codeNames[bn], bn, storageType}
-				for len(labels) < count {
-					labels = append(labels, "")
+				// 确保 labels 数量与 GaugeVec 的标签数量匹配
+				if len(labels) > count {
+					labels = labels[:count]
+				} else {
+					for len(labels) < count {
+						labels = append(labels, "")
+					}
 				}
 				// CloudWatch 返回 float64，scale 统一通过 mappings 注册（若配置了）
 				scaled := val * metrics.GetMetricScale(s3Prod.Namespace, metricName)
@@ -179,6 +205,21 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 			// 轻微节流，降低 CloudWatch 压力
 			time.Sleep(50 * time.Millisecond)
 		}
+	}
+}
+
+func statForS3Metric(metricName string) string {
+	// CloudWatch 口径选择：
+	// - 存储/对象数：Average（最新值）
+	// - 请求/字节/错误：Sum（区间内累计）
+	// - 延迟：Average
+	switch metricName {
+	case "BucketSizeBytes", "NumberOfObjects":
+		return "Average"
+	case "FirstByteLatency", "TotalRequestLatency":
+		return "Average"
+	default:
+		return "Sum"
 	}
 }
 

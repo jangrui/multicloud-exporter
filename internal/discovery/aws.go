@@ -46,14 +46,26 @@ func (d *AWSDiscoverer) Discover(ctx context.Context, cfg *config.Config) []conf
 	}
 
 	// S3 的 CloudWatch 指标属于 AWS/S3，存储类指标依赖 StorageType 维度。
-	// 这里仅给出基础指标，更多可在后续迭代中按需扩展。
+	// 这里选择“最稳定且可跨云对齐”的指标集合：
+	// - 存储/对象数：稳定、口径清晰（通常为日粒度）
+	// - 请求/字节/5xx/延迟：依赖 S3 Request Metrics（FilterId=EntireBucket）；若未启用则可能无数据
 	return []config.Product{
 		{
 			Namespace:    "AWS/S3",
 			AutoDiscover: true,
 			MetricInfo: []config.MetricGroup{
-				{MetricList: []string{"BucketSizeBytes", "NumberOfObjects"}},
+				// Storage / objects (daily)
+				{Period: intPtr(86400), MetricList: []string{"BucketSizeBytes", "NumberOfObjects"}},
+				// Requests / bytes / errors / latency (minute-level, requires Request Metrics)
+				{Period: intPtr(60), MetricList: []string{
+					"AllRequests", "GetRequests", "PutRequests", "HeadRequests",
+					"BytesUploaded", "BytesDownloaded",
+					"5xxErrors",
+					"FirstByteLatency",
+				}},
 			},
 		},
 	}
 }
+
+func intPtr(v int) *int { return &v }

@@ -1,0 +1,32 @@
+provider: aws
+prefix: s3
+namespace: AWS/S3
+unmapped:
+    - metric: 4xxErrors
+      dimensions:
+        - BucketName
+        - FilterId
+      stability: conditional
+      reason: 依赖 S3 Request Metrics（FilterId），未启用时可能无数据；口径/默认策略需评估后再纳入统一映射
+      sample_count: 9
+    - metric: ListRequests
+      dimensions:
+        - BucketName
+        - FilterId
+      stability: conditional
+      reason: 依赖 S3 Request Metrics（FilterId），未启用时可能无数据；口径/默认策略需评估后再纳入统一映射
+      sample_count: 2
+    - metric: PostRequests
+      dimensions:
+        - BucketName
+        - FilterId
+      stability: conditional
+      reason: 依赖 S3 Request Metrics（FilterId），未启用时可能无数据；口径/默认策略需评估后再纳入统一映射
+      sample_count: 2
+    - metric: TotalRequestLatency
+      dimensions:
+        - BucketName
+        - FilterId
+      stability: conditional
+      reason: 依赖 S3 Request Metrics（FilterId），未启用时可能无数据；口径/默认策略需评估后再纳入统一映射
+      sample_count: 9
