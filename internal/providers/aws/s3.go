@@ -137,14 +137,14 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 			// CloudWatch GetMetricData 一次最多查询 500 个指标，需要分批处理
 			const maxQueriesPerRequest = 500
 			allResults := make(map[string]cwtypes.MetricDataResult)
-			
+
 			for batchStart := 0; batchStart < len(buckets); batchStart += maxQueriesPerRequest {
 				batchEnd := batchStart + maxQueriesPerRequest
 				if batchEnd > len(buckets) {
 					batchEnd = len(buckets)
 				}
 				batchBuckets := buckets[batchStart:batchEnd]
-				
+
 				queries := make([]cwtypes.MetricDataQuery, 0, len(batchBuckets))
 				ids := make([]string, 0, len(batchBuckets))
 				for i, bn := range batchBuckets {
@@ -172,9 +172,16 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 					})
 				}
 
-				// 取最近 2 个周期窗口，避免无数据点
+				// 查询时间窗口：至少覆盖最近 30 分钟，确保能获取到有延迟的数据点
+				// CloudWatch 指标延迟：正常 2-5 分钟，高负载时可能达到 10-15 分钟
+				// 使用 30 分钟窗口更安全，且只取最新值（Values[0]），不影响数据新鲜度
 				endTime := time.Now().UTC()
-				startTime := endTime.Add(-2 * time.Duration(localPeriod) * time.Second)
+				minWindow := 30 * time.Minute
+				window := time.Duration(localPeriod) * time.Second * 2 // 至少 2 个周期
+				if window < minWindow {
+					window = minWindow
+				}
+				startTime := endTime.Add(-window)
 				reqStart := time.Now()
 				var resp *cloudwatch.GetMetricDataOutput
 				for attempt := 0; attempt < 5; attempt++ {
@@ -219,13 +226,13 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 						allResults[*r.Id] = r
 					}
 				}
-				
+
 				// 批次间轻微节流
 				if batchEnd < len(buckets) {
 					time.Sleep(50 * time.Millisecond)
 				}
 			}
-			
+
 			results := allResults
 			// 在循环外确定 vecLabels，确保每个指标只调用一次 NamespaceGauge
 			var vecLabels []string
@@ -321,14 +328,14 @@ func (c *Collector) fetchS3BucketCodeNames(ctx context.Context, client *s3.Clien
 	const maxConcurrency = 10
 	sem := make(chan struct{}, maxConcurrency)
 	var wg sync.WaitGroup
-	
+
 	for _, b := range buckets {
 		wg.Add(1)
 		go func(bucket string) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			
+
 			reqStart := time.Now()
 			var resp *s3.GetBucketTaggingOutput
 			var err error
@@ -360,12 +367,12 @@ func (c *Collector) fetchS3BucketCodeNames(ctx context.Context, client *s3.Clien
 			if err != nil {
 				return
 			}
-			
+
 			// 检查 resp 和 TagSet 是否为 nil
 			if resp == nil || resp.TagSet == nil {
 				return
 			}
-			
+
 			mu.Lock()
 			for _, t := range resp.TagSet {
 				if strings.EqualFold(aws.ToString(t.Key), "CodeName") || strings.EqualFold(aws.ToString(t.Key), "code_name") {
