@@ -199,7 +199,10 @@ func main() {
 
 	mgr := discovery.NewManager(cfg)
 	ctx := context.Background()
+	discoveryStart := time.Now()
 	mgr.Start(ctx)
+	discoveryDuration := time.Since(discoveryStart)
+	logger.Log.Infof("发现服务启动完成，总耗时: %v", discoveryDuration)
 	lastVer := int64(-1)
 	prods := mgr.Get()
 	if len(cfg.ProductsByProvider) == 0 && len(prods) > 0 {

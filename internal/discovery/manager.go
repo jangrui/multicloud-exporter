@@ -97,6 +97,7 @@ func (m *Manager) Status() DiscoveryStatus {
 }
 
 func (m *Manager) Refresh(ctx context.Context) error {
+	start := time.Now()
 	prods := make(map[string][]config.Product)
 	m.cfg.Mu.RLock()
 	for _, name := range GetAllDiscoverers() {
@@ -110,10 +111,13 @@ func (m *Manager) Refresh(ctx context.Context) error {
 	m.mu.Lock()
 	changed := !equalProducts(m.products, prods)
 	m.products = prods
+	duration := time.Since(start)
 	if changed {
 		m.version++
 		m.updatedAt = time.Now()
-		logger.Log.Infof("发现服务已刷新，版本=%d", m.version)
+		logger.Log.Infof("发现服务已刷新，版本=%d，总耗时: %v", m.version, duration)
+	} else {
+		logger.Log.Infof("发现服务检查完成，无变化，总耗时: %v", duration)
 	}
 	m.mu.Unlock()
 	if changed {
