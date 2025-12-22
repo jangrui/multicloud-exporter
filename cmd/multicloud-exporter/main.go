@@ -65,13 +65,7 @@ func main() {
 		accountInfo.WriteString(")")
 	}
 
-	// 统计产品数量（产品配置已废弃，全面采用自动发现）
-	totalProducts := 0
-	for _, products := range cfg.ProductsByProvider {
-		totalProducts += len(products)
-	}
-
-	logger.Log.Infof("配置加载完成，账号配置集合 sizes: accounts=%d%s products=%d", totalAccounts, accountInfo.String(), totalProducts)
+	logger.Log.Infof("配置加载完成，账号配置集合 sizes: accounts=%d%s", totalAccounts, accountInfo.String())
 
 	// 加载指标映射配置
 	if mappingPath := os.Getenv("MAPPING_PATH"); mappingPath != "" {

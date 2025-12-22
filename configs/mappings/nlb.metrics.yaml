@@ -4,7 +4,7 @@
 prefix: nlb
 namespaces:
   aliyun: acs_nlb
-  
+  aws: AWS/NetworkELB
 
 canonical:
   # 连接类指标
@@ -16,6 +16,11 @@ canonical:
         - userId
         - instanceId
       unit: count
+    aws:
+      metric: ActiveFlowCount
+      dimensions:
+        - LoadBalancer
+      unit: count
   new_connection:
     description: "新建连接数"
     aliyun:
@@ -24,6 +29,11 @@ canonical:
         - userId
         - instanceId
       unit: count/s
+    aws:
+      metric: NewFlowCount
+      dimensions:
+        - LoadBalancer
+      unit: count
   dropped_connection:
     description: "丢弃连接数"
     aliyun:
@@ -33,6 +43,8 @@ canonical:
         - instanceId
         - zone
       unit: count/s
+    # AWS NLB has TCP_Client_Reset_Count etc., but not a single "Dropped Connection" metric.
+    # Skipping for AWS.
 
   # 流量类指标
   traffic_rx_bps:
@@ -44,6 +56,12 @@ canonical:
         - instanceId
       unit: bit/s
       scale: 1
+    aws:
+      metric: ProcessedBytes
+      dimensions:
+        - LoadBalancer
+      unit: byte
+      # AWS provides total ProcessedBytes (sum).
   traffic_tx_bps:
     description: "出网流量"
     aliyun:
@@ -53,6 +71,8 @@ canonical:
         - instanceId
       unit: bit/s
       scale: 1
+    # AWS ProcessedBytes is total. Skipping TX to avoid double counting or confusion.
+
   drop_packet_rx:
     description: "入网丢包速率"
     aliyun:

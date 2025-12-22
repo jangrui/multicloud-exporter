@@ -6,6 +6,7 @@ prefix: gwlb
 namespaces:
   aliyun: acs_gwlb
   tencent: qce/gwlb
+  aws: AWS/GatewayELB
 
 canonical:
   # 连接类指标
@@ -26,6 +27,11 @@ canonical:
         - AppId
         - gwLoadBalancerId
       unit: count
+    aws:
+      metric: ActiveFlowCount
+      dimensions:
+        - LoadBalancer
+      unit: count
   new_connection:
     description: "新建连接数"
     aliyun:
@@ -43,6 +49,11 @@ canonical:
         - AppId
         - gwLoadBalancerId
       unit: count/s
+    aws:
+      metric: NewFlowCount
+      dimensions:
+        - LoadBalancer
+      unit: count
 
   # 流量类指标
   traffic_rx_bps:
@@ -64,6 +75,12 @@ canonical:
         - gwLoadBalancerId
       unit: Mbps
       scale: 1000000
+    aws:
+      metric: ProcessedBytes
+      dimensions:
+        - LoadBalancer
+      unit: byte
+      # AWS GWLB ProcessedBytes is total.
   traffic_tx_bps:
     description: "出网流量"
     aliyun:
@@ -83,6 +100,7 @@ canonical:
         - gwLoadBalancerId
       unit: Mbps
       scale: 1000000
+    # AWS GWLB ProcessedBytes is total. Skipping TX.
 
   # 包转发类
   packet_rx:

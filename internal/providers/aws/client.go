@@ -7,12 +7,18 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
+	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancing"
+	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
 )
 
 type ClientFactory interface {
 	NewCloudWatchClient(ctx context.Context, region, ak, sk string) (*cloudwatch.Client, error)
 	NewS3Client(ctx context.Context, region, ak, sk string) (*s3.Client, error)
+	NewELBClient(ctx context.Context, region, ak, sk string) (*elasticloadbalancing.Client, error)
+	NewELBv2Client(ctx context.Context, region, ak, sk string) (*elasticloadbalancingv2.Client, error)
+	NewEC2Client(ctx context.Context, region, ak, sk string) (*ec2.Client, error)
 }
 
 type defaultClientFactory struct{}
@@ -39,4 +45,28 @@ func (f *defaultClientFactory) NewS3Client(ctx context.Context, region, ak, sk s
 		return nil, err
 	}
 	return s3.NewFromConfig(cfg), nil
+}
+
+func (f *defaultClientFactory) NewELBClient(ctx context.Context, region, ak, sk string) (*elasticloadbalancing.Client, error) {
+	cfg, err := f.loadCfg(ctx, region, ak, sk)
+	if err != nil {
+		return nil, err
+	}
+	return elasticloadbalancing.NewFromConfig(cfg), nil
+}
+
+func (f *defaultClientFactory) NewELBv2Client(ctx context.Context, region, ak, sk string) (*elasticloadbalancingv2.Client, error) {
+	cfg, err := f.loadCfg(ctx, region, ak, sk)
+	if err != nil {
+		return nil, err
+	}
+	return elasticloadbalancingv2.NewFromConfig(cfg), nil
+}
+
+func (f *defaultClientFactory) NewEC2Client(ctx context.Context, region, ak, sk string) (*ec2.Client, error) {
+	cfg, err := f.loadCfg(ctx, region, ak, sk)
+	if err != nil {
+		return nil, err
+	}
+	return ec2.NewFromConfig(cfg), nil
 }

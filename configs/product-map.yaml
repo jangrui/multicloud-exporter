@@ -7,13 +7,17 @@ products:
   clb:
     aliyun: clb
     tencent: clb
+    aws: clb
   bwp:
     aliyun: cbwp
     tencent: bwp
   alb:
     aliyun: alb
+    aws: alb
   nlb:
     aliyun: nlb
+    aws: nlb
   gwlb:
     aliyun: gwlb
     tencent: gwlb
+    aws: gwlb

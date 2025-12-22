@@ -38,11 +38,11 @@
 - [ ] 对象存储（OBS）
 
 ### AWS
-- [ ] 负载均衡
-  - [ ] 应用负载均衡（ALB）
-  - [ ] 经典负载均衡（CLB）
-  - [ ] 网络负载均衡（NLB）
-  - [ ] 网关负载均衡（GWLB）
+- [x] 负载均衡
+  - [x] 应用负载均衡（ALB）
+  - [x] 经典负载均衡（CLB）
+  - [x] 网络负载均衡（NLB）
+  - [x] 网关负载均衡（GWLB）
 - [x] 对象存储（S3）
 
 ## 配置文件
@@ -165,7 +165,7 @@ accounts:
 ```
 
 > regions 配置：
-> - `regions: []` 或 `regions: ["*"]` 采集所有区域
+> - `regions: []` 或 `regions: ["*"]` 采集所有区域（AWS/Aliyun/Tencent 均支持自动发现）
 > - 指定如 `regions: ["cn-hangzhou", "ap-guangzhou"]` 仅采集列出的区域
 
 > resources 配置：

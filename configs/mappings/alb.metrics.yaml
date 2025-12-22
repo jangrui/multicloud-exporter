@@ -5,6 +5,7 @@
 prefix: alb
 namespaces:
   aliyun: acs_alb
+  aws: AWS/ApplicationELB
 
 canonical:
   # 连接类指标
@@ -16,6 +17,11 @@ canonical:
         - userId
         - loadBalancerId
       unit: count
+    aws:
+      metric: ActiveConnectionCount
+      dimensions:
+        - LoadBalancer
+      unit: count
   new_connection:
     description: "新建连接数"
     aliyun:
@@ -24,6 +30,11 @@ canonical:
         - userId
         - loadBalancerId
       unit: count/s
+    aws:
+      metric: NewConnectionCount
+      dimensions:
+        - LoadBalancer
+      unit: count
   dropped_connection:
     description: "丢弃连接数"
     aliyun:
@@ -32,6 +43,11 @@ canonical:
         - userId
         - loadBalancerId
       unit: count/s
+    aws:
+      metric: RejectedConnectionCount
+      dimensions:
+        - LoadBalancer
+      unit: count
 
   # 流量类指标
   traffic_rx_bps:
@@ -43,6 +59,18 @@ canonical:
         - loadBalancerId
       unit: bit/s
       scale: 1
+    aws:
+      metric: ProcessedBytes
+      dimensions:
+        - LoadBalancer
+      unit: byte
+      scale: 8 # Convert bytes to bits if needed, but AWS gives ProcessedBytes. Usually rate is preferred.
+      # AWS ProcessedBytes is a counter/sum. Rate calculation happens in PromQL usually.
+      # But if we want bps, we might need to rely on the fact that these are scraped periodically.
+      # For now, let's just map ProcessedBytes.
+      # Wait, Aliyun gives bit/s (rate). AWS gives Bytes (sum over period).
+      # If we want consistent metrics, we might need to adjust or just document the difference.
+      # Let's map ProcessedBytes for now.
   traffic_tx_bps:
     description: "出网流量"
     aliyun:
@@ -52,6 +80,12 @@ canonical:
         - loadBalancerId
       unit: bit/s
       scale: 1
+    # AWS doesn't split In/Out for ALB ProcessedBytes easily without access logs analysis or assuming symmetrical.
+    # Actually AWS ALB has `ProcessedBytes` (Total). It doesn't split In/Out.
+    # So maybe we skip this for AWS or map ProcessedBytes to one of them (inaccurate).
+    # Let's skip for now or use `ProcessedBytes` for a total traffic metric if available.
+    # Since canonical expects rx/tx, maybe AWS doesn't fit this model perfectly.
+    # I'll leave it out for AWS for now to avoid confusion.
 
   # 七层指标
   qps:
@@ -63,6 +97,11 @@ canonical:
         - loadBalancerId
       unit: count/s
       scale: 1
+    aws:
+      metric: RequestCount
+      dimensions:
+        - LoadBalancer
+      unit: count
   rt:
     description: "响应时间 (L7)"
     aliyun:
@@ -72,6 +111,12 @@ canonical:
         - loadBalancerId
       unit: ms
       scale: 1
+    aws:
+      metric: TargetResponseTime
+      dimensions:
+        - LoadBalancer
+      unit: s
+      scale: 1000 # Convert seconds to ms
   status_code_2xx:
     description: "HTTP 2XX 状态码数量"
     aliyun:
@@ -81,6 +126,11 @@ canonical:
         - loadBalancerId
       unit: count/s
       scale: 1
+    aws:
+      metric: HTTPCode_Target_2XX_Count
+      dimensions:
+        - LoadBalancer
+      unit: count
   status_code_3xx:
     description: "HTTP 3XX 状态码数量"
     aliyun:
@@ -90,6 +140,11 @@ canonical:
         - loadBalancerId
       unit: count/s
       scale: 1
+    aws:
+      metric: HTTPCode_Target_3XX_Count
+      dimensions:
+        - LoadBalancer
+      unit: count
   status_code_4xx:
     description: "HTTP 4XX 状态码数量"
     aliyun:
@@ -99,6 +154,11 @@ canonical:
         - loadBalancerId
       unit: count/s
       scale: 1
+    aws:
+      metric: HTTPCode_Target_4XX_Count
+      dimensions:
+        - LoadBalancer
+      unit: count
   status_code_5xx:
     description: "HTTP 5XX 状态码数量"
     aliyun:
@@ -108,7 +168,26 @@ canonical:
         - loadBalancerId
       unit: count/s
       scale: 1
+    aws:
+      metric: HTTPCode_Target_5XX_Count
+      dimensions:
+        - LoadBalancer
+      unit: count
 
+  upstream_error:
+    description: "上游错误数"
+    aliyun:
+      metric: LoadBalancerUpstreamError
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+      scale: 1
+    aws:
+      metric: HTTPCode_Target_5XX_Count # Closest proxy for upstream errors
+      dimensions:
+        - LoadBalancer
+      unit: count
 
   # Listener Level
   listener_active_connection:

@@ -6,6 +6,7 @@ prefix: clb
 namespaces:
   aliyun: acs_slb_dashboard
   tencent: QCE/LB
+  aws: AWS/ELB
 
 canonical:
   traffic_rx_bps:
@@ -23,6 +24,11 @@ canonical:
         - vip
       unit: Mbps
       scale: 1000000
+    # AWS CLB doesn't have direct RX/TX bytes metrics exposed easily like ALB/NLB.
+    # It has RequestCount but not bandwidth.
+    # EstimatedProcessedBytes might be available but it's not standard.
+    # We'll skip bandwidth for AWS CLB or use custom metrics if available.
+
   traffic_tx_bps:
     description: "出网流量 (实例级)"
     aliyun:
@@ -38,6 +44,7 @@ canonical:
         - vip
       unit: Mbps
       scale: 1000000
+
   packet_rx:
     description: "入网包速率"
     aliyun:
@@ -53,6 +60,7 @@ canonical:
         - vip
       unit: count/s
       scale: 1
+
   packet_tx:
     description: "出网包速率"
     aliyun:
@@ -68,6 +76,7 @@ canonical:
         - vip
       unit: count/s
       scale: 1
+
   drop_packet_rx:
     description: "入网丢包速率"
     aliyun:
@@ -83,6 +92,7 @@ canonical:
         - vip
       unit: pps
       scale: 1
+
   drop_packet_tx:
     description: "出网丢包速率"
     aliyun:
@@ -98,6 +108,7 @@ canonical:
         - vip
       unit: pps
       scale: 1
+
   drop_traffic_rx_bps:
     description: "入网丢弃流量 (实例级)"
     aliyun:
@@ -107,6 +118,7 @@ canonical:
         - instanceId
       unit: bit/s
       scale: 1
+
   drop_traffic_tx_bps:
     description: "出网丢弃流量 (实例级)"
     aliyun:
@@ -116,6 +128,7 @@ canonical:
         - instanceId
       unit: bit/s
       scale: 1
+
   traffic_rx_utilization_pct:
     description: "入网带宽利用率"
     tencent:
@@ -124,6 +137,7 @@ canonical:
         - vip
       unit: '%'
       scale: 1
+
   traffic_tx_utilization_pct:
     description: "出网带宽利用率"
     tencent:
@@ -132,6 +146,7 @@ canonical:
         - vip
       unit: '%'
       scale: 1
+
   vip_new_connection:
     description: "VIP 新建连接数 (腾讯云特有)"
     tencent:
@@ -140,6 +155,7 @@ canonical:
         - vip
       unit: count/s
       scale: 1
+
   new_connection:
     description: "新建连接数"
     aliyun:
@@ -156,6 +172,7 @@ canonical:
         - vip
       unit: count/s
       scale: 1
+
   active_connection:
     description: "活跃连接数"
     aliyun:
@@ -172,6 +189,7 @@ canonical:
         - vip
       unit: count
       scale: 1
+
   drop_connection:
     description: "丢弃连接数"
     aliyun:
@@ -183,6 +201,10 @@ canonical:
         - protocol
       unit: count/s
       scale: 1
+
+  # AWS CLB doesn't have direct RX/TX bytes metrics exposed easily like ALB/NLB.
+
+
   qps:
     description: "每秒请求数 (L7)"
     aliyun:
@@ -193,6 +215,12 @@ canonical:
         - port
         - protocol
       unit: count/s
+    aws:
+      metric: RequestCount
+      dimensions:
+        - LoadBalancerName
+      unit: count # Sum over period.
+
   rt:
     description: "响应时间 (L7)"
     aliyun:
@@ -203,6 +231,13 @@ canonical:
         - port
         - protocol
       unit: ms
+    aws:
+      metric: Latency
+      dimensions:
+        - LoadBalancerName
+      unit: s
+      scale: 1000
+
   status_code_2xx:
     description: "HTTP 2XX 状态码数量"
     aliyun:
@@ -213,6 +248,12 @@ canonical:
         - port
         - protocol
       unit: count/s
+    aws:
+      metric: HTTPCode_Backend_2XX
+      dimensions:
+        - LoadBalancerName
+      unit: count
+
   status_code_3xx:
     description: "HTTP 3XX 状态码数量"
     aliyun:
@@ -223,6 +264,12 @@ canonical:
         - port
         - protocol
       unit: count/s
+    aws:
+      metric: HTTPCode_Backend_3XX
+      dimensions:
+        - LoadBalancerName
+      unit: count
+
   status_code_4xx:
     description: "HTTP 4XX 状态码数量"
     aliyun:
@@ -233,6 +280,12 @@ canonical:
         - port
         - protocol
       unit: count/s
+    aws:
+      metric: HTTPCode_Backend_4XX
+      dimensions:
+        - LoadBalancerName
+      unit: count
+
   status_code_5xx:
     description: "HTTP 5XX 状态码数量"
     aliyun:
@@ -243,16 +296,12 @@ canonical:
         - port
         - protocol
       unit: count/s
-  status_code_other:
-    description: "其他 HTTP 状态码数量"
-    aliyun:
-      metric: StatusCodeOther
+    aws:
+      metric: HTTPCode_Backend_5XX
       dimensions:
-        - userId
-        - instanceId
-        - port
-        - protocol
-      unit: count/s
+        - LoadBalancerName
+      unit: count
+
   unhealthy_server_count:
     description: "异常后端服务数"
     aliyun:
@@ -263,190 +312,12 @@ canonical:
         - port
         - vip
       unit: count
-  healthy_server_count_with_rule:
-    description: "按规则聚合的健康后端数"
-    aliyun:
-      metric: HealthyServerCountWithRule
+    aws:
+      metric: UnHealthyHostCount
       dimensions:
-        - userId
-        - instanceId
-        - port
-        - vip
-        - domain
-        - url
+        - LoadBalancerName
       unit: count
-  instance_qps:
-    description: "实例每秒请求数 (L7)"
-    aliyun:
-      metric: InstanceQps
-      dimensions:
-        - userId
-        - instanceId
-      unit: count/s
-  instance_rt:
-    description: "实例响应时间 (L7)"
-    aliyun:
-      metric: InstanceRt
-      dimensions:
-        - userId
-        - instanceId
-      unit: ms
-  instance_traffic_rx_utilization_pct:
-    description: "实例入网带宽利用率"
-    aliyun:
-      metric: InstanceTrafficRXUtilization
-      dimensions:
-        - userId
-        - instanceId
-      unit: ratio
-  instance_traffic_tx_utilization_pct:
-    description: "实例出网带宽利用率"
-    aliyun:
-      metric: InstanceTrafficTXUtilization
-      dimensions:
-        - userId
-        - instanceId
-      unit: ratio
-  instance_status_code_2xx:
-    description: "实例级 HTTP 2XX 状态码数量"
-    aliyun:
-      metric: InstanceStatusCode2xx
-      dimensions:
-        - userId
-        - instanceId
-      unit: count/s
-  instance_status_code_3xx:
-    description: "实例级 HTTP 3XX 状态码数量"
-    aliyun:
-      metric: InstanceStatusCode3xx
-      dimensions:
-        - userId
-        - instanceId
-      unit: count/s
-  instance_status_code_4xx:
-    description: "实例级 HTTP 4XX 状态码数量"
-    aliyun:
-      metric: InstanceStatusCode4xx
-      dimensions:
-        - userId
-        - instanceId
-      unit: count/s
-  instance_status_code_5xx:
-    description: "实例级 HTTP 5XX 状态码数量"
-    aliyun:
-      metric: InstanceStatusCode5xx
-      dimensions:
-        - userId
-        - instanceId
-      unit: count/s
-  instance_status_code_other:
-    description: "实例级其他 HTTP 状态码数量"
-    aliyun:
-      metric: InstanceStatusCodeOther
-      dimensions:
-        - userId
-        - instanceId
-      unit: count/s
-  instance_upstream_code_4xx:
-    description: "实例级上游 HTTP 4XX 状态码数量"
-    aliyun:
-      metric: InstanceUpstreamCode4xx
-      dimensions:
-        - userId
-        - instanceId
-      unit: count/s
-  instance_upstream_code_5xx:
-    description: "实例级上游 HTTP 5XX 状态码数量"
-    aliyun:
-      metric: InstanceUpstreamCode5xx
-      dimensions:
-        - userId
-        - instanceId
-      unit: count/s
-  instance_upstream_rt:
-    description: "实例级上游响应时间"
-    aliyun:
-      metric: InstanceUpstreamRt
-      dimensions:
-        - userId
-        - instanceId
-      unit: ms
-  inactive_connection:
-    description: "非活跃连接数 (实例级)"
-    aliyun:
-      metric: InactiveConnection
-      dimensions:
-        - userId
-        - instanceId
-        - port
-        - protocol
-      unit: count
-  max_connection:
-    description: "最大连接数 (实例级)"
-    aliyun:
-      metric: MaxConnection
-      dimensions:
-        - userId
-        - instanceId
-        - port
-        - protocol
-      unit: count/s
-  group_active_connection:
-    description: "服务器组活跃连接数"
-    aliyun:
-      metric: GroupActiveConnection
-      dimensions:
-        - userId
-        - groupId
-      unit: count
-  group_new_connection:
-    description: "服务器组新建连接数"
-    aliyun:
-      metric: GroupNewConnection
-      dimensions:
-        - userId
-        - groupId
-      unit: count/s
-  group_total_traffic_rx:
-    description: "服务器组总入网流量"
-    aliyun:
-      metric: GroupTotalTrafficRX
-      dimensions:
-        - userId
-        - groupId
-      unit: bit/s
-  group_total_traffic_tx:
-    description: "服务器组总出网流量"
-    aliyun:
-      metric: GroupTotalTrafficTX
-      dimensions:
-        - userId
-        - groupId
-      unit: bit/s
-  group_traffic_rx:
-    description: "服务器组入网流量"
-    aliyun:
-      metric: GroupTrafficRX
-      dimensions:
-        - userId
-        - groupId
-      unit: bit/s
-  group_traffic_tx:
-    description: "服务器组出网流量"
-    aliyun:
-      metric: GroupTrafficTX
-      dimensions:
-        - userId
-        - groupId
-      unit: bit/s
-  group_unhealthy_server_count:
-    description: "服务器组异常后端服务数"
-    aliyun:
-      metric: GroupUnhealthyServerCount
-      dimensions:
-        - userId
-        - groupId
-      unit: count
+
   healthy_server_count:
     description: "健康后端服务数"
     aliyun:
@@ -456,6 +327,128 @@ canonical:
         - instanceId
         - port
         - vip
+      unit: count
+    aws:
+      metric: HealthyHostCount
+      dimensions:
+        - LoadBalancerName
+      unit: count
+
+  instance_qps:
+    description: "实例每秒请求数 (L7)"
+    aliyun:
+      metric: InstanceQps
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+    aws:
+      metric: RequestCount
+      dimensions:
+        - LoadBalancerName
+      unit: count
+
+  instance_rt:
+    description: "实例响应时间 (L7)"
+    aliyun:
+      metric: InstanceRt
+      dimensions:
+        - userId
+        - instanceId
+      unit: ms
+    aws:
+      metric: Latency
+      dimensions:
+        - LoadBalancerName
+      unit: s
+      scale: 1000
+
+  instance_status_code_2xx:
+    description: "实例级 HTTP 2XX 状态码数量"
+    aliyun:
+      metric: InstanceStatusCode2xx
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+    aws:
+      metric: HTTPCode_Backend_2XX
+      dimensions:
+        - LoadBalancerName
+      unit: count
+
+  instance_status_code_3xx:
+    description: "实例级 HTTP 3XX 状态码数量"
+    aliyun:
+      metric: InstanceStatusCode3xx
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+    aws:
+      metric: HTTPCode_Backend_3XX
+      dimensions:
+        - LoadBalancerName
+      unit: count
+
+  instance_status_code_4xx:
+    description: "实例级 HTTP 4XX 状态码数量"
+    aliyun:
+      metric: InstanceStatusCode4xx
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+    aws:
+      metric: HTTPCode_Backend_4XX
+      dimensions:
+        - LoadBalancerName
+      unit: count
+
+  instance_status_code_5xx:
+    description: "实例级 HTTP 5XX 状态码数量"
+    aliyun:
+      metric: InstanceStatusCode5xx
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+    aws:
+      metric: HTTPCode_Backend_5XX
+      dimensions:
+        - LoadBalancerName
+      unit: count
+
+  upstream_code_4xx:
+    description: "上游 HTTP 4XX 状态码数量"
+    aliyun:
+      metric: UpstreamCode4xx
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - protocol
+      unit: count/s
+    aws:
+      metric: HTTPCode_Backend_4XX
+      dimensions:
+        - LoadBalancerName
+      unit: count
+
+  upstream_code_5xx:
+    description: "上游 HTTP 5XX 状态码数量"
+    aliyun:
+      metric: UpstreamCode5xx
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - protocol
+      unit: count/s
+    aws:
+      metric: HTTPCode_Backend_5XX
+      dimensions:
+        - LoadBalancerName
       unit: count
   instance_active_connection:
     description: "实例活跃连接数"
@@ -533,26 +526,6 @@ canonical:
         - domain
         - url
       unit: count
-  upstream_code_4xx:
-    description: "上游 HTTP 4XX 状态码数量"
-    aliyun:
-      metric: UpstreamCode4xx
-      dimensions:
-        - userId
-        - instanceId
-        - port
-        - protocol
-      unit: count/s
-  upstream_code_5xx:
-    description: "上游 HTTP 5XX 状态码数量"
-    aliyun:
-      metric: UpstreamCode5xx
-      dimensions:
-        - userId
-        - instanceId
-        - port
-        - protocol
-      unit: count/s
   upstream_rt:
     description: "上游响应时间"
     aliyun:
