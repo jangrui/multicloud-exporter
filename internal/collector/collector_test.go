@@ -36,13 +36,15 @@ func TestCollector_Collect(t *testing.T) {
 
 	// 2. Config
 	cfg := &config.Config{
-		AccountsList: []config.CloudAccount{
-			{
-				Provider:        "mock_cloud",
-				AccountID:       "test-account",
-				AccessKeyID:     "ak",
-				AccessKeySecret: "sk",
-				Regions:         []string{"cn-mock"},
+		AccountsByProvider: map[string][]config.CloudAccount{
+			"mock_cloud": {
+				{
+					Provider:        "mock_cloud",
+					AccountID:       "test-account",
+					AccessKeyID:     "ak",
+					AccessKeySecret: "sk",
+					Regions:         []string{"cn-mock"},
+				},
 			},
 		},
 		Server: &config.ServerConf{
@@ -80,8 +82,9 @@ func TestCollector_CollectFiltered(t *testing.T) {
 
 	// 2. Config
 	cfg := &config.Config{
-		AccountsList: []config.CloudAccount{
-			{
+		AccountsByProvider: map[string][]config.CloudAccount{
+			"mock_cloud_filter": {
+				{
 				Provider:  "mock_cloud_filter",
 				Resources: []string{"res1"},
 			},

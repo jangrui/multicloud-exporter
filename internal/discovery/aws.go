@@ -17,14 +17,8 @@ func (d *AWSDiscoverer) Discover(ctx context.Context, cfg *config.Config) []conf
 		return nil
 	}
 	var accounts []config.CloudAccount
-	accounts = append(accounts, cfg.AccountsList...)
 	if cfg.AccountsByProvider != nil {
 		if xs, ok := cfg.AccountsByProvider["aws"]; ok {
-			accounts = append(accounts, xs...)
-		}
-	}
-	if cfg.AccountsByProviderLegacy != nil {
-		if xs, ok := cfg.AccountsByProviderLegacy["aws"]; ok {
 			accounts = append(accounts, xs...)
 		}
 	}

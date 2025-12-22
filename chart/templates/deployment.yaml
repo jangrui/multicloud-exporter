@@ -15,7 +15,7 @@ spec:
 {{- if .Values.reloader.useAuto }}
         reloader.stakater.com/auto: "true"
 {{- else }}
-        configmap.reloader.stakater.com/reload: "{{ default "multicloud-exporter" .Values.fullname }}-config{{- if and .Values.accounts (or .Values.accounts.secrets .Values.accounts.grouped) }},{{ default "multicloud-exporter" .Values.fullname }}-accounts{{- end }}"
+        configmap.reloader.stakater.com/reload: "{{ default "multicloud-exporter" .Values.fullname }}-config{{- if and .Values.accounts .Values.accounts.grouped }},{{ default "multicloud-exporter" .Values.fullname }}-accounts{{- end }}"
 {{- end }}
 {{- end }}
     spec:
@@ -77,11 +77,9 @@ spec:
               value: {{ $v | quote }}
 {{- end }}
 {{- end }}
-{{- if and .Values.accounts (or .Values.accounts.secrets .Values.accounts.grouped) }}
+{{- if and .Values.accounts .Values.accounts.grouped }}
             - name: ACCOUNTS_PATH
               value: "/app/configs/accounts.yaml"
-{{- end }}
-{{- if and .Values.accounts (.Values.accounts.grouped) }}
 {{- range $i, $a := .Values.accounts.grouped.aliyun }}
             - name: ALY_ACC_{{ $i }}_ID
               valueFrom:
@@ -133,19 +131,18 @@ spec:
                   name: {{ $a.name }}
                   key: access_key_secret
 {{- end }}
-{{- else if and .Values.accounts (.Values.accounts.secrets) }}
-{{- range $i, $a := .Values.accounts.secrets }}
-            - name: ACC_{{ $i }}_ID
+{{- range $i, $a := .Values.accounts.grouped.aws }}
+            - name: AWS_ACC_{{ $i }}_ID
               valueFrom:
                 secretKeyRef:
                   name: {{ $a.name }}
                   key: account_id
-            - name: ACC_{{ $i }}_AK
+            - name: AWS_ACC_{{ $i }}_AK
               valueFrom:
                 secretKeyRef:
                   name: {{ $a.name }}
                   key: access_key_id
-            - name: ACC_{{ $i }}_SK
+            - name: AWS_ACC_{{ $i }}_SK
               valueFrom:
                 secretKeyRef:
                   name: {{ $a.name }}
@@ -158,14 +155,14 @@ spec:
                 name: {{ .Values.security.adminSecretName }}
 {{- end }}
           volumeMounts:
-{{- if and .Values.accounts (or .Values.accounts.secrets .Values.accounts.grouped) }}
+{{- if and .Values.accounts .Values.accounts.grouped }}
             - name: accounts
               mountPath: "/app/configs/accounts.yaml"
               subPath: accounts.yaml
 {{- end }}
           resources: {{- toYaml .Values.resources | nindent 12 }}
       volumes:
-{{- if and .Values.accounts (or .Values.accounts.secrets .Values.accounts.grouped) }}
+{{- if and .Values.accounts .Values.accounts.grouped }}
         - name: accounts
           configMap:
             name: {{ default "multicloud-exporter" .Values.fullname }}-accounts

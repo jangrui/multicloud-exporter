@@ -88,20 +88,14 @@ func (c *Collector) Collect() {
 
 func (c *Collector) collectInternal(filterProvider, filterResource string) {
 	c.cfg.Mu.RLock()
-	total := len(c.cfg.AccountsList) + len(c.cfg.AccountsByProvider) + len(c.cfg.AccountsByProviderLegacy)
+	total := len(c.cfg.AccountsByProvider)
+	for _, list := range c.cfg.AccountsByProvider {
+		total += len(list)
+	}
 	logger.Log.Infof("开始采集，加载账号数量=%d", total)
 	var accounts []config.CloudAccount
-	accounts = append(accounts, c.cfg.AccountsList...)
 	if c.cfg.AccountsByProvider != nil {
 		for provider, list := range c.cfg.AccountsByProvider {
-			for _, acc := range list {
-				acc.Provider = provider
-				accounts = append(accounts, acc)
-			}
-		}
-	}
-	if c.cfg.AccountsByProviderLegacy != nil {
-		for provider, list := range c.cfg.AccountsByProviderLegacy {
 			for _, acc := range list {
 				acc.Provider = provider
 				accounts = append(accounts, acc)

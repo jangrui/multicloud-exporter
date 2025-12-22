@@ -107,44 +107,46 @@ Exporter 暴露了 `/metrics` 端点，其中包含自身运行状态指标：
   - `products.yaml`：已废弃；Exporter 采用自动发现机制
   - `accounts.yaml`：由用户预创建 Secret 提供并挂载到容器固定路径
 
--- 账号 Secret 引用
-  - `accounts.secrets`：分散的每账号 Secret 列表，Chart 会生成 `accounts.yaml` 占位符并注入对应环境变量
+- 账号 Secret 引用
+  - `accounts.grouped`：按云平台分组的账号配置（推荐），Chart 会生成 `accounts.yaml` 并注入对应环境变量
 
     ```yaml
     accounts:
-      aliyun:
-        - provider: aliyun
-          account_id: "aliyun-prod"
-          access_key_id: "${ALIYUN_AK}"
-          access_key_secret: "${ALIYUN_SK}"
-          regions: ["*"]
-          resources:
-            - alb
-            - bwp
-            - clb
-            - nlb
-            - gwlb
-            - s3
+      grouped:
+        aliyun:
+          - name: aliyun-acc-0  # Secret 名称
+            regions: ["*"]
+            resources: ["bwp", "clb", "s3", "alb", "nlb", "gwlb"]
+        tencent:
+          - name: tencent-acc-0
+            regions: ["*"]
+            resources: ["bwp", "clb", "s3"]
+        aws:
+          - name: aws-acc-0
+            # AWS 的 S3 采集使用全局接口（ListBuckets），regions 可留空或使用 ["*"]
+            regions: ["*"]
+            resources: ["s3"]
+    ```
 
-      tencent:
-        - provider: tencent
-          account_id: "tencent-prod"
-          access_key_id: "${TENCENT_SECRET_ID}"
-          access_key_secret: "${TENCENT_SECRET_KEY}"
-          regions: ["*"]
-          resources:
-            - bwp
-            - clb
-            - s3
+    对应的 Secret 创建示例：
+    ```bash
+    # 阿里云账号
+    kubectl -n monitoring create secret generic aliyun-acc-0 \
+      --from-literal=account_id=xxx \
+      --from-literal=access_key_id=xxx \
+      --from-literal=access_key_secret=xxx
 
-      aws:
-        - provider: aws
-          account_id: "aws-prod"
-          access_key_id: "${AWS_ACCESS_KEY_ID}"
-          access_key_secret: "${AWS_SECRET_ACCESS_KEY}"
-          regions: []
-          resources:
-            - s3
+    # 腾讯云账号
+    kubectl -n monitoring create secret generic tencent-acc-0 \
+      --from-literal=account_id=xxx \
+      --from-literal=access_key_id=xxx \
+      --from-literal=access_key_secret=xxx
+
+    # AWS 账号
+    kubectl -n monitoring create secret generic aws-acc-0 \
+      --from-literal=account_id=xxx \
+      --from-literal=access_key_id=xxx \
+      --from-literal=access_key_secret=xxx
     ```
 
 - 调度与资源

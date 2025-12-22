@@ -125,16 +125,8 @@ func (t *Collector) fetchBWPMonitor(account config.CloudAccount, region string, 
 			metrics.RequestDuration.WithLabelValues("tencent", "GetMonitorData").Observe(time.Since(reqStart).Seconds())
 
 			if resp == nil || resp.Response == nil || resp.Response.DataPoints == nil || len(resp.Response.DataPoints) == 0 {
-				// 输出 0 值样本以保证指标可见性
-				alias, count := metrics.NamespaceGauge("QCE/BWP", m)
-				for _, id := range ids {
-					labels := []string{"tencent", account.AccountID, region, "bwp", id, "QCE/BWP", m, ""}
-					for len(labels) < count {
-						labels = append(labels, "")
-					}
-					alias.WithLabelValues(labels...).Set(0)
-					metrics.IncSampleCount("QCE/BWP", 1)
-				}
+				// 如果没有数据点，不暴露指标（而不是设置 0 值）
+				// 根据 Prometheus 最佳实践：不存在资源或无数据时，不应该暴露指标
 				continue
 			}
 			for _, dp := range resp.Response.DataPoints {
@@ -145,10 +137,12 @@ func (t *Collector) fetchBWPMonitor(account config.CloudAccount, region string, 
 				if rid == "" {
 					continue
 				}
-				val := float64(0)
-				if v := dp.Values[len(dp.Values)-1]; v != nil {
-					val = *v
+				// 如果最后一个值为 nil，表示没有数据，跳过指标（而不是设置为 0）
+				v := dp.Values[len(dp.Values)-1]
+				if v == nil {
+					continue
 				}
+				val := *v
 				alias, count := metrics.NamespaceGauge("QCE/BWP", m)
 				scaled := scaleBWPMetric(m, val)
 				labels := []string{"tencent", account.AccountID, region, "bwp", rid, "QCE/BWP", m, ""}

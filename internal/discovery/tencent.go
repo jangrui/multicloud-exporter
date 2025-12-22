@@ -29,14 +29,8 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 		return nil
 	}
 	var accounts []config.CloudAccount
-	accounts = append(accounts, cfg.AccountsList...)
 	if cfg.AccountsByProvider != nil {
 		if xs, ok := cfg.AccountsByProvider["tencent"]; ok {
-			accounts = append(accounts, xs...)
-		}
-	}
-	if cfg.AccountsByProviderLegacy != nil {
-		if xs, ok := cfg.AccountsByProviderLegacy["tencent"]; ok {
 			accounts = append(accounts, xs...)
 		}
 	}

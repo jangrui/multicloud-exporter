@@ -91,16 +91,11 @@ accounts:
     #   - name: huawei-acc-0
     #     regions: ["*"]
     #     resources: ["bwp"]
-  # 兼容旧式 secrets 列表：按条目指定 provider，模板也能分组输出
-  secrets: []
-  #   - name: accounts-1
-  #     provider: aliyun
-  #     regions: ["*"]
-  #     resources: ["bwp", "clb", "s3", "alb", "nlb", "gwlb"]
-  #   - name: accounts-2
-  #     provider: aliyun
-  #     regions: ["*"]
-  #     resources: ["bwp", "clb", "s3", "alb", "nlb", "gwlb"]
+    aws: []
+    #   - name: aws-acc-0
+    #     # AWS 的 S3 采集使用全局接口（ListBuckets），regions 可留空或使用 ["*"]
+    #     regions: ["*"]
+    #     resources: ["s3"]
 
 resources: {}
 

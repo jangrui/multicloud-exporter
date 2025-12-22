@@ -172,9 +172,7 @@ func (m *Manager) reloadAccounts(path string) string {
 	expanded := os.ExpandEnv(string(data))
 
 	var accCfg struct {
-		AccountsByProvider       map[string][]config.CloudAccount `yaml:"accounts"`
-		AccountsByProviderLegacy map[string][]config.CloudAccount `yaml:"accounts_by_provider"`
-		AccountsList             []config.CloudAccount            `yaml:"accounts_list"`
+		AccountsByProvider map[string][]config.CloudAccount `yaml:"accounts"`
 	}
 	if err := yaml.Unmarshal([]byte(expanded), &accCfg); err != nil {
 		return ""
@@ -182,8 +180,6 @@ func (m *Manager) reloadAccounts(path string) string {
 	if m.cfg != nil {
 		m.cfg.Mu.Lock()
 		m.cfg.AccountsByProvider = accCfg.AccountsByProvider
-		m.cfg.AccountsByProviderLegacy = accCfg.AccountsByProviderLegacy
-		m.cfg.AccountsList = accCfg.AccountsList
 		sig := m.accountsSignatureLocked()
 		m.cfg.Mu.Unlock()
 		return sig
@@ -205,17 +201,8 @@ func (m *Manager) accountsSignatureLocked() string {
 	if m.cfg == nil {
 		return ""
 	}
-	accounts = append(accounts, m.cfg.AccountsList...)
 	if m.cfg.AccountsByProvider != nil {
 		for p, xs := range m.cfg.AccountsByProvider {
-			for _, a := range xs {
-				a.Provider = p
-				accounts = append(accounts, a)
-			}
-		}
-	}
-	if m.cfg.AccountsByProviderLegacy != nil {
-		for p, xs := range m.cfg.AccountsByProviderLegacy {
 			for _, a := range xs {
 				a.Provider = p
 				accounts = append(accounts, a)

@@ -2,10 +2,13 @@ package aws
 
 import (
 	"context"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"multicloud-exporter/internal/config"
+	"multicloud-exporter/internal/logger"
 	"multicloud-exporter/internal/metrics"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -44,22 +47,41 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 	// S3 ListBuckets 是全局接口，region 可用 us-east-1。
 	s3Client, err := c.clientFactory.NewS3Client(ctx, "us-east-1", account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
+		logger.Log.Warnf("AWS S3 创建客户端失败 account=%s: %v", account.AccountID, err)
 		return
 	}
 	start := time.Now()
-	bucketsOut, err := s3Client.ListBuckets(ctx, &s3.ListBucketsInput{})
-	if err != nil {
+	var bucketsOut *s3.ListBucketsOutput
+	for attempt := 0; attempt < 5; attempt++ {
+		bucketsOut, err = s3Client.ListBuckets(ctx, &s3.ListBucketsInput{})
+		if err == nil {
+			metrics.RequestTotal.WithLabelValues("aws", "ListBuckets", "success").Inc()
+			metrics.RecordRequest("aws", "ListBuckets", "success")
+			metrics.RequestDuration.WithLabelValues("aws", "ListBuckets").Observe(time.Since(start).Seconds())
+			break
+		}
 		status := classifyAWSError(err)
 		metrics.RequestTotal.WithLabelValues("aws", "ListBuckets", status).Inc()
 		metrics.RecordRequest("aws", "ListBuckets", status)
 		if status == "limit_error" {
 			metrics.RateLimitTotal.WithLabelValues("aws", "ListBuckets").Inc()
 		}
+		if status == "auth_error" {
+			logger.Log.Warnf("AWS S3 ListBuckets 认证失败 account=%s: %v", account.AccountID, err)
+			return
+		}
+		if attempt < 4 {
+			sleep := time.Duration(200*(1<<attempt)) * time.Millisecond
+			if sleep > 5*time.Second {
+				sleep = 5 * time.Second
+			}
+			time.Sleep(sleep)
+		}
+	}
+	if err != nil {
+		logger.Log.Warnf("AWS S3 ListBuckets 失败 account=%s: %v", account.AccountID, err)
 		return
 	}
-	metrics.RequestTotal.WithLabelValues("aws", "ListBuckets", "success").Inc()
-	metrics.RecordRequest("aws", "ListBuckets", "success")
-	metrics.RequestDuration.WithLabelValues("aws", "ListBuckets").Observe(time.Since(start).Seconds())
 
 	var buckets []string
 	for _, b := range bucketsOut.Buckets {
@@ -76,6 +98,7 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 	// CloudWatch S3 指标维度：BucketName + StorageType（对存储类指标必填）
 	cwClient, err := c.clientFactory.NewCloudWatchClient(ctx, "us-east-1", account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
+		logger.Log.Warnf("AWS CloudWatch 创建客户端失败 account=%s: %v", account.AccountID, err)
 		return
 	}
 
@@ -102,63 +125,99 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 				storageType = "AllStorageTypes"
 			}
 			stat := statForS3Metric(metricName)
-			queries := make([]cwtypes.MetricDataQuery, 0, len(buckets))
-			ids := make([]string, 0, len(buckets))
-			for i, bn := range buckets {
-				id := sanitizeCWQueryID(i)
-				ids = append(ids, id)
-				dims := []cwtypes.Dimension{{Name: aws.String("BucketName"), Value: aws.String(bn)}}
-				if needStorageType {
-					dims = append(dims, cwtypes.Dimension{Name: aws.String("StorageType"), Value: aws.String(storageType)})
+			// CloudWatch GetMetricData 一次最多查询 500 个指标，需要分批处理
+			const maxQueriesPerRequest = 500
+			allResults := make(map[string]cwtypes.MetricDataResult)
+			
+			for batchStart := 0; batchStart < len(buckets); batchStart += maxQueriesPerRequest {
+				batchEnd := batchStart + maxQueriesPerRequest
+				if batchEnd > len(buckets) {
+					batchEnd = len(buckets)
 				}
-				if needFilterID {
-					dims = append(dims, cwtypes.Dimension{Name: aws.String("FilterId"), Value: aws.String(filterID)})
-				}
-				queries = append(queries, cwtypes.MetricDataQuery{
-					Id: aws.String(id),
-					MetricStat: &cwtypes.MetricStat{
-						Metric: &cwtypes.Metric{
-							Namespace:  aws.String(s3Prod.Namespace),
-							MetricName: aws.String(metricName),
-							Dimensions: dims,
+				batchBuckets := buckets[batchStart:batchEnd]
+				
+				queries := make([]cwtypes.MetricDataQuery, 0, len(batchBuckets))
+				ids := make([]string, 0, len(batchBuckets))
+				for i, bn := range batchBuckets {
+					id := sanitizeCWQueryID(batchStart + i)
+					ids = append(ids, id)
+					dims := []cwtypes.Dimension{{Name: aws.String("BucketName"), Value: aws.String(bn)}}
+					if needStorageType {
+						dims = append(dims, cwtypes.Dimension{Name: aws.String("StorageType"), Value: aws.String(storageType)})
+					}
+					if needFilterID {
+						dims = append(dims, cwtypes.Dimension{Name: aws.String("FilterId"), Value: aws.String(filterID)})
+					}
+					queries = append(queries, cwtypes.MetricDataQuery{
+						Id: aws.String(id),
+						MetricStat: &cwtypes.MetricStat{
+							Metric: &cwtypes.Metric{
+								Namespace:  aws.String(s3Prod.Namespace),
+								MetricName: aws.String(metricName),
+								Dimensions: dims,
+							},
+							Period: aws.Int32(localPeriod),
+							Stat:   aws.String(stat),
 						},
-						Period: aws.Int32(localPeriod),
-						Stat:   aws.String(stat),
-					},
-					ReturnData: aws.Bool(true),
-				})
-			}
-
-			// 取最近 2 个周期窗口，避免无数据点
-			end := time.Now().UTC()
-			startTime := end.Add(-2 * time.Duration(localPeriod) * time.Second)
-			reqStart := time.Now()
-			resp, err := cwClient.GetMetricData(ctx, &cloudwatch.GetMetricDataInput{
-				StartTime:         aws.Time(startTime),
-				EndTime:           aws.Time(end),
-				MetricDataQueries: queries,
-				ScanBy:            cwtypes.ScanByTimestampDescending,
-			})
-			if err != nil {
-				status := classifyAWSError(err)
-				metrics.RequestTotal.WithLabelValues("aws", "GetMetricData", status).Inc()
-				metrics.RecordRequest("aws", "GetMetricData", status)
-				if status == "limit_error" {
-					metrics.RateLimitTotal.WithLabelValues("aws", "GetMetricData").Inc()
+						ReturnData: aws.Bool(true),
+					})
 				}
-				continue
-			}
-			metrics.RequestTotal.WithLabelValues("aws", "GetMetricData", "success").Inc()
-			metrics.RecordRequest("aws", "GetMetricData", "success")
-			metrics.RequestDuration.WithLabelValues("aws", "GetMetricData").Observe(time.Since(reqStart).Seconds())
 
-			// 将每个 query 的最新值写入指标
-			results := make(map[string]cwtypes.MetricDataResult, len(resp.MetricDataResults))
-			for _, r := range resp.MetricDataResults {
-				if r.Id != nil {
-					results[*r.Id] = r
+				// 取最近 2 个周期窗口，避免无数据点
+				endTime := time.Now().UTC()
+				startTime := endTime.Add(-2 * time.Duration(localPeriod) * time.Second)
+				reqStart := time.Now()
+				var resp *cloudwatch.GetMetricDataOutput
+				for attempt := 0; attempt < 5; attempt++ {
+					resp, err = cwClient.GetMetricData(ctx, &cloudwatch.GetMetricDataInput{
+						StartTime:         aws.Time(startTime),
+						EndTime:           aws.Time(endTime),
+						MetricDataQueries: queries,
+						ScanBy:            cwtypes.ScanByTimestampDescending,
+					})
+					if err == nil {
+						metrics.RequestTotal.WithLabelValues("aws", "GetMetricData", "success").Inc()
+						metrics.RecordRequest("aws", "GetMetricData", "success")
+						metrics.RequestDuration.WithLabelValues("aws", "GetMetricData").Observe(time.Since(reqStart).Seconds())
+						break
+					}
+					status := classifyAWSError(err)
+					metrics.RequestTotal.WithLabelValues("aws", "GetMetricData", status).Inc()
+					metrics.RecordRequest("aws", "GetMetricData", status)
+					if status == "limit_error" {
+						metrics.RateLimitTotal.WithLabelValues("aws", "GetMetricData").Inc()
+					}
+					if status == "auth_error" {
+						logger.Log.Warnf("AWS CloudWatch GetMetricData 认证失败 account=%s metric=%s: %v", account.AccountID, metricName, err)
+						break
+					}
+					if attempt < 4 {
+						sleep := time.Duration(200*(1<<attempt)) * time.Millisecond
+						if sleep > 5*time.Second {
+							sleep = 5 * time.Second
+						}
+						time.Sleep(sleep)
+					}
+				}
+				if err != nil {
+					logger.Log.Debugf("AWS CloudWatch GetMetricData 失败 account=%s metric=%s batch=%d-%d: %v", account.AccountID, metricName, batchStart, batchEnd, err)
+					continue
+				}
+
+				// 将每个 query 的最新值写入结果集
+				for _, r := range resp.MetricDataResults {
+					if r.Id != nil {
+						allResults[*r.Id] = r
+					}
+				}
+				
+				// 批次间轻微节流
+				if batchEnd < len(buckets) {
+					time.Sleep(50 * time.Millisecond)
 				}
 			}
+			
+			results := allResults
 			// 在循环外确定 vecLabels，确保每个指标只调用一次 NamespaceGauge
 			var vecLabels []string
 			if needStorageType {
@@ -172,7 +231,7 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 				rtype = "s3"
 			}
 			for i, bn := range buckets {
-				id := ids[i]
+				id := sanitizeCWQueryID(i)
 				r, ok := results[id]
 				if !ok || len(r.Values) == 0 {
 					continue
@@ -225,58 +284,73 @@ func statForS3Metric(metricName string) string {
 
 func (c *Collector) fetchS3BucketCodeNames(ctx context.Context, client *s3.Client, buckets []string) map[string]string {
 	out := make(map[string]string, len(buckets))
+	var mu sync.Mutex
+	const maxConcurrency = 10
+	sem := make(chan struct{}, maxConcurrency)
+	var wg sync.WaitGroup
+	
 	for _, b := range buckets {
-		reqStart := time.Now()
-		resp, err := client.GetBucketTagging(ctx, &s3.GetBucketTaggingInput{Bucket: aws.String(b)})
-		if err != nil {
-			status := classifyAWSError(err)
-			metrics.RequestTotal.WithLabelValues("aws", "GetBucketTagging", status).Inc()
-			metrics.RecordRequest("aws", "GetBucketTagging", status)
-			if status == "limit_error" {
-				metrics.RateLimitTotal.WithLabelValues("aws", "GetBucketTagging").Inc()
+		wg.Add(1)
+		go func(bucket string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			
+			reqStart := time.Now()
+			var resp *s3.GetBucketTaggingOutput
+			var err error
+			for attempt := 0; attempt < 3; attempt++ {
+				resp, err = client.GetBucketTagging(ctx, &s3.GetBucketTaggingInput{Bucket: aws.String(bucket)})
+				if err == nil {
+					metrics.RequestTotal.WithLabelValues("aws", "GetBucketTagging", "success").Inc()
+					metrics.RecordRequest("aws", "GetBucketTagging", "success")
+					metrics.RequestDuration.WithLabelValues("aws", "GetBucketTagging").Observe(time.Since(reqStart).Seconds())
+					break
+				}
+				status := classifyAWSError(err)
+				metrics.RequestTotal.WithLabelValues("aws", "GetBucketTagging", status).Inc()
+				metrics.RecordRequest("aws", "GetBucketTagging", status)
+				if status == "limit_error" {
+					metrics.RateLimitTotal.WithLabelValues("aws", "GetBucketTagging").Inc()
+				}
+				// NoSuchTagSet 是正常情况（bucket 没有标签），不需要重试
+				if strings.Contains(err.Error(), "NoSuchTagSet") {
+					return
+				}
+				if status == "auth_error" {
+					return
+				}
+				if attempt < 2 {
+					time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
+				}
 			}
-			continue
-		}
-		metrics.RequestTotal.WithLabelValues("aws", "GetBucketTagging", "success").Inc()
-		metrics.RecordRequest("aws", "GetBucketTagging", "success")
-		metrics.RequestDuration.WithLabelValues("aws", "GetBucketTagging").Observe(time.Since(reqStart).Seconds())
-		for _, t := range resp.TagSet {
-			if strings.EqualFold(aws.ToString(t.Key), "CodeName") || strings.EqualFold(aws.ToString(t.Key), "code_name") {
-				out[b] = aws.ToString(t.Value)
-				break
+			if err != nil {
+				return
 			}
-		}
+			
+			// 检查 resp 和 TagSet 是否为 nil
+			if resp == nil || resp.TagSet == nil {
+				return
+			}
+			
+			mu.Lock()
+			for _, t := range resp.TagSet {
+				if strings.EqualFold(aws.ToString(t.Key), "CodeName") || strings.EqualFold(aws.ToString(t.Key), "code_name") {
+					out[bucket] = aws.ToString(t.Value)
+					break
+				}
+			}
+			mu.Unlock()
+		}(b)
 	}
+	wg.Wait()
 	return out
 }
 
 func sanitizeCWQueryID(i int) string {
 	// CloudWatch 查询 ID 仅允许小写字母开头 + 字母数字/下划线
 	// 这里用 q0,q1... 足够且稳定
-	return "q" + strconvItoa(i)
-}
-
-func strconvItoa(i int) string {
-	if i == 0 {
-		return "0"
-	}
-	neg := false
-	if i < 0 {
-		neg = true
-		i = -i
-	}
-	var buf [32]byte
-	pos := len(buf)
-	for i > 0 {
-		pos--
-		buf[pos] = byte('0' + i%10)
-		i /= 10
-	}
-	if neg {
-		pos--
-		buf[pos] = '-'
-	}
-	return string(buf[pos:])
+	return "q" + strconv.Itoa(i)
 }
 
 func classifyAWSError(err error) string {

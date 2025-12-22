@@ -25,14 +25,8 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 		return nil
 	}
 	var accounts []config.CloudAccount
-	accounts = append(accounts, cfg.AccountsList...)
 	if cfg.AccountsByProvider != nil {
 		if xs, ok := cfg.AccountsByProvider["aliyun"]; ok {
-			accounts = append(accounts, xs...)
-		}
-	}
-	if cfg.AccountsByProviderLegacy != nil {
-		if xs, ok := cfg.AccountsByProviderLegacy["aliyun"]; ok {
 			accounts = append(accounts, xs...)
 		}
 	}

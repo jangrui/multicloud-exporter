@@ -1556,35 +1556,8 @@ func (a *Collector) processMetricBatch(client CMSClient, req *cms.DescribeMetric
 		}
 		if callErr != nil {
 			ctxLog.Errorf("拉取指标失败 error=%v", callErr)
-			if len(dims) > 0 {
-				for _, dim := range dims {
-					rid := dim[dkey]
-					var codeNameVal string
-					if tags != nil {
-						codeNameVal = tags[rid]
-					}
-					var dynamicLabelValues []string
-					for _, dimKey := range dynamicDims {
-						valStr := ""
-						if v, ok := dim[dimKey]; ok {
-							valStr = v
-						}
-						dynamicLabelValues = append(dynamicLabelValues, valStr)
-					}
-					labels := []string{"aliyun", account.AccountID, region, rtype, rid, ns, m, codeNameVal}
-					labels = append(labels, dynamicLabelValues...)
-					vec, count := metrics.NamespaceGauge(ns, m, dynamicDims...)
-					if len(labels) > count {
-						labels = labels[:count]
-					} else {
-						for len(labels) < count {
-							labels = append(labels, "")
-						}
-					}
-					vec.WithLabelValues(labels...).Set(0)
-					metrics.IncSampleCount(ns, 1)
-				}
-			}
+			// API 调用失败时，不暴露指标（而不是设置 0 值）
+			// 根据 Prometheus 最佳实践：API 调用失败时，不应该暴露指标
 			break
 		}
 
@@ -1596,34 +1569,11 @@ func (a *Collector) processMetricBatch(client CMSClient, req *cms.DescribeMetric
 			ctxLog.Errorf("指标数据解析失败 content=%s error=%v", dp, err)
 		}
 
+		// 如果没有数据点，不暴露指标（而不是设置 0 值）
+		// 根据 Prometheus 最佳实践：不存在资源或无数据时，不应该暴露指标
 		if len(points) == 0 {
-			ctxLog.Debugf("Metric %s has 0 points, filling 0 for %d dims", m, len(dims))
-			for _, dim := range dims {
-				rid := dim[dkey]
-				var codeNameVal string
-				if tags != nil {
-					codeNameVal = tags[rid]
-				}
-				var dynamicLabelValues []string
-				for _, dimKey := range dynamicDims {
-					valStr := ""
-					if v, ok := dim[dimKey]; ok {
-						valStr = v
-					}
-					dynamicLabelValues = append(dynamicLabelValues, valStr)
-				}
-				labels := []string{"aliyun", account.AccountID, region, rtype, rid, ns, m, codeNameVal}
-				labels = append(labels, dynamicLabelValues...)
-				vec, count := metrics.NamespaceGauge(ns, m, dynamicDims...)
-				if len(labels) > count {
-					labels = labels[:count]
-				} else {
-					for len(labels) < count {
-						labels = append(labels, "")
-					}
-				}
-				vec.WithLabelValues(labels...).Set(0)
-			}
+			ctxLog.Debugf("Metric %s has 0 points, skipping metric exposure (not setting 0)", m)
+			// 不设置 0 值，直接跳过
 		}
 
 		for _, pnt := range points {

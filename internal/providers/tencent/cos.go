@@ -253,7 +253,12 @@ func (t *Collector) fetchCOSMonitor(account config.CloudAccount, region string, 
 					}
 
 					// Use the latest value
-					val := *point.Values[len(point.Values)-1]
+					// 如果最后一个值为 nil，表示没有数据，跳过指标（而不是设置为 0）
+					lastVal := point.Values[len(point.Values)-1]
+					if lastVal == nil {
+						continue
+					}
+					val := *lastVal
 
 					vec, count := metrics.NamespaceGauge("QCE/COS", m)
 					codeName := codeNames[bucketName]

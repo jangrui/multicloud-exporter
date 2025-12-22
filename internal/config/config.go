@@ -46,13 +46,9 @@ type Config struct {
 	Credential *Credential `yaml:"credential"`
 	DataTag    []DataTag   `yaml:"datatag"`
 
-	AccountsByProvider       map[string][]CloudAccount `yaml:"accounts"`
-	AccountsByProviderLegacy map[string][]CloudAccount `yaml:"accounts_by_provider"`
-	AccountsList             []CloudAccount            `yaml:"accounts_list"`
+	AccountsByProvider map[string][]CloudAccount `yaml:"accounts"`
 
-	ProductsByProvider       map[string][]Product `yaml:"products"`
-	ProductsByProviderLegacy map[string][]Product `yaml:"products_by_provider"`
-	ProductsList             []Product            `yaml:"products_list"`
+	ProductsByProvider map[string][]Product `yaml:"products"`
 }
 
 // DefaultResourceDimMapping 返回默认的资源维度映射配置
@@ -76,21 +72,11 @@ func DefaultResourceDimMapping() map[string][]string {
 	}
 }
 
-// LoadConfig 从环境变量 CONFIG_PATH 指向的 YAML 文件加载配置
+// LoadConfig 从环境变量加载拆分配置文件
 func LoadConfig() (*Config, error) {
 	var cfg Config
 
-	// 可选：兼容旧版单文件配置
-	if configPath := os.Getenv("CONFIG_PATH"); configPath != "" {
-		if data, err := os.ReadFile(configPath); err == nil {
-			expanded := expandEnv(string(data))
-			_ = yaml.Unmarshal([]byte(expanded), &cfg)
-		} else {
-			return nil, fmt.Errorf("CONFIG_PATH not loaded: %v", err)
-		}
-	}
-
-	// 新版拆分：server.yaml
+	// 加载 server.yaml
 	serverPath := os.Getenv("SERVER_PATH")
 	if serverPath == "" {
 		// 默认回退路径：优先容器挂载路径，其次本地开发路径
@@ -141,21 +127,13 @@ func LoadConfig() (*Config, error) {
 		}
 		accExpanded := expandEnv(string(accData))
 		var accCfg struct {
-			AccountsByProvider       map[string][]CloudAccount `yaml:"accounts"`
-			AccountsByProviderLegacy map[string][]CloudAccount `yaml:"accounts_by_provider"`
-			AccountsList             []CloudAccount            `yaml:"accounts_list"`
+			AccountsByProvider map[string][]CloudAccount `yaml:"accounts"`
 		}
 		if err := yaml.Unmarshal([]byte(accExpanded), &accCfg); err != nil {
 			return nil, fmt.Errorf("failed to parse accounts: %v", err)
 		}
 		if accCfg.AccountsByProvider != nil {
 			cfg.AccountsByProvider = accCfg.AccountsByProvider
-		}
-		if accCfg.AccountsByProviderLegacy != nil {
-			cfg.AccountsByProviderLegacy = accCfg.AccountsByProviderLegacy
-		}
-		if len(accCfg.AccountsList) > 0 {
-			cfg.AccountsList = accCfg.AccountsList
 		}
 	}
 

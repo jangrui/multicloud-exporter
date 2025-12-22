@@ -39,13 +39,15 @@ func TestTencentDiscoverer_Discover(t *testing.T) {
 
 	// Test case 3: Success with BWP, CLB, COS
 	cfg = &config.Config{
-		AccountsList: []config.CloudAccount{
+		AccountsByProvider: map[string][]config.CloudAccount{
+			"tencent": {
 			{
 				Provider:        "tencent",
 				AccessKeyID:     "ak",
 				AccessKeySecret: "sk",
 				Regions:         []string{"ap-guangzhou"},
 				Resources:       []string{"bwp", "clb", "s3"},
+			},
 			},
 		},
 	}
@@ -78,6 +80,7 @@ func TestTencentDiscoverer_Discover(t *testing.T) {
 					}
 				}
 				return resp, nil
+			},
 			},
 		}, nil
 	}
@@ -130,13 +133,15 @@ func TestTencentDiscoverer_Discover_COS_Fallback(t *testing.T) {
 	d := &TencentDiscoverer{}
 	ctx := context.Background()
 	cfg := &config.Config{
-		AccountsList: []config.CloudAccount{
+		AccountsByProvider: map[string][]config.CloudAccount{
+			"tencent": {
 			{
 				Provider:        "tencent",
 				AccessKeyID:     "ak",
 				AccessKeySecret: "sk",
 				Regions:         []string{"ap-guangzhou"},
 				Resources:       []string{"s3"},
+			},
 			},
 		},
 	}
@@ -146,6 +151,7 @@ func TestTencentDiscoverer_Discover_COS_Fallback(t *testing.T) {
 		return &mockMonitorClient{
 			DescribeBaseMetricsFunc: func(request *monitor.DescribeBaseMetricsRequest) (*monitor.DescribeBaseMetricsResponse, error) {
 				return nil, errors.New("api failed")
+			},
 			},
 		}, nil
 	}
@@ -178,6 +184,7 @@ func TestFetchTencentMetricMeta(t *testing.T) {
 					},
 				}
 				return resp, nil
+			},
 			},
 		}, nil
 	}
@@ -240,6 +247,7 @@ func TestFetchTencentMetricMeta(t *testing.T) {
 				}
 				return resp, nil
 			},
+			},
 		}, nil
 	}
 	metas, err = FetchTencentMetricMeta("region", "ak", "sk", "QCE/TEST")
@@ -265,6 +273,7 @@ func TestFetchTencentMetricMeta(t *testing.T) {
 					},
 				}
 				return resp, nil
+			},
 			},
 		}, nil
 	}

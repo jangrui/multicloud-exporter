@@ -38,25 +38,12 @@ func main() {
 	defer logger.Sync()
 
 	// 统计账号数量
-	totalAccounts := len(cfg.AccountsList)
-	for _, accounts := range cfg.AccountsByProvider {
-		totalAccounts += len(accounts)
-	}
-	for _, accounts := range cfg.AccountsByProviderLegacy {
-		totalAccounts += len(accounts)
-	}
-
-	// 统计按云平台分组的账号数量
+	totalAccounts := 0
 	accountsByProvider := make(map[string]int)
 	for provider, accounts := range cfg.AccountsByProvider {
-		accountsByProvider[provider] = len(accounts)
-	}
-	for provider, accounts := range cfg.AccountsByProviderLegacy {
-		accountsByProvider[provider] += len(accounts)
-	}
-	// 统计AccountsList中的账号
-	for _, account := range cfg.AccountsList {
-		accountsByProvider[account.Provider]++
+		count := len(accounts)
+		totalAccounts += count
+		accountsByProvider[provider] = count
 	}
 
 	// 构建账号统计信息
@@ -78,12 +65,9 @@ func main() {
 		accountInfo.WriteString(")")
 	}
 
-	// 统计产品数量
-	totalProducts := len(cfg.ProductsList)
+	// 统计产品数量（产品配置已废弃，全面采用自动发现）
+	totalProducts := 0
 	for _, products := range cfg.ProductsByProvider {
-		totalProducts += len(products)
-	}
-	for _, products := range cfg.ProductsByProviderLegacy {
 		totalProducts += len(products)
 	}
 
@@ -218,7 +202,7 @@ func main() {
 	mgr.Start(ctx)
 	lastVer := int64(-1)
 	prods := mgr.Get()
-	if len(cfg.ProductsList) == 0 && len(cfg.ProductsByProvider) == 0 && len(cfg.ProductsByProviderLegacy) == 0 && len(prods) > 0 {
+	if len(cfg.ProductsByProvider) == 0 && len(prods) > 0 {
 		cfg.ProductsByProvider = prods
 		lastVer = mgr.Version()
 	}

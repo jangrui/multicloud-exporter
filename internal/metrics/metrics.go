@@ -90,6 +90,7 @@ func RegisterNamespaceMetricAlias(namespace string, aliases map[string]string) {
 	// 合并映射而不是覆盖，允许后续注册补充新的映射
 	for k, v := range aliases {
 		// 如果已存在映射，记录警告（用于调试）
+		// 注意：不能使用 logger，因为会导致循环导入（logger -> config -> metrics）
 		if existing, exists := aliasByNamespace[namespace][k]; exists && existing != v {
 			fmt.Printf("WARNING: Metric alias conflict for namespace=%s metric=%s: existing=%s new=%s (new will override)\n", namespace, k, existing, v)
 		}
@@ -205,6 +206,8 @@ func NamespaceGauge(namespace, metric string, extraLabels ...string) (*prometheu
 			}
 		}
 		// Log error and return the unregistered gauge (it won't be scraped but won't crash)
+		// 注意：不能使用 logger，因为会导致循环导入（logger -> config -> metrics）
+		// 使用 fmt.Printf 作为 fallback，这些错误通常只在初始化阶段出现
 		fmt.Printf("Failed to register metric: name=%q labels=%v err=%v. Returning unregistered gauge.\n", name, labels, err)
 		// We still return g, but it's not registered.
 		// We also cache it so we don't try to register again and log error every time.

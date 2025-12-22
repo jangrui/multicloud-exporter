@@ -91,12 +91,12 @@ server:
 
 	// 2. Create accounts.yaml
 	accountsYaml := `
-accounts_list:
-  - provider: aliyun
-    account_id: "123456"
-    access_key_id: "ak"
-    access_key_secret: "sk"
-    regions: ["cn-hangzhou"]
+accounts:
+  aliyun:
+    - account_id: "123456"
+      access_key_id: "ak"
+      access_key_secret: "sk"
+      regions: ["cn-hangzhou"]
 `
 	accountsPath := filepath.Join(tmpDir, "accounts.yaml")
 	if err := os.WriteFile(accountsPath, []byte(accountsYaml), 0644); err != nil {
@@ -120,78 +120,21 @@ accounts_list:
 	if cfg.Server.RegionConcurrency != 5 {
 		t.Errorf("RegionConcurrency = %d, want 5", cfg.Server.RegionConcurrency)
 	}
-	if len(cfg.AccountsList) != 1 {
-		t.Errorf("AccountsList len = %d, want 1", len(cfg.AccountsList))
+	aliyunAccounts, ok := cfg.AccountsByProvider["aliyun"]
+	if !ok || len(aliyunAccounts) != 1 {
+		t.Errorf("AccountsByProvider[aliyun] len = %d, want 1", len(aliyunAccounts))
 	}
-	if cfg.AccountsList[0].AccountID != "123456" {
-		t.Errorf("AccountID = %s, want 123456", cfg.AccountsList[0].AccountID)
-	}
-}
-
-func TestLoadConfig_Legacy(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "config_test_legacy")
-	if err != nil {
-		t.Fatal(err)
-	}
-    defer func() { _ = os.RemoveAll(tmpDir) }()
-
-	configYaml := `
-server:
-  region_concurrency: 2
-accounts_list:
-  - provider: tencent
-    account_id: "999"
-`
-	configPath := filepath.Join(tmpDir, "config.yaml")
-	if err := os.WriteFile(configPath, []byte(configYaml), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	t.Setenv("CONFIG_PATH", configPath)
-	// Unset others to ensure legacy path is taken if others are missing (though code loads both if present)
-	t.Setenv("SERVER_PATH", "")
-	t.Setenv("ACCOUNTS_PATH", "")
-	// Code logic:
-	// 1. CONFIG_PATH (if set) -> unmarshal to cfg
-	// 2. SERVER_PATH (if set or default exists) -> unmarshal server part
-	// 3. ACCOUNTS_PATH (if set) -> unmarshal accounts part
-
-	// Since we set CONFIG_PATH, it should load.
-	// However, LoadConfig checks for server.yaml default paths.
-	// If I don't want it to fail on missing server.yaml, I should make sure it doesn't find one or I ignore the error?
-	// The code says:
-	// if serverPath == "" { check defaults... if found set serverPath }
-	// if serverPath != "" { read... }
-
-	// In test env, default paths likely don't exist, so serverPath remains empty.
-
-	cfg, err := LoadConfig()
-	if err != nil {
-		t.Fatalf("LoadConfig() error = %v", err)
-	}
-
-	if cfg.Server == nil {
-		// Wait, if I use legacy config.yaml, it has "server" key.
-		// yaml.Unmarshal([]byte(expanded), &cfg) should populate cfg.Server.
-		// But later, if serverPath is found, it overwrites.
-		// If serverPath is NOT found, cfg.Server remains from config.yaml?
-		// Yes.
-	} else {
-		if cfg.Server.RegionConcurrency != 2 {
-			t.Errorf("Legacy RegionConcurrency = %d, want 2", cfg.Server.RegionConcurrency)
-		}
-	}
-
-	if len(cfg.AccountsList) != 1 {
-		t.Errorf("Legacy AccountsList len = %d, want 1", len(cfg.AccountsList))
+	if len(aliyunAccounts) > 0 && aliyunAccounts[0].AccountID != "123456" {
+		t.Errorf("AccountID = %s, want 123456", aliyunAccounts[0].AccountID)
 	}
 }
+
 
 func TestLoadConfig_Error(t *testing.T) {
-	t.Setenv("CONFIG_PATH", "/non/existent/path.yaml")
+	t.Setenv("ACCOUNTS_PATH", "/non/existent/path.yaml")
 	_, err := LoadConfig()
 	if err == nil {
-		t.Error("LoadConfig() expected error for non-existent CONFIG_PATH, got nil")
+		t.Error("LoadConfig() expected error for non-existent ACCOUNTS_PATH, got nil")
 	}
 }
 

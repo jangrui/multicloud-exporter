@@ -54,24 +54,20 @@ data:
 {{- else }}
       huawei: []
 {{- end }}
-{{- else if and .Values.accounts (.Values.accounts.secrets) }}
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ default "multicloud-exporter" .Values.fullname }}-accounts
-data:
-  accounts.yaml: |
-    accounts_list:
-{{- range $i, $a := .Values.accounts.secrets }}
-      - provider: {{ $a.provider | default "aliyun" }}
-        account_id: ${ACC_{{ $i }}_ID}
-        access_key_id: ${ACC_{{ $i }}_AK}
-        access_key_secret: ${ACC_{{ $i }}_SK}
+{{- if gt (len .Values.accounts.grouped.aws) 0 }}
+      aws:
+{{- range $i, $a := .Values.accounts.grouped.aws }}
+        - account_id: ${AWS_ACC_{{ $i }}_ID}
+          access_key_id: ${AWS_ACC_{{ $i }}_AK}
+          access_key_secret: ${AWS_ACC_{{ $i }}_SK}
 {{- if $a.regions }}
-        regions: {{ toYaml $a.regions | nindent 10 -}}
+          regions: {{ toYaml $a.regions | nindent 12 -}}
 {{- end }}
 {{- if $a.resources }}
-        resources: {{ toYaml $a.resources | nindent 10 -}}
+          resources: {{ toYaml $a.resources | nindent 12 -}}
 {{- end }}
+{{- end }}
+{{- else }}
+      aws: []
 {{- end }}
 {{- end }}

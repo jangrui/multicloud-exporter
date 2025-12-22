@@ -48,15 +48,18 @@ func TestAliyunDiscoverer_Discover(t *testing.T) {
 
 	d := &AliyunDiscoverer{}
 	cfg := &config.Config{
-		AccountsList: []config.CloudAccount{
-			{
-				Provider:        "aliyun",
-				AccessKeyID:     "ak",
-				AccessKeySecret: "sk",
-				Regions:         []string{"cn-hangzhou"},
-				Resources:       []string{"clb"},
+		AccountsByProvider: map[string][]config.CloudAccount{
+			"aliyun": {
+				{
+					Provider:        "aliyun",
+					AccessKeyID:     "ak",
+					AccessKeySecret: "sk",
+					Regions:         []string{"cn-hangzhou"},
+					Resources:       []string{"clb"},
+				},
 			},
 		},
+	},
 	}
 
 	prods := d.Discover(context.Background(), cfg)
@@ -82,13 +85,15 @@ func TestAliyunDiscoverer_Discover_BWP_Fallback(t *testing.T) {
 
 	d := &AliyunDiscoverer{}
 	cfg := &config.Config{
-		AccountsList: []config.CloudAccount{
-			{
-				Provider:        "aliyun",
-				AccessKeyID:     "ak",
-				AccessKeySecret: "sk",
-				Regions:         []string{"cn-hangzhou"},
+		AccountsByProvider: map[string][]config.CloudAccount{
+			"aliyun": {
+				{
+					Provider:        "aliyun",
+					AccessKeyID:     "ak",
+					AccessKeySecret: "sk",
+					Regions:         []string{"cn-hangzhou"},
 				Resources:       []string{"bwp"},
+			},
 			},
 		},
 	}
@@ -122,13 +127,15 @@ func TestAliyunDiscoverer_Discover_OSS_Fallback(t *testing.T) {
 
 	d := &AliyunDiscoverer{}
 	cfg := &config.Config{
-		AccountsList: []config.CloudAccount{
-			{
-				Provider:        "aliyun",
-				AccessKeyID:     "ak",
-				AccessKeySecret: "sk",
-				Regions:         []string{"cn-hangzhou"},
+		AccountsByProvider: map[string][]config.CloudAccount{
+			"aliyun": {
+				{
+					Provider:        "aliyun",
+					AccessKeyID:     "ak",
+					AccessKeySecret: "sk",
+					Regions:         []string{"cn-hangzhou"},
 				Resources:       []string{"s3"},
+			},
 			},
 		},
 	}
@@ -162,13 +169,15 @@ func TestAliyunDiscoverer_Discover_NewProducts_Fallback(t *testing.T) {
 
 	d := &AliyunDiscoverer{}
 	cfg := &config.Config{
-		AccountsList: []config.CloudAccount{
-			{
-				Provider:        "aliyun",
-				AccessKeyID:     "ak",
-				AccessKeySecret: "sk",
-				Regions:         []string{"cn-hangzhou"},
+		AccountsByProvider: map[string][]config.CloudAccount{
+			"aliyun": {
+				{
+					Provider:        "aliyun",
+					AccessKeyID:     "ak",
+					AccessKeySecret: "sk",
+					Regions:         []string{"cn-hangzhou"},
 				Resources:       []string{"alb", "nlb", "gwlb"},
+			},
 			},
 		},
 	}
