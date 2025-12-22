@@ -43,15 +43,15 @@ func (d *AWSDiscoverer) Discover(ctx context.Context, cfg *config.Config) []conf
 	// S3 的 CloudWatch 指标属于 AWS/S3，存储类指标依赖 StorageType 维度。
 	// 这里选择"最稳定且可跨云对齐"的指标集合：
 	// - 存储/对象数：稳定、口径清晰（通常为日粒度）
-	// - 请求/字节/5xx/延迟：依赖 S3 Request Metrics（FilterId=EntireBucket）；若未启用则可能无数据
+	// - 请求/字节/错误/延迟：依赖 S3 Request Metrics（FilterId=EntireBucket）；若未启用则可能无数据
 	totalMetrics := 0
 	for _, group := range []config.MetricGroup{
 		{Period: intPtr(86400), MetricList: []string{"BucketSizeBytes", "NumberOfObjects"}},
 		{Period: intPtr(60), MetricList: []string{
-			"AllRequests", "GetRequests", "PutRequests", "HeadRequests",
+			"AllRequests", "GetRequests", "PutRequests", "HeadRequests", "ListRequests", "PostRequests",
 			"BytesUploaded", "BytesDownloaded",
-			"5xxErrors",
-			"FirstByteLatency",
+			"4xxErrors", "5xxErrors",
+			"FirstByteLatency", "TotalRequestLatency",
 		}},
 	} {
 		totalMetrics += len(group.MetricList)
@@ -65,10 +65,10 @@ func (d *AWSDiscoverer) Discover(ctx context.Context, cfg *config.Config) []conf
 				{Period: intPtr(86400), MetricList: []string{"BucketSizeBytes", "NumberOfObjects"}},
 				// Requests / bytes / errors / latency (minute-level, requires Request Metrics)
 				{Period: intPtr(60), MetricList: []string{
-					"AllRequests", "GetRequests", "PutRequests", "HeadRequests",
+					"AllRequests", "GetRequests", "PutRequests", "HeadRequests", "ListRequests", "PostRequests",
 					"BytesUploaded", "BytesDownloaded",
-					"5xxErrors",
-					"FirstByteLatency",
+					"4xxErrors", "5xxErrors",
+					"FirstByteLatency", "TotalRequestLatency",
 				}},
 			},
 		},

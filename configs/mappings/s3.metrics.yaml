@@ -1,5 +1,5 @@
-# Unified Object Storage Metrics (Aliyun OSS / Tencent COS)
-# 排序整理：2025-12-15；修改者：@jangrui；规则：按存储用量/流量/请求/可用性与错误/延迟/带宽/归档/复制等类别分组展示（仅调整可读性，不改变键与字段）
+# Unified Object Storage Metrics (Aliyun OSS / Tencent COS / AWS S3)
+
 prefix: s3
 namespaces:
   aliyun: acs_oss_dashboard
@@ -30,6 +30,87 @@ canonical:
         - StorageType
       unit: Bytes
       scale: 1
+  storage_ia_bytes:
+    description: "低频存储用量 (Bytes)"
+    tencent:
+      metric: SiaStorage
+      dimensions:
+        - bucket
+      unit: Bytes
+  storage_archive_bytes:
+    description: "归档存储用量 (Bytes)"
+    tencent:
+      metric: DeepArcStorage
+      dimensions:
+        - bucket
+      unit: Bytes
+      scale: 1048576
+  storage_archive_multipart_bytes:
+    description: "归档碎片容量 (Bytes)"
+    tencent:
+      metric: DeepArcMultipartStorage
+      dimensions:
+        - bucket
+      unit: Bytes
+      scale: 1048576
+  storage_archive_multipart_count:
+    description: "归档碎片文件数"
+    tencent:
+      metric: DeepArcMultipartNumber
+      dimensions:
+        - bucket
+      unit: count
+  storage_archive_object_count:
+    description: "归档对象数量"
+    tencent:
+      metric: DeepArcObjectNumber
+      dimensions:
+        - bucket
+      unit: count
+  storage_archive_retrieval_standard_bytes:
+    description: "归档标准取回量 (Bytes)"
+    tencent:
+      metric: DeepArcStandardRetrieval
+      dimensions:
+        - bucket
+      unit: Bytes
+      scale: 1048576
+  storage_archive_retrieval_bulk_bytes:
+    description: "归档批量取回量 (Bytes)"
+    tencent:
+      metric: DeepArcBulkRetrieval
+      dimensions:
+        - bucket
+      unit: Bytes
+      scale: 1048576
+  storage_archive_read_requests:
+    description: "归档读请求数"
+    tencent:
+      metric: DeepArcReadRequests
+      dimensions:
+        - bucket
+      unit: count
+  storage_archive_write_requests:
+    description: "归档写请求数"
+    tencent:
+      metric: DeepArcWriteRequests
+      dimensions:
+        - bucket
+      unit: count
+  object_count:
+    description: "对象数量"
+    aliyun:
+      metric: ObjectCount
+      dimensions:
+        - userId
+        - BucketName
+      unit: count
+    aws:
+      metric: NumberOfObjects
+      dimensions:
+        - BucketName
+        - StorageType
+      unit: count
 
   # Traffic (Bytes) - Preferred for accuracy
   traffic_internet_rx_bytes:
@@ -130,6 +211,33 @@ canonical:
         - bucket
       unit: Bytes
       scale: 1
+  traffic_replication_bytes:
+    description: "跨区域复制流量 (Bytes)"
+    tencent:
+      metric: CrossRegionReplicationTraffic
+      dimensions:
+        - bucket
+      unit: Bytes
+  traffic_replication_rx_bytes:
+    description: "跨区域复制入流量 (Bytes)"
+    aliyun:
+      metric: MeteringSyncRX
+      dimensions:
+        - userId
+        - BucketName
+        - region
+        - storageType
+      unit: Bytes
+  traffic_replication_tx_bytes:
+    description: "跨区域复制出流量 (Bytes)"
+    aliyun:
+      metric: MeteringSyncTX
+      dimensions:
+        - userId
+        - BucketName
+        - region
+        - storageType
+      unit: Bytes
 
   # Requests
   requests_total:
@@ -215,6 +323,24 @@ canonical:
       scale: 1
     aws:
       metric: HeadRequests
+      dimensions:
+        - BucketName
+        - FilterId
+      unit: count
+      scale: 1
+  requests_list:
+    description: "LIST 请求数"
+    aws:
+      metric: ListRequests
+      dimensions:
+        - BucketName
+        - FilterId
+      unit: count
+      scale: 1
+  requests_post:
+    description: "POST 请求数"
+    aws:
+      metric: PostRequests
       dimensions:
         - BucketName
         - FilterId
@@ -307,6 +433,42 @@ canonical:
         - FilterId
       unit: count
       scale: 1
+  response_client_error_count:
+    description: "客户端错误数（4xx）"
+    tencent:
+      metric: 4xxResponse
+      dimensions:
+        - bucket
+      unit: count
+      scale: 1
+    aws:
+      metric: 4xxErrors
+      dimensions:
+        - BucketName
+        - FilterId
+      unit: count
+      scale: 1
+  response_2xx_count:
+    description: "2xx 响应数"
+    tencent:
+      metric: 2xxResponse
+      dimensions:
+        - bucket
+      unit: count
+  response_3xx_count:
+    description: "3xx 响应数"
+    tencent:
+      metric: 3xxResponse
+      dimensions:
+        - bucket
+      unit: count
+  response_4xx_count:
+    description: "4xx 响应数"
+    tencent:
+      metric: 4xxResponse
+      dimensions:
+        - bucket
+      unit: count
   response_2xx_rate_pct:
     description: "2xx 响应占比"
     tencent:
@@ -376,6 +538,7 @@ canonical:
       unit: percent
       scale: 1
 
+  # Latency
   latency_e2e_get_ms:
     description: "GET 端到端延迟"
     aliyun:
@@ -453,6 +616,17 @@ canonical:
         - BucketName
         - FilterId
       unit: ms
+  latency_total_request_ms:
+    description: "总请求延迟"
+    aws:
+      metric: TotalRequestLatency
+      dimensions:
+        - BucketName
+        - FilterId
+      unit: ms
+      scale: 1
+
+  # Bandwidth
   bandwidth_internet_rx_bps:
     description: "公网入带宽"
     aliyun:
@@ -492,6 +666,8 @@ canonical:
       dimensions:
         - bucket
       unit: bps
+
+  # Cache
   cache_recv_bytes:
     description: "缓存入流量 (Bytes)"
     aliyun:
@@ -528,134 +704,3 @@ canonical:
         - instanceId
         - BucketName
       unit: Bytes
-  object_count:
-    description: "对象数量"
-    aliyun:
-      metric: ObjectCount
-      dimensions:
-        - userId
-        - BucketName
-      unit: count
-    aws:
-      metric: NumberOfObjects
-      dimensions:
-        - BucketName
-        - StorageType
-      unit: count
-  response_2xx_count:
-    description: "2xx 响应数"
-    tencent:
-      metric: 2xxResponse
-      dimensions:
-        - bucket
-      unit: count
-  response_3xx_count:
-    description: "3xx 响应数"
-    tencent:
-      metric: 3xxResponse
-      dimensions:
-        - bucket
-      unit: count
-  response_4xx_count:
-    description: "4xx 响应数"
-    tencent:
-      metric: 4xxResponse
-      dimensions:
-        - bucket
-      unit: count
-  storage_ia_bytes:
-    description: "低频存储用量 (Bytes)"
-    tencent:
-      metric: SiaStorage
-      dimensions:
-        - bucket
-      unit: Bytes
-  storage_archive_bytes:
-    description: "归档存储用量 (Bytes)"
-    tencent:
-      metric: DeepArcStorage
-      dimensions:
-        - bucket
-      unit: Bytes
-      scale: 1048576
-  storage_archive_multipart_bytes:
-    description: "归档碎片容量 (Bytes)"
-    tencent:
-      metric: DeepArcMultipartStorage
-      dimensions:
-        - bucket
-      unit: Bytes
-      scale: 1048576
-  storage_archive_multipart_count:
-    description: "归档碎片文件数"
-    tencent:
-      metric: DeepArcMultipartNumber
-      dimensions:
-        - bucket
-      unit: count
-  storage_archive_object_count:
-    description: "归档对象数量"
-    tencent:
-      metric: DeepArcObjectNumber
-      dimensions:
-        - bucket
-      unit: count
-  storage_archive_retrieval_standard_bytes:
-    description: "归档标准取回量 (Bytes)"
-    tencent:
-      metric: DeepArcStandardRetrieval
-      dimensions:
-        - bucket
-      unit: Bytes
-      scale: 1048576
-  storage_archive_retrieval_bulk_bytes:
-    description: "归档批量取回量 (Bytes)"
-    tencent:
-      metric: DeepArcBulkRetrieval
-      dimensions:
-        - bucket
-      unit: Bytes
-      scale: 1048576
-  storage_archive_read_requests:
-    description: "归档读请求数"
-    tencent:
-      metric: DeepArcReadRequests
-      dimensions:
-        - bucket
-      unit: count
-  storage_archive_write_requests:
-    description: "归档写请求数"
-    tencent:
-      metric: DeepArcWriteRequests
-      dimensions:
-        - bucket
-      unit: count
-  traffic_replication_bytes:
-    description: "跨区域复制流量 (Bytes)"
-    tencent:
-      metric: CrossRegionReplicationTraffic
-      dimensions:
-        - bucket
-      unit: Bytes
-  traffic_replication_rx_bytes:
-    description: "跨区域复制入流量 (Bytes)"
-    aliyun:
-      metric: MeteringSyncRX
-      dimensions:
-        - userId
-        - BucketName
-        - region
-        - storageType
-      unit: Bytes
-  traffic_replication_tx_bytes:
-    description: "跨区域复制出流量 (Bytes)"
-    aliyun:
-      metric: MeteringSyncTX
-      dimensions:
-        - userId
-        - BucketName
-        - region
-        - storageType
-      unit: Bytes
-
- 

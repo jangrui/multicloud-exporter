@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 	"sync"
@@ -107,6 +108,11 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 		defaultPeriod = int32(*s3Prod.Period)
 	}
 
+	// 统计指标收集情况
+	totalMetricsAttempted := 0
+	metricsCollected := make(map[string]int) // metricName -> bucket count
+	metricsSkipped := make(map[string]int)   // metricName -> bucket count
+
 	for _, group := range s3Prod.MetricInfo {
 		localPeriod := defaultPeriod
 		if group.Period != nil && *group.Period > 0 {
@@ -117,6 +123,9 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 			if metricName == "" {
 				continue
 			}
+			totalMetricsAttempted++
+			metricsCollected[metricName] = 0
+			metricsSkipped[metricName] = 0
 			needStorageType := metricName == "BucketSizeBytes" || metricName == "NumberOfObjects"
 			needFilterID := !needStorageType
 			storageType := "StandardStorage"
@@ -234,6 +243,7 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 				id := sanitizeCWQueryID(i)
 				r, ok := results[id]
 				if !ok || len(r.Values) == 0 {
+					metricsSkipped[metricName]++
 					continue
 				}
 				val := r.Values[0]
@@ -259,11 +269,34 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 				scaled := val * metrics.GetMetricScale(s3Prod.Namespace, metricName)
 				vec.WithLabelValues(labels...).Set(scaled)
 				metrics.IncSampleCount(s3Prod.Namespace, 1)
+				metricsCollected[metricName]++
 			}
 
 			// 轻微节流，降低 CloudWatch 压力
 			time.Sleep(50 * time.Millisecond)
 		}
+	}
+
+	// 输出指标收集统计信息
+	var collectedList, skippedList []string
+	for metricName, count := range metricsCollected {
+		if count > 0 {
+			collectedList = append(collectedList, fmt.Sprintf("%s(%d buckets)", metricName, count))
+		}
+	}
+	for metricName, count := range metricsSkipped {
+		if count > 0 && count == len(buckets) {
+			// 如果所有 bucket 都无数据，说明该指标可能未启用或需要前置条件
+			skippedList = append(skippedList, metricName)
+		}
+	}
+	if len(collectedList) > 0 {
+		logger.Log.Infof("AWS S3 指标收集完成 account=%s: 已收集 %d/%d 个指标，详情: %s",
+			account.AccountID, len(collectedList), totalMetricsAttempted, strings.Join(collectedList, ", "))
+	}
+	if len(skippedList) > 0 {
+		logger.Log.Warnf("AWS S3 指标无数据 account=%s: %d 个指标在所有 bucket 上均无数据，可能原因：1) S3 Request Metrics 未启用（需要 FilterId 的指标：%s）；2) 指标尚未产生数据。建议：在 AWS 控制台为 S3 bucket 启用 Request Metrics 功能",
+			account.AccountID, len(skippedList), strings.Join(skippedList, ", "))
 	}
 }
 
