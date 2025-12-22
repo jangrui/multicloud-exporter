@@ -359,7 +359,12 @@ func main() {
 			UpdatedAt int64                       `json:"updated_at"`
 			Products  map[string][]config.Product `json:"products"`
 		}{Version: mgr.Version(), UpdatedAt: mgr.UpdatedAt().Unix(), Products: mgr.Get()}
-		_ = json.NewEncoder(w).Encode(data)
+		bs, err := json.MarshalIndent(data, "", "  ")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		_, _ = w.Write(bs)
 	}))
 	http.HandleFunc("/api/discovery/stream", wrap(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
@@ -402,25 +407,18 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		st := mgr.Status()
 		resp := struct {
-			Version           int64             `json:"version"`
-			UpdatedAt         int64             `json:"updated_at"`
-			AccountsPath      string            `json:"accounts_path"`
-			AccountsSignature string            `json:"accounts_signature"`
-			Subscribers       int               `json:"subscribers"`
-			Providers         []string          `json:"providers"`
-			ProductsCount     map[string]int    `json:"products_count"`
-			APIStats          []metrics.APIStat `json:"api_stats"`
+			discovery.DiscoveryStatus
+			APIStats []metrics.APIStat `json:"api_stats"`
 		}{
-			Version:           st.Version,
-			UpdatedAt:         st.UpdatedAt,
-			AccountsPath:      st.AccountsPath,
-			AccountsSignature: st.AccountsSignature,
-			Subscribers:       st.Subscribers,
-			Providers:         st.Providers,
-			ProductsCount:     st.ProductsCount,
-			APIStats:          metrics.GetAPIStats(),
+			DiscoveryStatus: st,
+			APIStats:        metrics.GetAPIStats(),
 		}
-		_ = json.NewEncoder(w).Encode(resp)
+		bs, err := json.MarshalIndent(resp, "", "  ")
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		_, _ = w.Write(bs)
 	}))
 	logger.Log.Infof("服务启动，端口=%s", port)
 	logger.Log.Fatal(http.ListenAndServe(":"+port, nil))

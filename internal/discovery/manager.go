@@ -24,14 +24,19 @@ type Manager struct {
 	lastAccSig    string
 	lastAccPath   string
 	watchInterval time.Duration
+	// 发现统计信息
+	lastRefreshDuration time.Duration
+	providerDurations   map[string]time.Duration
+	refreshCount        int64
 }
 
 func NewManager(cfg *config.Config) *Manager {
 	return &Manager{
-		cfg:           cfg,
-		products:      make(map[string][]config.Product),
-		subs:          make(map[chan struct{}]struct{}),
-		watchInterval: 3 * time.Second,
+		cfg:               cfg,
+		products:          make(map[string][]config.Product),
+		subs:              make(map[chan struct{}]struct{}),
+		watchInterval:     3 * time.Second,
+		providerDurations: make(map[string]time.Duration),
 	}
 }
 
@@ -59,52 +64,122 @@ func (m *Manager) UpdatedAt() time.Time {
 	return m.updatedAt
 }
 
+type ProductDetail struct {
+	Namespace    string `json:"namespace"`
+	MetricsCount int    `json:"metrics_count"`
+	AutoDiscover bool   `json:"auto_discover"`
+}
+
+type ProviderStats struct {
+	ProductsCount     int             `json:"products_count"`
+	MetricsCount      int             `json:"metrics_count"`
+	AccountsCount     int             `json:"accounts_count"`
+	DiscoveryDuration string          `json:"discovery_duration"`
+	Products          []ProductDetail `json:"products"`
+}
+
 type DiscoveryStatus struct {
-	Version           int64          `json:"version"`
-	UpdatedAt         int64          `json:"updated_at"`
-	AccountsPath      string         `json:"accounts_path"`
-	AccountsSignature string         `json:"accounts_signature"`
-	Subscribers       int            `json:"subscribers"`
-	Providers         []string       `json:"providers"`
-	ProductsCount     map[string]int `json:"products_count"`
+	Version             int64                    `json:"version"`
+	UpdatedAt           int64                    `json:"updated_at"`
+	AccountsPath        string                   `json:"accounts_path"`
+	AccountsSignature   string                   `json:"accounts_signature"`
+	Subscribers         int                      `json:"subscribers"`
+	Providers           []string                 `json:"providers"`
+	ProductsCount       map[string]int           `json:"products_count"`
+	LastRefreshDuration string                   `json:"last_refresh_duration"`
+	RefreshCount        int64                    `json:"refresh_count"`
+	ProviderStats       map[string]ProviderStats `json:"provider_stats"`
 }
 
 func (m *Manager) Status() DiscoveryStatus {
 	m.mu.RLock()
 	providers := make([]string, 0, len(m.products))
 	counts := make(map[string]int, len(m.products))
-	for k, v := range m.products {
-		providers = append(providers, k)
-		counts[k] = len(v)
+	providerStats := make(map[string]ProviderStats)
+
+	// 获取账号统计
+	m.cfg.Mu.RLock()
+	accountsByProvider := make(map[string]int)
+	if m.cfg.AccountsByProvider != nil {
+		for provider, accounts := range m.cfg.AccountsByProvider {
+			accountsByProvider[provider] = len(accounts)
+		}
 	}
+	m.cfg.Mu.RUnlock()
+
+	// 计算每个云平台的统计信息
+	for provider, products := range m.products {
+		providers = append(providers, provider)
+		counts[provider] = len(products)
+
+		totalMetrics := 0
+		productDetails := make([]ProductDetail, 0, len(products))
+
+		for _, product := range products {
+			metricsCount := 0
+			for _, group := range product.MetricInfo {
+				metricsCount += len(group.MetricList)
+			}
+			totalMetrics += metricsCount
+			productDetails = append(productDetails, ProductDetail{
+				Namespace:    product.Namespace,
+				MetricsCount: metricsCount,
+				AutoDiscover: product.AutoDiscover,
+			})
+		}
+
+		discoveryDuration := ""
+		if dur, ok := m.providerDurations[provider]; ok {
+			discoveryDuration = dur.String()
+		}
+
+		providerStats[provider] = ProviderStats{
+			ProductsCount:     len(products),
+			MetricsCount:      totalMetrics,
+			AccountsCount:     accountsByProvider[provider],
+			DiscoveryDuration: discoveryDuration,
+			Products:          productDetails,
+		}
+	}
+
 	ver := m.version
 	up := m.updatedAt.Unix()
 	accPath := m.lastAccPath
 	accSig := m.lastAccSig
+	lastRefreshDuration := m.lastRefreshDuration.String()
+	refreshCount := m.refreshCount
 	m.mu.RUnlock()
+
 	m.subsMu.Lock()
 	subs := len(m.subs)
 	m.subsMu.Unlock()
+
 	return DiscoveryStatus{
-		Version:           ver,
-		UpdatedAt:         up,
-		AccountsPath:      accPath,
-		AccountsSignature: accSig,
-		Subscribers:       subs,
-		Providers:         providers,
-		ProductsCount:     counts,
+		Version:             ver,
+		UpdatedAt:           up,
+		AccountsPath:        accPath,
+		AccountsSignature:   accSig,
+		Subscribers:         subs,
+		Providers:           providers,
+		ProductsCount:       counts,
+		LastRefreshDuration: lastRefreshDuration,
+		RefreshCount:        refreshCount,
+		ProviderStats:       providerStats,
 	}
 }
 
 func (m *Manager) Refresh(ctx context.Context) error {
 	start := time.Now()
 	prods := make(map[string][]config.Product)
+	providerDurations := make(map[string]time.Duration)
 	m.cfg.Mu.RLock()
 	for _, name := range GetAllDiscoverers() {
 		if d, ok := GetDiscoverer(name); ok {
+			providerStart := time.Now()
 			if ps := d.Discover(ctx, m.cfg); len(ps) > 0 {
 				prods[name] = ps
 			}
+			providerDurations[name] = time.Since(providerStart)
 		}
 	}
 	m.cfg.Mu.RUnlock()
@@ -112,6 +187,9 @@ func (m *Manager) Refresh(ctx context.Context) error {
 	changed := !equalProducts(m.products, prods)
 	m.products = prods
 	duration := time.Since(start)
+	m.lastRefreshDuration = duration
+	m.providerDurations = providerDurations
+	m.refreshCount++
 	if changed {
 		m.version++
 		m.updatedAt = time.Now()
