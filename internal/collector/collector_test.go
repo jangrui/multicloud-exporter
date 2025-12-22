@@ -85,12 +85,15 @@ func TestCollector_CollectFiltered(t *testing.T) {
 		AccountsByProvider: map[string][]config.CloudAccount{
 			"mock_cloud_filter": {
 				{
-				Provider:  "mock_cloud_filter",
-				Resources: []string{"res1"},
+					Provider:  "mock_cloud_filter",
+					Resources: []string{"res1"},
+				},
 			},
-			{
-				Provider:  "other_cloud",
-				Resources: []string{"res2"},
+			"other_cloud": {
+				{
+					Provider:  "other_cloud",
+					Resources: []string{"res2"},
+				},
 			},
 		},
 	}

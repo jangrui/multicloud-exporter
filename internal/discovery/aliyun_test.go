@@ -59,7 +59,6 @@ func TestAliyunDiscoverer_Discover(t *testing.T) {
 				},
 			},
 		},
-	},
 	}
 
 	prods := d.Discover(context.Background(), cfg)

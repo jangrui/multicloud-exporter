@@ -31,7 +31,7 @@ func TestManagerRefreshVersion(t *testing.T) {
 func TestAccountsSignature(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.AccountsByProvider = map[string][]config.CloudAccount{
-		"aliyun": []config.CloudAccount{{Resources: []string{"ecs", "bwp"}}},
+		"aliyun": {{Resources: []string{"ecs", "bwp"}}},
 	}
 	m := NewManager(cfg)
 	s := m.accountsSignature()
@@ -55,7 +55,7 @@ func TestManagerUpdatedAt(t *testing.T) {
 	m := NewManager(cfg)
 	// Initially zero or near zero?
 	_ = m.UpdatedAt()
-	
+
 	if err := m.Refresh(context.Background()); err != nil {
 		t.Fatalf("refresh err: %v", err)
 	}
