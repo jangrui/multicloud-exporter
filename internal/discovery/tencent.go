@@ -110,6 +110,9 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 		}
 		if len(metrics) > 0 {
 			prods = append(prods, config.Product{Namespace: "QCE/BWP", AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: metrics}}})
+			logger.Log.Infof("Tencent 发现服务完成，命名空间=QCE/BWP，指标数量=%d", len(metrics))
+		} else {
+			logger.Log.Warnf("Tencent 发现服务未发现指标，命名空间=QCE/BWP")
 		}
 	}
 	if needGWLB {
@@ -159,6 +162,9 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 		}
 		if len(metrics) > 0 {
 			prods = append(prods, config.Product{Namespace: "qce/gwlb", AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: metrics}}})
+			logger.Log.Infof("Tencent 发现服务完成，命名空间=qce/gwlb，指标数量=%d", len(metrics))
+		} else {
+			logger.Log.Warnf("Tencent 发现服务未发现指标，命名空间=qce/gwlb")
 		}
 	}
 	if needCLB {
@@ -221,6 +227,9 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 		}
 		if len(metrics) > 0 {
 			prods = append(prods, config.Product{Namespace: "QCE/LB", AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: metrics}}})
+			logger.Log.Infof("Tencent 发现服务完成，命名空间=QCE/LB，指标数量=%d", len(metrics))
+		} else {
+			logger.Log.Warnf("Tencent 发现服务未发现指标，命名空间=QCE/LB")
 		}
 	}
 	if needCOS {
@@ -283,6 +292,9 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 		}
 		if len(metrics) > 0 {
 			prods = append(prods, config.Product{Namespace: "QCE/COS", AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: metrics}}})
+			logger.Log.Infof("Tencent 发现服务完成，命名空间=QCE/COS，指标数量=%d", len(metrics))
+		} else {
+			logger.Log.Warnf("Tencent 发现服务未发现指标，命名空间=QCE/COS")
 		}
 	}
 	return prods

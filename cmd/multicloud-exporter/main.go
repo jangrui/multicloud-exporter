@@ -202,9 +202,34 @@ func main() {
 	discoveryStart := time.Now()
 	mgr.Start(ctx)
 	discoveryDuration := time.Since(discoveryStart)
-	logger.Log.Infof("发现服务启动完成，总耗时: %v", discoveryDuration)
 	lastVer := int64(-1)
 	prods := mgr.Get()
+	// 统计发现的产品数量
+	discoveredTotalProducts := 0
+	productsByProvider := make(map[string]int)
+	for provider, products := range prods {
+		count := len(products)
+		discoveredTotalProducts += count
+		productsByProvider[provider] = count
+	}
+	// 构建产品统计信息
+	var productInfo strings.Builder
+	if len(productsByProvider) > 0 {
+		productInfo.WriteString(" (")
+		providers := make([]string, 0, len(productsByProvider))
+		for provider := range productsByProvider {
+			providers = append(providers, provider)
+		}
+		sort.Strings(providers)
+		for i, provider := range providers {
+			if i > 0 {
+				productInfo.WriteString(", ")
+			}
+			productInfo.WriteString(fmt.Sprintf("%s=%d", provider, productsByProvider[provider]))
+		}
+		productInfo.WriteString(")")
+	}
+	logger.Log.Infof("发现服务启动完成，总耗时: %v，发现产品数量: %d%s，版本=%d", discoveryDuration, discoveredTotalProducts, productInfo.String(), mgr.Version())
 	if len(cfg.ProductsByProvider) == 0 && len(prods) > 0 {
 		cfg.ProductsByProvider = prods
 		lastVer = mgr.Version()

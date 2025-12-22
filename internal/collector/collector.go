@@ -2,8 +2,11 @@
 package collector
 
 import (
+	"fmt"
+	"sort"
+	"strings"
 	"sync"
-
+	"sync/atomic"
 	"time"
 
 	"multicloud-exporter/internal/config"
@@ -88,11 +91,6 @@ func (c *Collector) Collect() {
 
 func (c *Collector) collectInternal(filterProvider, filterResource string) {
 	c.cfg.Mu.RLock()
-	total := len(c.cfg.AccountsByProvider)
-	for _, list := range c.cfg.AccountsByProvider {
-		total += len(list)
-	}
-	logger.Log.Infof("开始采集，加载账号数量=%d", total)
 	var accounts []config.CloudAccount
 	if c.cfg.AccountsByProvider != nil {
 		for provider, list := range c.cfg.AccountsByProvider {
@@ -115,6 +113,29 @@ func (c *Collector) collectInternal(filterProvider, filterResource string) {
 		accounts = filtered
 	}
 
+	// 统计账号信息
+	accountsByProvider := make(map[string]int)
+	for _, acc := range accounts {
+		accountsByProvider[acc.Provider]++
+	}
+	var accountInfo strings.Builder
+	if len(accountsByProvider) > 0 {
+		accountInfo.WriteString(" (")
+		providers := make([]string, 0, len(accountsByProvider))
+		for provider := range accountsByProvider {
+			providers = append(providers, provider)
+		}
+		sort.Strings(providers)
+		for i, provider := range providers {
+			if i > 0 {
+				accountInfo.WriteString(", ")
+			}
+			accountInfo.WriteString(fmt.Sprintf("%s=%d", provider, accountsByProvider[provider]))
+		}
+		accountInfo.WriteString(")")
+	}
+	logger.Log.Infof("开始采集，账号数量=%d%s", len(accounts), accountInfo.String())
+
 	// 重置命名空间样本计数
 	metrics.ResetSampleCounts()
 	c.statusLock.Lock()
@@ -123,6 +144,7 @@ func (c *Collector) collectInternal(filterProvider, filterResource string) {
 	start := time.Now()
 
 	var wg sync.WaitGroup
+	completedCount := int32(0)
 	for _, account := range accounts {
 		// Note: We removed account-level sharding here because providers (Aliyun, Tencent)
 		// implement their own fine-grained sharding (e.g. by Region) inside Collect().
@@ -144,6 +166,7 @@ func (c *Collector) collectInternal(filterProvider, filterResource string) {
 			defer wg.Done()
 			logger.Log.Debugf("开始账号采集 provider=%s account_id=%s", acc.Provider, acc.AccountID)
 			c.collectAccount(acc, filterResource)
+			atomic.AddInt32(&completedCount, 1)
 			logger.Log.Debugf("完成账号采集 provider=%s account_id=%s", acc.Provider, acc.AccountID)
 
 			c.statusLock.Lock()
@@ -156,11 +179,15 @@ func (c *Collector) collectInternal(filterProvider, filterResource string) {
 	}
 	wg.Wait()
 
+	duration := time.Since(start)
 	c.statusLock.Lock()
 	c.status.LastEnd = time.Now()
-	c.status.Duration = time.Since(start).String()
+	c.status.Duration = duration.String()
 	c.status.SampleCounts = metrics.GetSampleCounts()
 	c.statusLock.Unlock()
+
+	// 输出采集完成日志，包含详细信息
+	logger.Log.Infof("采集完成，账号数量=%d，已完成=%d，总耗时: %v", len(accounts), completedCount, duration)
 }
 
 // collectAccount 规范化资源类型并路由到对应云采集器

@@ -293,9 +293,11 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 		}
 
 		if len(metrics) == 0 {
+			logger.Log.Warnf("Aliyun 发现服务未发现指标，命名空间=%s", ns)
 			continue
 		}
 		prods = append(prods, config.Product{Namespace: ns, AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: metrics}}})
+		logger.Log.Infof("Aliyun 发现服务完成，命名空间=%s，指标数量=%d", ns, len(metrics))
 	}
 	return prods
 }

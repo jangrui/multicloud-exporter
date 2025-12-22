@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"multicloud-exporter/internal/config"
+	"multicloud-exporter/internal/logger"
 )
 
 // AWSDiscoverer 基于 accounts.yaml 中的 resources 决定需要启用的 AWS 命名空间。
@@ -40,10 +41,22 @@ func (d *AWSDiscoverer) Discover(ctx context.Context, cfg *config.Config) []conf
 	}
 
 	// S3 的 CloudWatch 指标属于 AWS/S3，存储类指标依赖 StorageType 维度。
-	// 这里选择“最稳定且可跨云对齐”的指标集合：
+	// 这里选择"最稳定且可跨云对齐"的指标集合：
 	// - 存储/对象数：稳定、口径清晰（通常为日粒度）
 	// - 请求/字节/5xx/延迟：依赖 S3 Request Metrics（FilterId=EntireBucket）；若未启用则可能无数据
-	return []config.Product{
+	totalMetrics := 0
+	for _, group := range []config.MetricGroup{
+		{Period: intPtr(86400), MetricList: []string{"BucketSizeBytes", "NumberOfObjects"}},
+		{Period: intPtr(60), MetricList: []string{
+			"AllRequests", "GetRequests", "PutRequests", "HeadRequests",
+			"BytesUploaded", "BytesDownloaded",
+			"5xxErrors",
+			"FirstByteLatency",
+		}},
+	} {
+		totalMetrics += len(group.MetricList)
+	}
+	prods := []config.Product{
 		{
 			Namespace:    "AWS/S3",
 			AutoDiscover: true,
@@ -60,6 +73,8 @@ func (d *AWSDiscoverer) Discover(ctx context.Context, cfg *config.Config) []conf
 			},
 		},
 	}
+	logger.Log.Infof("AWS 发现服务完成，命名空间=AWS/S3，指标数量=%d", totalMetrics)
+	return prods
 }
 
 func intPtr(v int) *int { return &v }
