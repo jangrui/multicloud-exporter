@@ -45,6 +45,7 @@ type Config struct {
 	RemoteProm *RemoteProm `yaml:"remote_prom"`
 	Credential *Credential `yaml:"credential"`
 	DataTag    []DataTag   `yaml:"datatag"`
+	Estimation *EstimationConf `yaml:"estimation"`
 
 	AccountsByProvider map[string][]CloudAccount `yaml:"accounts"`
 
@@ -114,6 +115,13 @@ func LoadConfig() (*Config, error) {
 					}
 				}
 			}
+		}
+		// 解析估算配置
+		var est struct {
+			Estimation *EstimationConf `yaml:"estimation"`
+		}
+		if err := yaml.Unmarshal([]byte(expanded), &est); err == nil && est.Estimation != nil {
+			cfg.Estimation = est.Estimation
 		}
 	}
 
@@ -232,4 +240,15 @@ type Product struct {
 	Period       *int          `yaml:"period"`
 	AutoDiscover bool          `yaml:"auto_discover"`
 	MetricInfo   []MetricGroup `yaml:"metric_info"`
+}
+
+// EstimationConf 定义估算相关的全局配置
+type EstimationConf struct {
+	CLB *CLBEstimationConf `yaml:"clb"`
+}
+
+// CLBEstimationConf 定义 CLB 估算策略
+type CLBEstimationConf struct {
+	AliyunBandwidthCapBps int            `yaml:"aliyun_bandwidth_cap_bps"`
+	PerInstanceCapBps     map[string]int `yaml:"per_instance_cap_bps"`
 }

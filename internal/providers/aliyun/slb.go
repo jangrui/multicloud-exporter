@@ -240,6 +240,11 @@ func (a *Collector) fetchSLBTags(account config.CloudAccount, region, namespace,
 							if strings.EqualFold(k, "CodeName") || strings.EqualFold(k, "code_name") {
 								out[id] = v
 							}
+							// 提取带宽上限 (BandwidthCapBps) 标签，格式为数字字符串
+							if strings.EqualFold(k, "BandwidthCapBps") || strings.EqualFold(k, "bandwidth_cap_bps") {
+								// 使用特殊前缀存储，以便后续解析
+								out["_cap_"+id] = v
+							}
 						}
 					}
 				}
@@ -309,6 +314,11 @@ func parseSLBTagsContent(content []byte) map[string]string {
 				if strings.EqualFold(k, "CodeName") || strings.EqualFold(k, "code_name") {
 					out[id] = v
 				}
+				// 提取带宽上限 (BandwidthCapBps) 标签，格式为数字字符串
+				if strings.EqualFold(k, "BandwidthCapBps") || strings.EqualFold(k, "bandwidth_cap_bps") {
+					// 使用特殊前缀存储，以便后续解析
+					out["_cap_"+id] = v
+				}
 			}
 		}
 	}
@@ -338,6 +348,11 @@ func parseSLBTagsContent(content []byte) map[string]string {
 			}
 			if strings.EqualFold(k, "CodeName") || strings.EqualFold(k, "code_name") {
 				out[tr.ResourceId] = v
+			}
+			// 提取带宽上限 (BandwidthCapBps) 标签，格式为数字字符串
+			if strings.EqualFold(k, "BandwidthCapBps") || strings.EqualFold(k, "bandwidth_cap_bps") {
+				// 使用特殊前缀存储，以便后续解析
+				out["_cap_"+tr.ResourceId] = v
 			}
 		}
 	}

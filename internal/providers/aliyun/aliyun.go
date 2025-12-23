@@ -1644,6 +1644,58 @@ func (a *Collector) processMetricBatch(client CMSClient, req *cms.DescribeMetric
 			}
 			vec.WithLabelValues(labels...).Set(val)
 			metrics.IncSampleCount(ns, 1)
+
+			// 估算阿里云 CLB 带宽利用率（基于配置的带宽上限）
+			if ns == "acs_slb_dashboard" {
+				aliasName := metrics.GetMetricAlias(ns, m)
+				if aliasName != "traffic_rx_bps" && aliasName != "traffic_tx_bps" {
+					// 非流量类指标不进行估算
+					goto nextPoint
+				}
+				var capBps int
+				if a.cfg != nil && a.cfg.Estimation != nil && a.cfg.Estimation.CLB != nil {
+					// 1. 优先级最高：Tag 中的 BandwidthCapBps
+					if capStr, ok := tags["_cap_"+rid]; ok {
+						if v, err := strconv.Atoi(capStr); err == nil && v > 0 {
+							capBps = v
+							ctxLog.Debugf("Utilization: using Tag BandwidthCapBps=%d for %s", capBps, rid)
+						}
+					}
+					// 2. 优先级中等：配置文件中的实例特定配置
+					if capBps == 0 && a.cfg.Estimation.CLB.PerInstanceCapBps != nil {
+						if v, ok := a.cfg.Estimation.CLB.PerInstanceCapBps[rid]; ok && v > 0 {
+							capBps = v
+							ctxLog.Debugf("Utilization: using PerInstanceCapBps=%d for %s", capBps, rid)
+						}
+					}
+					// 3. 优先级最低：配置文件中的全局默认值
+					if capBps == 0 && a.cfg.Estimation.CLB.AliyunBandwidthCapBps > 0 {
+						capBps = a.cfg.Estimation.CLB.AliyunBandwidthCapBps
+						ctxLog.Debugf("Utilization: using AliyunBandwidthCapBps=%d for %s", capBps, rid)
+					}
+				}
+				if capBps > 0 && val >= 0 {
+					util := (val / float64(capBps)) * 100.0
+					ctxLog.Debugf("Utilization calculation: val=%.2f, capBps=%d, util=%.2f%% for %s", val, capBps, util, rid)
+					metricName := "traffic_rx_utilization_pct"
+					if aliasName == "traffic_tx_bps" {
+						metricName = "traffic_tx_utilization_pct"
+					}
+					uvec, ucount := metrics.NamespaceGauge(ns, metricName, dynamicDims...)
+					ulabels := []string{"aliyun", account.AccountID, region, rtype, rid, ns, metricName, codeNameVal}
+					ulabels = append(ulabels, dynamicLabelValues...)
+					if len(ulabels) > ucount {
+						ulabels = ulabels[:ucount]
+					} else {
+						for len(ulabels) < ucount {
+							ulabels = append(ulabels, "")
+						}
+					}
+					uvec.WithLabelValues(ulabels...).Set(util)
+					metrics.IncSampleCount(ns, 1)
+				}
+			}
+		nextPoint:
 		}
 		if resp.NextToken == "" {
 			break

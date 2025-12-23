@@ -127,6 +127,13 @@ canonical:
 
   traffic_rx_utilization_pct:
     description: "入网带宽利用率"
+    aliyun:
+      metric: InstanceTrafficRXUtilization
+      dimensions:
+        - userId
+        - instanceId
+      unit: '%'
+      scale: 1
     tencent:
       metric: IntrafficVipRatio
       dimensions:
@@ -136,6 +143,13 @@ canonical:
 
   traffic_tx_utilization_pct:
     description: "出网带宽利用率"
+    aliyun:
+      metric: InstanceTrafficTXUtilization
+      dimensions:
+        - userId
+        - instanceId
+      unit: '%'
+      scale: 1
     tencent:
       metric: OuttrafficVipRatio
       dimensions:
@@ -315,8 +329,6 @@ canonical:
         - userId
         - instanceId
       unit: count/s
-    aws:
-      metric: ""
 
   instance_rt:
     description: "实例响应时间 (L7)"
@@ -326,8 +338,6 @@ canonical:
         - userId
         - instanceId
       unit: ms
-    aws:
-      metric: ""
 
   instance_status_code_2xx:
     description: "实例级 HTTP 2XX 状态码数量"
