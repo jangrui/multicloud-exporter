@@ -85,7 +85,7 @@ server:
   metric_concurrency: 10
 `
 	serverPath := filepath.Join(tmpDir, "server.yaml")
-	if err := os.WriteFile(serverPath, []byte(serverYaml), 0644); err != nil {
+	if err = os.WriteFile(serverPath, []byte(serverYaml), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -99,7 +99,7 @@ accounts:
       regions: ["cn-hangzhou"]
 `
 	accountsPath := filepath.Join(tmpDir, "accounts.yaml")
-	if err := os.WriteFile(accountsPath, []byte(accountsYaml), 0644); err != nil {
+	if err = os.WriteFile(accountsPath, []byte(accountsYaml), 0644); err != nil {
 		t.Fatal(err)
 	}
 
