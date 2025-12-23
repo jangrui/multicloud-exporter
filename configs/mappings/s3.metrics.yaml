@@ -11,10 +11,12 @@ canonical:
   storage_usage_bytes:
     description: "存储空间使用量"
     aliyun:
-      metric: UserStorage
+      metric: MeteringStorageUtilization
       dimensions:
         - userId
         - BucketName
+        - region
+        - storageType
       unit: Bytes
       scale: 1
     tencent:
@@ -97,20 +99,6 @@ canonical:
       dimensions:
         - bucket
       unit: count
-  object_count:
-    description: "对象数量"
-    aliyun:
-      metric: ObjectCount
-      dimensions:
-        - userId
-        - BucketName
-      unit: count
-    aws:
-      metric: NumberOfObjects
-      dimensions:
-        - BucketName
-        - StorageType
-      unit: count
 
   # Traffic (Bytes) - Preferred for accuracy
   traffic_internet_rx_bytes:
@@ -190,7 +178,7 @@ canonical:
   traffic_cdn_rx_bytes:
     description: "CDN 回源入流量"
     aliyun:
-      metric: UserCdnRecv
+      metric: CdnRecv
       dimensions:
         - userId
         - BucketName
@@ -199,7 +187,7 @@ canonical:
   traffic_cdn_tx_bytes:
     description: "CDN 回源出流量"
     aliyun:
-      metric: UserCdnSend
+      metric: CdnSend
       dimensions:
         - userId
         - BucketName
@@ -399,7 +387,7 @@ canonical:
   availability_pct:
     description: "可用性/成功率"
     aliyun:
-      metric: UserAvailability
+      metric: Availability
       dimensions:
         - userId
         - BucketName

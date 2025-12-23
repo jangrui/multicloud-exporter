@@ -16,11 +16,6 @@ canonical:
         - userId
         - instanceId
       unit: count
-    aws:
-      metric: ActiveFlowCount
-      dimensions:
-        - LoadBalancer
-      unit: count
   new_connection:
     description: "新建连接数"
     aliyun:
@@ -29,11 +24,6 @@ canonical:
         - userId
         - instanceId
       unit: count/s
-    aws:
-      metric: NewFlowCount
-      dimensions:
-        - LoadBalancer
-      unit: count
   dropped_connection:
     description: "丢弃连接数"
     aliyun:
@@ -41,7 +31,8 @@ canonical:
       dimensions:
         - userId
         - instanceId
-        - zone
+        - listenerPort
+        - listenerProtocol
       unit: count/s
     # AWS NLB has TCP_Client_Reset_Count etc., but not a single "Dropped Connection" metric.
     # Skipping for AWS.
@@ -56,12 +47,6 @@ canonical:
         - instanceId
       unit: bit/s
       scale: 1
-    aws:
-      metric: ProcessedBytes
-      dimensions:
-        - LoadBalancer
-      unit: byte
-      # AWS provides total ProcessedBytes (sum).
   traffic_tx_bps:
     description: "出网流量"
     aliyun:
@@ -333,11 +318,3 @@ canonical:
         - instanceId
         - vip
       unit: bit/s
-# 实例带宽利用率 (Aliyun NLB 未直接提供百分比，需计算或使用 BandwidthUtilization 如果存在? Grep 未显示)
-# 排序整理：2025-12-15；修改者：@jangrui；规则：按实例/VIP 的连接、流量、包速率、丢包等类别分组展示（仅调整可读性，不改变键与字段）
- 
-
-# 阿里云特有指标
- 
-
- 

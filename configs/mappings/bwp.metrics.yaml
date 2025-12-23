@@ -114,21 +114,3 @@ canonical:
         - instanceId
       unit: count/s
       scale: 1
-  rx_rate_percent:
-    description: "入方向速率 (百分比)"
-    aliyun:
-      metric: net_rx.ratePercent
-      dimensions:
-        - userId
-        - instanceId
-      unit: percent
-      scale: 1
-  tx_rate_percent:
-    description: "出方向速率 (百分比)"
-    aliyun:
-      metric: net_tx.ratePercent
-      dimensions:
-        - userId
-        - instanceId
-      unit: percent
-      scale: 1

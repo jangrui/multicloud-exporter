@@ -274,9 +274,7 @@ func parseObserved(provider, namespace string, pbs []byte, productFile string) (
 						set[d] = struct{}{}
 					}
 				}
-				if len(set) > 0 {
-					observed[it.MetricName] = append(observed[it.MetricName], set)
-				}
+				observed[it.MetricName] = append(observed[it.MetricName], set)
 			}
 		}
 	}

@@ -146,10 +146,8 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 				batchBuckets := buckets[batchStart:batchEnd]
 
 				queries := make([]cwtypes.MetricDataQuery, 0, len(batchBuckets))
-				ids := make([]string, 0, len(batchBuckets))
 				for i, bn := range batchBuckets {
 					id := sanitizeCWQueryID(batchStart + i)
-					ids = append(ids, id)
 					dims := []cwtypes.Dimension{{Name: aws.String("BucketName"), Value: aws.String(bn)}}
 					if needStorageType {
 						dims = append(dims, cwtypes.Dimension{Name: aws.String("StorageType"), Value: aws.String(storageType)})
