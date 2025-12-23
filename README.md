@@ -96,7 +96,9 @@ server:
 
 适用于非 Kubernetes 环境（如 Docker Compose、物理机集群）或网络受限无法使用 DNS 发现的场景。通过环境变量手动指定分片信息。
 
-- **原理**：基于 `fnv32a(AccountID|Region) % Total` 哈希算法，将采集任务按区域分配给不同实例。
+- **原理**：采用两级分片机制：
+  1. **区域级分片**：基于 `fnv32a(AccountID|Region) % Total` 哈希算法，将采集任务按区域分配给不同实例。
+  2. **产品级分片**：基于 `fnv32a(AccountID|Region|Namespace) % Total` 哈希算法，将同一区域下的不同产品分配给不同实例。
 - **配置**：
   - `EXPORT_SHARD_TOTAL`: 总实例数（如 `3`）
   - `EXPORT_SHARD_INDEX`: 当前实例索引（从 `0` 开始，如 `0`, `1`, `2`）

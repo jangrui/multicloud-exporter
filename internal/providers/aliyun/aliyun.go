@@ -274,11 +274,21 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 	psem := make(chan struct{}, plimit)
 	var pwg sync.WaitGroup
 
+	// 产品级分片：获取集群配置用于产品级分片判断
+	wTotal, wIndex := utils.ClusterConfig()
+
 	for _, prod := range prods {
 		if prod.Namespace == "" {
 			continue
 		}
 		if !isResourceAllowed(account, prod.Namespace) {
+			continue
+		}
+		// 产品级分片判断：只有当前 Pod 应该处理的产品才进行采集
+		// 分片键格式：AccountID|Region|Namespace
+		productKey := account.AccountID + "|" + region + "|" + prod.Namespace
+		if !utils.ShouldProcess(productKey, wTotal, wIndex) {
+			baseLog.With("namespace", prod.Namespace).Debugf("产品跳过（分片不匹配）")
 			continue
 		}
 		pwg.Add(1)

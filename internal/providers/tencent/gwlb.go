@@ -7,6 +7,7 @@ import (
 	"multicloud-exporter/internal/logger"
 	"multicloud-exporter/internal/metrics"
 	providerscommon "multicloud-exporter/internal/providers/common"
+	"multicloud-exporter/internal/utils"
 
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
 	monitor "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/monitor/v20180724"
@@ -176,8 +177,17 @@ func (t *Collector) collectGWLB(account config.CloudAccount, region string) {
 	if len(prods) == 0 {
 		return
 	}
+	// 产品级分片：获取集群配置用于产品级分片判断
+	wTotal, wIndex := utils.ClusterConfig()
 	for _, p := range prods {
 		if p.Namespace != "qce/gwlb" {
+			continue
+		}
+		// 产品级分片判断：只有当前 Pod 应该处理的产品才进行采集
+		// 分片键格式：AccountID|Region|Namespace
+		productKey := account.AccountID + "|" + region + "|" + p.Namespace
+		if !utils.ShouldProcess(productKey, wTotal, wIndex) {
+			logger.Log.Debugf("Tencent GWLB 产品跳过（分片不匹配）account=%s region=%s namespace=%s", account.AccountID, region, p.Namespace)
 			continue
 		}
 		ids := t.listGWLBIDs(account, region)

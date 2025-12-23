@@ -120,9 +120,15 @@ graph LR
 - 分片与路由：
   - 核心算法：集中于 `internal/utils/sharding.go`，提供 `ClusterConfig`（获取总分片数与当前索引）与 `ShouldProcess`（判断是否处理当前 Key）。
   - 分片策略：
-    - 仅启用**云厂商层级（Provider-level）**分片，由各 Provider 在采集循环内部调用 `ShouldProcess(AccountID|Region)`。
-    - **已移除** Collector 层级的账号分片，以防止跨区域账号被错误地整体跳过（解决 Double Sharding 问题）。
-  - 区域级分片：`internal/providers/aliyun/aliyun.go` 与 `internal/providers/tencent/tencent.go` 在采集时调用 `ShouldProcess`。
+    - **两级分片机制**：
+      1. **区域级分片**：由各 Provider 在 `Collect` 方法中调用 `ShouldProcess(AccountID|Region)`，决定是否处理该区域。
+      2. **产品级分片**：由各 Provider 在产品采集循环中调用 `ShouldProcess(AccountID|Region|Namespace)`，决定是否处理该产品。
+  - 分片键格式：
+    - 区域级：`AccountID|Region`（例如：`acc-1|cn-hangzhou`）
+    - 产品级：`AccountID|Region|Namespace`（例如：`acc-1|cn-hangzhou|acs_ecs_dashboard`）
+  - 实现位置：
+    - 区域级分片：`internal/providers/aliyun/aliyun.go:161-164`、`internal/providers/tencent/tencent.go:56-60`
+    - 产品级分片：`internal/providers/aliyun/aliyun.go:277-283`、`internal/providers/tencent/tencent.go:175-183`、`internal/providers/aws/lb.go:217-235`
   - 哈希函数：`ShardIndex` 在 `internal/utils/sharding.go`，使用 FNV-32a 算法。
 
 - 配置热更新：

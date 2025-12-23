@@ -12,6 +12,7 @@ import (
 	"multicloud-exporter/internal/logger"
 	"multicloud-exporter/internal/metrics"
 	"multicloud-exporter/internal/providers/common"
+	"multicloud-exporter/internal/utils"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
@@ -41,6 +42,15 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 		}
 	}
 	if s3Prod == nil || len(s3Prod.MetricInfo) == 0 {
+		return
+	}
+
+	// 产品级分片判断：S3 是全局的，不依赖 region，使用 "global" 作为 region
+	// 分片键格式：AccountID|Region|Namespace
+	wTotal, wIndex := utils.ClusterConfig()
+	productKey := account.AccountID + "|global|" + s3Prod.Namespace
+	if !utils.ShouldProcess(productKey, wTotal, wIndex) {
+		logger.Log.Debugf("AWS S3 产品跳过（分片不匹配）account=%s namespace=%s", account.AccountID, s3Prod.Namespace)
 		return
 	}
 

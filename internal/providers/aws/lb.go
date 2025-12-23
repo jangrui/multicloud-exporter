@@ -11,6 +11,7 @@ import (
 	"multicloud-exporter/internal/logger"
 	"multicloud-exporter/internal/metrics"
 	_ "multicloud-exporter/internal/metrics/aws" // Register metrics
+	"multicloud-exporter/internal/utils"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
@@ -213,6 +214,9 @@ func (c *Collector) collectLBGeneric(account config.CloudAccount, namespace stri
 		return
 	}
 
+	// 产品级分片：获取集群配置用于产品级分片判断
+	wTotal, wIndex := utils.ClusterConfig()
+
 	var wg sync.WaitGroup
 	// Limit concurrency for regions
 	sem := make(chan struct{}, 5)
@@ -223,6 +227,13 @@ func (c *Collector) collectLBGeneric(account config.CloudAccount, namespace stri
 	}
 
 	for _, region := range regions {
+		// 产品级分片判断：只有当前 Pod 应该处理的产品才进行采集
+		// 分片键格式：AccountID|Region|Namespace
+		productKey := account.AccountID + "|" + region + "|" + namespace
+		if !utils.ShouldProcess(productKey, wTotal, wIndex) {
+			logger.Log.Debugf("AWS LB 产品跳过（分片不匹配）account=%s region=%s namespace=%s", account.AccountID, region, namespace)
+			continue
+		}
 		wg.Add(1)
 		sem <- struct{}{}
 		go func(region string) {
