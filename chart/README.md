@@ -104,6 +104,8 @@ Exporter 暴露了 `/metrics` 端点，其中包含自身运行状态指标：
 
  - 配置文件
    - `server.yaml`：默认使用镜像内置配置；如需覆盖，提供 `values.server`，Chart 将渲染为 ConfigMap 并挂载到容器固定路径
+     - 支持通过 `values.server.period_fallback` 配置 Period Fallback 值（默认 60 秒）
+     - 支持通过环境变量 `PERIOD_FALLBACK` 覆盖（如果同时设置，环境变量优先）
   - `products.yaml`：已废弃；Exporter 采用自动发现机制
   - `accounts.yaml`：由用户预创建 Secret 提供并挂载到容器固定路径
 

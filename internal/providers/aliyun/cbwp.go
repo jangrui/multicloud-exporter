@@ -7,6 +7,7 @@ import (
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/logger"
 	"multicloud-exporter/internal/metrics"
+	"multicloud-exporter/internal/providers/common"
 
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/vpc"
@@ -26,9 +27,9 @@ func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []st
 			if a.cfg.Server.PageSize < pageSize {
 				pageSize = a.cfg.Server.PageSize
 			}
-		} else if a.cfg.ServerConf != nil && a.cfg.ServerConf.PageSize > 0 {
-			if a.cfg.ServerConf.PageSize < pageSize {
-				pageSize = a.cfg.ServerConf.PageSize
+		} else if server := a.cfg.GetServer(); server != nil && server.PageSize > 0 {
+			if server.PageSize < pageSize {
+				pageSize = server.PageSize
 			}
 		}
 	}
@@ -60,7 +61,7 @@ func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []st
 					break
 				}
 			}
-			status := classifyAliyunError(callErr)
+			status := common.ClassifyAliyunError(callErr)
 			metrics.RequestTotal.WithLabelValues("aliyun", "DescribeCommonBandwidthPackages", status).Inc()
 			metrics.RecordRequest("aliyun", "DescribeCommonBandwidthPackages", status)
 			if status == "limit_error" {

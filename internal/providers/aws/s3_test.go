@@ -7,6 +7,7 @@ import (
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/discovery"
 	"multicloud-exporter/internal/metrics"
+	"multicloud-exporter/internal/providers/common"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
@@ -33,7 +34,7 @@ func TestClassifyAWSError(t *testing.T) {
 		"other":                "error",
 	}
 	for msg, want := range cases {
-		got := classifyAWSError(errString(msg))
+		got := common.ClassifyAWSError(errString(msg))
 		if got != want {
 			t.Fatalf("classify %q: got=%q want=%q", msg, got, want)
 		}

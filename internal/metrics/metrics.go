@@ -54,6 +54,20 @@ var (
 			Buckets: prometheus.DefBuckets,
 		},
 	)
+	CacheSizeBytes = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "multicloud_cache_size_bytes",
+			Help: " - 缓存大小（字节）",
+		},
+		[]string{"cache_type"},
+	)
+	CacheEntriesTotal = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "multicloud_cache_entries_total",
+			Help: " - 缓存条目总数",
+		},
+		[]string{"cache_type"},
+	)
 )
 
 var (
@@ -271,4 +285,10 @@ func Reset() {
 	for _, info := range nsGauges {
 		info.vec.Reset()
 	}
+}
+
+// UpdateCacheMetrics 更新缓存监控指标
+func UpdateCacheMetrics(cacheType string, sizeBytes int64, entries int) {
+	CacheSizeBytes.WithLabelValues(cacheType).Set(float64(sizeBytes))
+	CacheEntriesTotal.WithLabelValues(cacheType).Set(float64(entries))
 }

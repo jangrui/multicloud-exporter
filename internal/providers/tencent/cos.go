@@ -9,6 +9,7 @@ import (
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/logger"
 	"multicloud-exporter/internal/metrics"
+	providerscommon "multicloud-exporter/internal/providers/common"
 
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
 	monitor "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/monitor/v20180724"
@@ -71,7 +72,7 @@ func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) [
 			metrics.RecordRequest("tencent", "ListBuckets", "success")
 			break
 		}
-		status := classifyTencentError(callErr)
+		status := providerscommon.ClassifyTencentError(callErr)
 		metrics.RequestTotal.WithLabelValues("tencent", "ListBuckets", status).Inc()
 		metrics.RecordRequest("tencent", "ListBuckets", status)
 		if status == "limit_error" {
@@ -134,7 +135,7 @@ func (t *Collector) fetchCOSBucketCodeNames(account config.CloudAccount, region 
 				if callErr == nil {
 					break
 				}
-				status := classifyTencentError(callErr)
+				status := providerscommon.ClassifyTencentError(callErr)
 				if status == "limit_error" {
 					// 记录限流指标
 					metrics.RateLimitTotal.WithLabelValues("tencent", "GetBucketTagging").Inc()
@@ -216,7 +217,7 @@ func (t *Collector) fetchCOSMonitor(account config.CloudAccount, region string, 
 				reqStart := time.Now()
 				resp, err := client.GetMonitorData(req)
 				if err != nil {
-					status := classifyTencentError(err)
+					status := providerscommon.ClassifyTencentError(err)
 					metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", status).Inc()
 					metrics.RecordRequest("tencent", "GetMonitorData", status)
 					if status == "limit_error" {

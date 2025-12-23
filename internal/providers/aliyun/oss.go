@@ -30,8 +30,8 @@ func (a *Collector) listOSSIDs(account config.CloudAccount, region string) []str
 			if d, err := utils.ParseDuration(a.cfg.Server.DiscoveryTTL); err == nil {
 				ttlDur = d
 			}
-		} else if a.cfg.ServerConf != nil && a.cfg.ServerConf.DiscoveryTTL != "" {
-			if d, err := utils.ParseDuration(a.cfg.ServerConf.DiscoveryTTL); err == nil {
+		} else if server := a.cfg.GetServer(); server != nil && server.DiscoveryTTL != "" {
+			if d, err := utils.ParseDuration(server.DiscoveryTTL); err == nil {
 				ttlDur = d
 			}
 		}

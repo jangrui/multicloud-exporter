@@ -155,10 +155,8 @@ func main() {
 
 	port := os.Getenv("EXPORTER_PORT")
 	if port == "" {
-		if cfg.Server != nil && cfg.Server.Port > 0 {
-			port = strconv.Itoa(cfg.Server.Port)
-		} else if cfg.ServerConf != nil && cfg.ServerConf.Port > 0 {
-			port = strconv.Itoa(cfg.ServerConf.Port)
+		if server := cfg.GetServer(); server != nil && server.Port > 0 {
+			port = strconv.Itoa(server.Port)
 		} else {
 			port = "9101"
 		}
@@ -168,15 +166,11 @@ func main() {
 	interval := 60 * time.Second
 
 	// 1. 优先从配置文件读取
-	if cfg.Server != nil && cfg.Server.ScrapeInterval != "" {
-		if d, err := time.ParseDuration(cfg.Server.ScrapeInterval); err == nil {
+	if server := cfg.GetServer(); server != nil && server.ScrapeInterval != "" {
+		if d, err := time.ParseDuration(server.ScrapeInterval); err == nil {
 			interval = d
 		} else {
 			logger.Log.Warnf("警告: 配置中的 scrape_interval 无效: %v", err)
-		}
-	} else if cfg.ServerConf != nil && cfg.ServerConf.ScrapeInterval != "" {
-		if d, err := time.ParseDuration(cfg.ServerConf.ScrapeInterval); err == nil {
-			interval = d
 		}
 	}
 
@@ -236,6 +230,8 @@ func main() {
 	prometheus.MustRegister(metrics.NamespaceMetric)
 	prometheus.MustRegister(metrics.RateLimitTotal)
 	prometheus.MustRegister(metrics.CollectionDuration)
+	prometheus.MustRegister(metrics.CacheSizeBytes)
+	prometheus.MustRegister(metrics.CacheEntriesTotal)
 
 	// 周期性采集，采集间隔由配置或环境变量控制
 	go func() {
@@ -304,10 +300,10 @@ func main() {
 					pairs = cfg.Server.AdminAuth
 				}
 			}
-			if !enabled && cfg.ServerConf != nil {
-				if cfg.ServerConf.AdminAuthEnabled {
+			if !enabled {
+				if server := cfg.GetServer(); server != nil && server.AdminAuthEnabled {
 					enabled = true
-					pairs = cfg.ServerConf.AdminAuth
+					pairs = server.AdminAuth
 				}
 			}
 		}

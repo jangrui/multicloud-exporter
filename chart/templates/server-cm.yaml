@@ -3,6 +3,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ default "multicloud-exporter" .Values.fullname }}-config
+  labels: {{- include "multicloud-exporter.labels" . | nindent 4 }}
 data:
   server.yaml: |
     server:

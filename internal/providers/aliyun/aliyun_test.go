@@ -2,6 +2,7 @@ package aliyun
 
 import (
 	"encoding/json"
+	"multicloud-exporter/internal/providers/common"
 	"multicloud-exporter/internal/utils"
 	"testing"
 
@@ -122,13 +123,13 @@ func TestListIDsByCMS_GWLB(t *testing.T) {
 }
 
 func TestClassifyAliyunError(t *testing.T) {
-	if classifyAliyunError(errStr("InvalidAccessKeyId")) != "auth_error" {
+	if common.ClassifyAliyunError(errStr("InvalidAccessKeyId")) != "auth_error" {
 		t.Fatalf("auth")
 	}
-	if classifyAliyunError(errStr("Throttling")) != "limit_error" {
+	if common.ClassifyAliyunError(errStr("Throttling")) != "limit_error" {
 		t.Fatalf("limit")
 	}
-	if classifyAliyunError(errStr("InvalidRegionId")) != "region_skip" {
+	if common.ClassifyAliyunError(errStr("InvalidRegionId")) != "region_skip" {
 		t.Fatalf("region")
 	}
 }

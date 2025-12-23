@@ -185,6 +185,201 @@ graph LR
 - 采集周期建议与云 API Period 匹配（详见 README）。
 - 并发控制：
   - 区域并发：`server.region_concurrency`；
+  - 产品并发：`server.product_concurrency`（默认 2，控制同一地域内不同命名空间的并行度）；
+  - 指标并发：`server.metric_concurrency`（默认 5，控制同一命名空间下多个指标批次的并行度）。
+
+## 4. 故障排查指南
+
+### 4.1 指标丢失问题
+
+**症状**：Prometheus 中某些指标没有数据或数据不连续。
+
+**排查步骤**：
+
+1. **检查采集状态**：
+   ```bash
+   curl http://localhost:9101/api/discovery/status
+   ```
+   查看各账号的采集状态和最后完成时间。
+
+2. **检查日志**：
+   ```bash
+   kubectl logs -f deployment/multicloud-exporter | grep -i error
+   ```
+   关注以下错误：
+   - `auth_error`：认证失败，检查 AccessKey 配置
+   - `limit_error`：API 限流，检查 `multicloud_rate_limit_total` 指标
+   - `region_skip`：区域不支持，检查账号的区域权限
+
+3. **检查资源权限**：
+   - 确认账号配置中的 `resources` 字段包含要采集的资源类型
+   - 检查云厂商控制台中的资源是否存在
+
+4. **检查 Period 配置**：
+   - 确认 `server.scrape_interval` 与云 API 的 `Period` 匹配
+   - 如果 `scrape_interval > Period`，会导致数据丢失（详见 README）
+
+5. **检查分片配置**：
+   - 在集群模式下，确认资源是否被正确分片
+   - 检查 `CLUSTER_WORKERS` 和 `CLUSTER_INDEX` 配置
+
+### 4.2 API 限流问题
+
+**症状**：日志中出现大量 `limit_error`，采集速度变慢。
+
+**排查步骤**：
+
+1. **查看限流统计**：
+   ```bash
+   curl http://localhost:9101/metrics | grep multicloud_rate_limit_total
+   ```
+   查看各云厂商和 API 的限流次数。
+
+2. **检查并发配置**：
+   - 降低 `server.region_concurrency`（默认 3）
+   - 降低 `server.product_concurrency`（默认 2）
+   - 降低 `server.metric_concurrency`（默认 5）
+
+3. **检查采集频率**：
+   - 增加 `server.scrape_interval`，减少 API 调用频率
+   - 增加 `server.discovery_ttl`，减少资源发现频率
+
+4. **检查缓存配置**：
+   - 确认 `server.discovery_ttl` 设置合理（建议 ≥ 1h）
+   - 查看 `multicloud_cache_entries_total` 指标，确认缓存生效
+
+### 4.3 内存增长问题
+
+**症状**：Pod 内存使用持续增长，可能触发 OOM。
+
+**排查步骤**：
+
+1. **查看缓存指标**：
+   ```bash
+   curl http://localhost:9101/metrics | grep multicloud_cache
+   ```
+   关注 `multicloud_cache_size_bytes` 和 `multicloud_cache_entries_total`。
+
+2. **检查缓存 TTL**：
+   - 确认 `server.discovery_ttl` 设置合理
+   - 如果资源数量很大，考虑缩短 TTL 或增加 Pod 内存限制
+
+3. **检查资源数量**：
+   - 确认账号中的资源数量是否异常增长
+   - 检查是否有资源泄漏（已删除的资源仍在缓存中）
+
+4. **调整资源配置**：
+   ```yaml
+   resources:
+     limits:
+       memory: "512Mi"
+     requests:
+       memory: "256Mi"
+   ```
+
+### 4.4 采集超时问题
+
+**症状**：采集任务长时间未完成，日志中出现超时错误。
+
+**排查步骤**：
+
+1. **检查网络连接**：
+   - 确认 Pod 可以访问云厂商 API 端点
+   - 检查防火墙和网络策略
+
+2. **检查 API 响应时间**：
+   ```bash
+   curl http://localhost:9101/metrics | grep multicloud_request_duration_seconds
+   ```
+   查看各 API 的响应时间，如果持续很高，可能是网络问题。
+
+3. **调整超时配置**：
+   - 如果网络较慢，可以增加 HTTP 客户端超时时间
+   - 检查云厂商 API 的服务状态
+
+4. **检查并发配置**：
+   - 降低并发数，避免过多并发请求导致超时
+   - 检查云厂商的 API 限流策略
+
+## 5. 性能调优建议
+
+### 5.1 并发参数调优
+
+**区域并发（region_concurrency）**：
+- **默认值**：3
+- **调优建议**：
+  - 账号区域数量少（< 5）：可以增加到 5-10
+  - 账号区域数量多（> 10）：保持默认或降低到 2
+  - 如果遇到限流，降低到 1-2
+
+**产品并发（product_concurrency）**：
+- **默认值**：2
+- **调优建议**：
+  - 命名空间数量少（< 3）：可以增加到 3-5
+  - 命名空间数量多（> 5）：保持默认或降低到 1
+  - 如果遇到限流，降低到 1
+
+**指标并发（metric_concurrency）**：
+- **默认值**：5
+- **调优建议**：
+  - 指标数量少（< 10）：可以增加到 10-20
+  - 指标数量多（> 50）：保持默认或降低到 3
+  - 如果遇到限流，降低到 1-2
+
+### 5.2 TTL 调优
+
+**发现 TTL（discovery_ttl）**：
+- **默认值**：1h
+- **调优建议**：
+  - 资源变化频繁：缩短到 30m
+  - 资源变化不频繁：延长到 2h-4h
+  - 如果遇到限流，延长到 4h-8h
+
+**缓存 TTL**：
+- 资源 ID 缓存：与 `discovery_ttl` 一致
+- 元数据缓存：由各 Provider 内部管理，通常为 1h
+
+### 5.3 采集频率调优
+
+**Scrape Interval**：
+- **默认值**：60s
+- **调优建议**：
+  - 关键指标：与云 API 的 `Period` 匹配（通常为 60s）
+  - 非关键指标：可以设置为 300s（5分钟）以节省 API 调用
+  - 注意：如果 `scrape_interval > Period`，会导致数据丢失
+
+**Period 自动适配**：
+- Exporter 会自动从云侧元数据选择指标的最小可用 `Period`
+- 如果云 API 支持多个 Period，优先选择与 `scrape_interval` 最接近的值
+- 如果元数据不可用，使用 `server.period_fallback`（默认 60s）
+
+### 5.4 资源限制调优
+
+**内存限制**：
+- **建议值**：
+  - 小规模（< 100 资源）：256Mi
+  - 中规模（100-1000 资源）：512Mi
+  - 大规模（> 1000 资源）：1Gi-2Gi
+
+**CPU 限制**：
+- **建议值**：
+  - 小规模：100m-200m
+  - 中规模：200m-500m
+  - 大规模：500m-1000m
+
+### 5.5 监控指标调优
+
+**关键指标**：
+- `multicloud_collection_duration_seconds`：采集周期耗时
+- `multicloud_request_total`：API 调用总数（按状态分类）
+- `multicloud_rate_limit_total`：限流次数
+- `multicloud_cache_size_bytes`：缓存大小
+- `multicloud_cache_entries_total`：缓存条目数
+
+**告警规则建议**：
+- 采集耗时 > 5 分钟：可能存在问题
+- 限流次数持续增长：需要降低并发或增加采集间隔
+- 缓存大小持续增长：可能需要调整 TTL 或增加内存限制
   - 产品并发：`server.product_concurrency`；
   - 指标并发：`server.metric_concurrency`；
   - 最终目标：P95 周期完成时间 ≤ 周期时长的 0.6；错误率 ≤ 0.1%。

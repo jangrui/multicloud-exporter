@@ -114,27 +114,8 @@ func (c *Collector) collectInternal(filterProvider, filterResource string) {
 	}
 
 	// 统计账号信息
-	accountsByProvider := make(map[string]int)
-	for _, acc := range accounts {
-		accountsByProvider[acc.Provider]++
-	}
-	var accountInfo strings.Builder
-	if len(accountsByProvider) > 0 {
-		accountInfo.WriteString(" (")
-		providers := make([]string, 0, len(accountsByProvider))
-		for provider := range accountsByProvider {
-			providers = append(providers, provider)
-		}
-		sort.Strings(providers)
-		for i, provider := range providers {
-			if i > 0 {
-				accountInfo.WriteString(", ")
-			}
-			accountInfo.WriteString(fmt.Sprintf("%s=%d", provider, accountsByProvider[provider]))
-		}
-		accountInfo.WriteString(")")
-	}
-	logger.Log.Infof("开始采集，账号数量=%d%s", len(accounts), accountInfo.String())
+	accountInfo := buildAccountInfo(accounts)
+	logger.Log.Infof("开始采集，账号数量=%d%s", len(accounts), accountInfo)
 
 	// 重置命名空间样本计数
 	metrics.ResetSampleCounts()
@@ -188,6 +169,34 @@ func (c *Collector) collectInternal(filterProvider, filterResource string) {
 
 	// 输出采集完成日志，包含详细信息
 	logger.Log.Infof("采集完成，账号数量=%d，已完成=%d，总耗时: %v", len(accounts), completedCount, duration)
+}
+
+// buildAccountInfo 构建账号信息字符串，格式为 " (provider1=count1, provider2=count2)"
+func buildAccountInfo(accounts []config.CloudAccount) string {
+	if len(accounts) == 0 {
+		return ""
+	}
+
+	accountsByProvider := make(map[string]int)
+	for _, acc := range accounts {
+		accountsByProvider[acc.Provider]++
+	}
+
+	var accountInfo strings.Builder
+	accountInfo.WriteString(" (")
+	providers := make([]string, 0, len(accountsByProvider))
+	for provider := range accountsByProvider {
+		providers = append(providers, provider)
+	}
+	sort.Strings(providers)
+	for i, provider := range providers {
+		if i > 0 {
+			accountInfo.WriteString(", ")
+		}
+		accountInfo.WriteString(fmt.Sprintf("%s=%d", provider, accountsByProvider[provider]))
+	}
+	accountInfo.WriteString(")")
+	return accountInfo.String()
 }
 
 // collectAccount 规范化资源类型并路由到对应云采集器

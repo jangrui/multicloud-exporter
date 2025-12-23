@@ -6,6 +6,7 @@ import (
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/logger"
 	"multicloud-exporter/internal/metrics"
+	providerscommon "multicloud-exporter/internal/providers/common"
 
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
 	monitor "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/monitor/v20180724"
@@ -33,7 +34,7 @@ func (t *Collector) listGWLBIDs(account config.CloudAccount, region string) []st
 	reqStart := time.Now()
 	resp, err := client.GetMonitorData(req)
 	if err != nil {
-		status := classifyTencentError(err)
+		status := providerscommon.ClassifyTencentError(err)
 		metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", status).Inc()
 		if status == "limit_error" {
 			metrics.RateLimitTotal.WithLabelValues("tencent", "GetMonitorData").Inc()
@@ -93,7 +94,11 @@ func (t *Collector) fetchGWLBMonitor(account config.CloudAccount, region string,
 			req.MetricName = common.StringPtr(m)
 			per := period
 			if prod.Period == nil && group.Period == nil {
-				per = minPeriodForMetric(region, account, "qce/gwlb", m)
+				fallback := int64(60)
+				if server := t.cfg.GetServer(); server != nil && server.PeriodFallback > 0 {
+					fallback = int64(server.PeriodFallback)
+				}
+				per = minPeriodForMetric(region, account, "qce/gwlb", m, fallback)
 			}
 			req.Period = common.Uint64Ptr(uint64(per))
 			var inst []*monitor.Instance
@@ -112,7 +117,7 @@ func (t *Collector) fetchGWLBMonitor(account config.CloudAccount, region string,
 			reqStart := time.Now()
 			resp, err := client.GetMonitorData(req)
 			if err != nil {
-				status := classifyTencentError(err)
+				status := providerscommon.ClassifyTencentError(err)
 				metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", status).Inc()
 				metrics.RecordRequest("tencent", "GetMonitorData", status)
 				if status == "limit_error" {

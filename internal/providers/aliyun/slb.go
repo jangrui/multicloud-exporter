@@ -10,6 +10,7 @@ import (
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/logger"
 	"multicloud-exporter/internal/metrics"
+	"multicloud-exporter/internal/providers/common"
 
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/slb"
@@ -30,9 +31,9 @@ func (a *Collector) listSLBIDs(account config.CloudAccount, region string) ([]st
 			if a.cfg.Server.PageSize < pageSize {
 				pageSize = a.cfg.Server.PageSize
 			}
-		} else if a.cfg.ServerConf != nil && a.cfg.ServerConf.PageSize > 0 {
-			if a.cfg.ServerConf.PageSize < pageSize {
-				pageSize = a.cfg.ServerConf.PageSize
+		} else if server := a.cfg.GetServer(); server != nil && server.PageSize > 0 {
+			if server.PageSize < pageSize {
+				pageSize = server.PageSize
 			}
 		}
 	}
@@ -52,7 +53,7 @@ func (a *Collector) listSLBIDs(account config.CloudAccount, region string) ([]st
 				metrics.RequestDuration.WithLabelValues("aliyun", "DescribeLoadBalancers").Observe(time.Since(start).Seconds())
 				break
 			}
-			status := classifyAliyunError(callErr)
+			status := common.ClassifyAliyunError(callErr)
 			metrics.RequestTotal.WithLabelValues("aliyun", "DescribeLoadBalancers", status).Inc()
 			if status == "limit_error" {
 				// 记录限流指标
@@ -110,7 +111,7 @@ func (a *Collector) listSLBIDs(account config.CloudAccount, region string) ([]st
 						metrics.RecordRequest("aliyun", "DescribeLoadBalancerAttribute", "success")
 						break
 					}
-					status := classifyAliyunError(err)
+					status := common.ClassifyAliyunError(err)
 					metrics.RequestTotal.WithLabelValues("aliyun", "DescribeLoadBalancerAttribute", status).Inc()
 					metrics.RecordRequest("aliyun", "DescribeLoadBalancerAttribute", status)
 					if status == "limit_error" {
@@ -205,7 +206,7 @@ func (a *Collector) fetchSLBTags(account config.CloudAccount, region, namespace,
 				metrics.RecordRequest("aliyun", "ListTagResources", "success")
 				break
 			}
-			status := classifyAliyunError(callErr)
+			status := common.ClassifyAliyunError(callErr)
 			metrics.RequestTotal.WithLabelValues("aliyun", "ListTagResources", status).Inc()
 			metrics.RecordRequest("aliyun", "ListTagResources", status)
 			if status == "limit_error" {

@@ -9,6 +9,7 @@ import (
 
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/discovery"
+	providerscommon "multicloud-exporter/internal/providers/common"
 
 	"github.com/stretchr/testify/assert"
 	clb "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/clb/v20180317"
@@ -278,7 +279,7 @@ func TestClassifyTencentError(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		assert.Equal(t, tt.expected, classifyTencentError(tt.err))
+		assert.Equal(t, tt.expected, providerscommon.ClassifyTencentError(tt.err))
 	}
 }
 
@@ -310,19 +311,19 @@ func TestMinPeriodForMetric(t *testing.T) {
 
 	account := config.CloudAccount{}
 	// Test Cache Miss -> Hit
-	p := minPeriodForMetric("ap-guangzhou", account, "ns", "CPUUsage")
+		p := minPeriodForMetric("ap-guangzhou", account, "ns", "CPUUsage", 60)
 	assert.Equal(t, int64(60), p)
 
 	// Test Cache Hit
-	p = minPeriodForMetric("ap-guangzhou", account, "ns", "CPUUsage")
+	p = minPeriodForMetric("ap-guangzhou", account, "ns", "CPUUsage", 60)
 	assert.Equal(t, int64(60), p)
 
 	// Test Periods array (min of 10, 60, 300 -> 10)
-	p = minPeriodForMetric("ap-guangzhou", account, "ns", "MemUsage")
+	p = minPeriodForMetric("ap-guangzhou", account, "ns", "MemUsage", 60)
 	assert.Equal(t, int64(10), p)
 
 	// Test Periods string array
-	p = minPeriodForMetric("ap-guangzhou", account, "ns", "DiskUsage")
+	p = minPeriodForMetric("ap-guangzhou", account, "ns", "DiskUsage", 60)
 	assert.Equal(t, int64(60), p)
 
 	// Case 2: API Error
@@ -335,6 +336,6 @@ func TestMinPeriodForMetric(t *testing.T) {
 	delete(periodCache, key)
 	periodMu.Unlock()
 
-	p = minPeriodForMetric("ap-guangzhou", account, "ns", "Unknown")
+	p = minPeriodForMetric("ap-guangzhou", account, "ns", "Unknown", 60)
 	assert.Equal(t, int64(60), p) // Default fallback
 }

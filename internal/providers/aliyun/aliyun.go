@@ -13,6 +13,7 @@ import (
 	"multicloud-exporter/internal/discovery"
 	"multicloud-exporter/internal/logger"
 	"multicloud-exporter/internal/metrics"
+	"multicloud-exporter/internal/providers/common"
 	"multicloud-exporter/internal/utils"
 
 	"sync"
@@ -148,8 +149,8 @@ func (a *Collector) Collect(account config.CloudAccount) {
 	limit := 4
 	if a.cfg != nil && a.cfg.Server != nil && a.cfg.Server.RegionConcurrency > 0 {
 		limit = a.cfg.Server.RegionConcurrency
-	} else if a.cfg != nil && a.cfg.ServerConf != nil && a.cfg.ServerConf.RegionConcurrency > 0 {
-		limit = a.cfg.ServerConf.RegionConcurrency
+	} else if server := a.cfg.GetServer(); server != nil && server.RegionConcurrency > 0 {
+		limit = server.RegionConcurrency
 	}
 	if limit < 1 {
 		limit = 1
@@ -264,28 +265,12 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 	// 其中 mlimit 控制第 3 层并发，plimit 控制第 2 层并发。
 
 	// 指标并发控制（命名空间/指标级）
-	mlimit := 5
-	if a.cfg != nil && a.cfg.Server != nil && a.cfg.Server.MetricConcurrency > 0 {
-		mlimit = a.cfg.Server.MetricConcurrency
-	} else if a.cfg != nil && a.cfg.ServerConf != nil && a.cfg.ServerConf.MetricConcurrency > 0 {
-		mlimit = a.cfg.ServerConf.MetricConcurrency
-	}
-	if mlimit < 1 {
-		mlimit = 1
-	}
+	mlimit := getMetricConcurrency(a.cfg)
 	msem := make(chan struct{}, mlimit)
 	var mwg sync.WaitGroup
 
 	// 产品并发控制（命名空间级）：控制同一地域内不同命名空间（如 ECS/BWP）并行度，避免串行导致总时长过长。
-	plimit := 2
-	if a.cfg != nil && a.cfg.Server != nil && a.cfg.Server.ProductConcurrency > 0 {
-		plimit = a.cfg.Server.ProductConcurrency
-	} else if a.cfg != nil && a.cfg.ServerConf != nil && a.cfg.ServerConf.ProductConcurrency > 0 {
-		plimit = a.cfg.ServerConf.ProductConcurrency
-	}
-	if plimit < 1 {
-		plimit = 1
-	}
+	plimit := getProductConcurrency(a.cfg)
 	psem := make(chan struct{}, plimit)
 	var pwg sync.WaitGroup
 
@@ -293,19 +278,7 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 		if prod.Namespace == "" {
 			continue
 		}
-		rfilter := resourceTypeForNamespace(prod.Namespace)
-		// Check for resource permission, including aliases (s3->oss, bwp->cbwp)
-		allowed := false
-		if rfilter != "" {
-			if containsResource(account.Resources, rfilter) {
-				allowed = true
-			} else if rfilter == "oss" && containsResource(account.Resources, "s3") {
-				allowed = true
-			} else if rfilter == "cbwp" && containsResource(account.Resources, "bwp") {
-				allowed = true
-			}
-		}
-		if !allowed {
+		if !isResourceAllowed(account, prod.Namespace) {
 			continue
 		}
 		pwg.Add(1)
@@ -330,11 +303,15 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 					if localPeriod == "" && meta.MinPeriod != "" {
 						localPeriod = meta.MinPeriod
 					}
-					if localPeriod == "" && prod.Namespace == "acs_bandwidth_package" {
-						// Fallback: 当元数据不可用时，为共享带宽设置保守的默认周期
-						localPeriod = "60"
+					if localPeriod == "" {
+						// Fallback: 当元数据不可用时，使用配置的默认周期
+						fallback := 60
+						if server := a.cfg.GetServer(); server != nil && server.PeriodFallback > 0 {
+							fallback = server.PeriodFallback
+						}
+						localPeriod = strconv.Itoa(fallback)
 					}
-					if prod.Namespace == "acs_slb_dashboard" && (metricName == "InstanceTrafficRXUtilization" || metricName == "InstanceTrafficTXUtilization") {
+					if prod.Namespace == common.NamespaceAliyunSLBDashboard && (metricName == "InstanceTrafficRXUtilization" || metricName == "InstanceTrafficTXUtilization") {
 						need := []string{"InstanceId", "port", "protocol"}
 						if len(meta.Dimensions) == 0 {
 							meta.Dimensions = need
@@ -460,7 +437,7 @@ func (a *Collector) getMetricMeta(client CMSClient, namespace, metric string) me
 		if err == nil {
 			break
 		}
-		status := classifyAliyunError(err)
+		status := common.ClassifyAliyunError(err)
 		if status == "limit_error" {
 			// 记录限流指标
 			metrics.RateLimitTotal.WithLabelValues("aliyun", "DescribeMetricMetaList").Inc()
@@ -476,7 +453,7 @@ func (a *Collector) getMetricMeta(client CMSClient, namespace, metric string) me
 	}
 	var out metricMeta
 	if err != nil {
-		st := classifyAliyunError(err)
+		st := common.ClassifyAliyunError(err)
 		if st == "limit_error" {
 			logger.Log.Warnf("Aliyun getMetricMeta 错误（重试5次后仍失败），命名空间=%s 指标=%s 错误=%v", namespace, metric, err)
 		} else {
@@ -502,8 +479,8 @@ func (a *Collector) getMetricMeta(client CMSClient, namespace, metric string) me
 			out.Dimensions = ds
 			if len(out.Dimensions) == 0 {
 				key := "aliyun." + namespace
-				if a.cfg != nil && a.cfg.ServerConf != nil {
-					if req, ok := a.cfg.ServerConf.ResourceDimMapping[key]; ok && len(req) > 0 {
+				if server := a.cfg.GetServer(); server != nil {
+					if req, ok := server.ResourceDimMapping[key]; ok && len(req) > 0 {
 						out.Dimensions = append(out.Dimensions, req...)
 					}
 				}
@@ -544,8 +521,8 @@ func (a *Collector) getMetricMeta(client CMSClient, namespace, metric string) me
 	}
 	if len(out.Dimensions) == 0 {
 		key := "aliyun." + namespace
-		if a.cfg != nil && a.cfg.ServerConf != nil {
-			if req, ok := a.cfg.ServerConf.ResourceDimMapping[key]; ok && len(req) > 0 {
+		if server := a.cfg.GetServer(); server != nil {
+			if req, ok := server.ResourceDimMapping[key]; ok && len(req) > 0 {
 				out.Dimensions = append(out.Dimensions, req...)
 			}
 		}
@@ -566,9 +543,9 @@ func (a *Collector) getMetricMeta(client CMSClient, namespace, metric string) me
 
 func (a *Collector) checkRequiredDimensions(namespace string, dims []string) bool {
 	// 优先使用配置驱动的映射；若不匹配，继续尝试默认与兜底逻辑
-	if a.cfg != nil && a.cfg.ServerConf != nil && len(a.cfg.ServerConf.ResourceDimMapping) > 0 {
+	if server := a.cfg.GetServer(); server != nil && len(server.ResourceDimMapping) > 0 {
 		key := "aliyun." + namespace
-		if req, ok := a.cfg.ServerConf.ResourceDimMapping[key]; ok && len(req) > 0 {
+		if req, ok := server.ResourceDimMapping[key]; ok && len(req) > 0 {
 			if hasAnyDim(dims, req) {
 				return true
 			}
@@ -689,6 +666,50 @@ func containsResource(list []string, r string) bool {
 
 //
 
+// getMetricConcurrency 获取指标并发数配置，默认值为 5
+func getMetricConcurrency(cfg *config.Config) int {
+	if cfg == nil {
+		return 5
+	}
+	server := cfg.GetServer()
+	if server != nil && server.MetricConcurrency > 0 {
+		return server.MetricConcurrency
+	}
+	return 5
+}
+
+// getProductConcurrency 获取产品并发数配置，默认值为 2
+func getProductConcurrency(cfg *config.Config) int {
+	if cfg == nil {
+		return 2
+	}
+	server := cfg.GetServer()
+	if server != nil && server.ProductConcurrency > 0 {
+		return server.ProductConcurrency
+	}
+	return 2
+}
+
+// isResourceAllowed 检查账号是否允许采集指定命名空间的资源
+// 支持别名映射：s3->oss, bwp->cbwp
+func isResourceAllowed(account config.CloudAccount, namespace string) bool {
+	rfilter := resourceTypeForNamespace(namespace)
+	if rfilter == "" {
+		return false
+	}
+	if containsResource(account.Resources, rfilter) {
+		return true
+	}
+	// 支持别名映射
+	if rfilter == "oss" && containsResource(account.Resources, "s3") {
+		return true
+	}
+	if rfilter == "cbwp" && containsResource(account.Resources, "bwp") {
+		return true
+	}
+	return false
+}
+
 func resourceTypeForNamespace(namespace string) string {
 	switch namespace {
 	case "acs_bandwidth_package":
@@ -744,8 +765,8 @@ func (a *Collector) listALBIDs(account config.CloudAccount, region string) []str
 		if a.cfg != nil {
 			if a.cfg.Server != nil && a.cfg.Server.PageSize > 0 && a.cfg.Server.PageSize < pageSize {
 				pageSize = a.cfg.Server.PageSize
-			} else if a.cfg.ServerConf != nil && a.cfg.ServerConf.PageSize > 0 && a.cfg.ServerConf.PageSize < pageSize {
-				pageSize = a.cfg.ServerConf.PageSize
+			} else if server := a.cfg.GetServer(); server != nil && server.PageSize > 0 && server.PageSize < pageSize {
+				pageSize = server.PageSize
 			}
 		}
 		nextToken := ""
@@ -768,7 +789,7 @@ func (a *Collector) listALBIDs(account config.CloudAccount, region string) []str
 					break
 				}
 				if callErr != nil {
-					status := classifyAliyunError(callErr)
+					status := common.ClassifyAliyunError(callErr)
 					metrics.RequestTotal.WithLabelValues("aliyun", "ListLoadBalancers", status).Inc()
 					metrics.RecordRequest("aliyun", "ListLoadBalancers", status)
 					if status == "limit_error" {
@@ -836,8 +857,8 @@ func (a *Collector) listNLBIDs(account config.CloudAccount, region string) []str
 		if a.cfg != nil {
 			if a.cfg.Server != nil && a.cfg.Server.PageSize > 0 && a.cfg.Server.PageSize < pageSize {
 				pageSize = a.cfg.Server.PageSize
-			} else if a.cfg.ServerConf != nil && a.cfg.ServerConf.PageSize > 0 && a.cfg.ServerConf.PageSize < pageSize {
-				pageSize = a.cfg.ServerConf.PageSize
+			} else if server := a.cfg.GetServer(); server != nil && server.PageSize > 0 && server.PageSize < pageSize {
+				pageSize = server.PageSize
 			}
 		}
 		nextToken := ""
@@ -860,7 +881,7 @@ func (a *Collector) listNLBIDs(account config.CloudAccount, region string) []str
 					break
 				}
 				if callErr != nil {
-					status := classifyAliyunError(callErr)
+					status := common.ClassifyAliyunError(callErr)
 					metrics.RequestTotal.WithLabelValues("aliyun", "ListLoadBalancers", status).Inc()
 					metrics.RecordRequest("aliyun", "ListLoadBalancers", status)
 					if status == "limit_error" {
@@ -953,7 +974,7 @@ func (a *Collector) listIDsByCMS(client CMSClient, region, namespace, metric, id
 			metrics.RecordRequest("aliyun", "DescribeMetricList", "success")
 			break
 		}
-		status := classifyAliyunError(callErr)
+		status := common.ClassifyAliyunError(callErr)
 		metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricList", status).Inc()
 		metrics.RecordRequest("aliyun", "DescribeMetricList", status)
 		if status == "limit_error" {
@@ -997,9 +1018,9 @@ func (a *Collector) getCachedIDs(account config.CloudAccount, region, namespace,
 		return nil, nil, false
 	}
 	ttlDur := time.Hour
-	if a.cfg != nil && a.cfg.ServerConf != nil {
-		if a.cfg.ServerConf.DiscoveryTTL != "" {
-			if d, err := utils.ParseDuration(a.cfg.ServerConf.DiscoveryTTL); err == nil {
+	if server := a.cfg.GetServer(); server != nil {
+		if server.DiscoveryTTL != "" {
+			if d, err := utils.ParseDuration(server.DiscoveryTTL); err == nil {
 				ttlDur = d
 			}
 		}
@@ -1311,7 +1332,7 @@ func (a *Collector) fetchNLBTags(account config.CloudAccount, region string, ids
 				break
 			}
 			if callErr != nil {
-				status := classifyAliyunError(callErr)
+				status := common.ClassifyAliyunError(callErr)
 				metrics.RequestTotal.WithLabelValues("aliyun", "ListTagResources", status).Inc()
 				metrics.RecordRequest("aliyun", "ListTagResources", status)
 				if status == "limit_error" {
@@ -1532,8 +1553,8 @@ func (a *Collector) fetchAndRecordMetrics(
 		}
 		if a.cfg.Server != nil && a.cfg.Server.PageSize > 0 {
 			req.Length = strconv.Itoa(a.cfg.Server.PageSize)
-		} else if a.cfg.ServerConf != nil && a.cfg.ServerConf.PageSize > 0 {
-			req.Length = strconv.Itoa(a.cfg.ServerConf.PageSize)
+		} else if server := a.cfg.GetServer(); server != nil && server.PageSize > 0 {
+			req.Length = strconv.Itoa(server.PageSize)
 		}
 		req.Dimensions = string(dimsJSON)
 
@@ -1559,7 +1580,7 @@ func (a *Collector) processMetricBatch(client CMSClient, req *cms.DescribeMetric
 				metrics.RecordRequest("aliyun", "DescribeMetricLast", "success")
 				break
 			}
-			status := classifyAliyunError(callErr)
+			status := common.ClassifyAliyunError(callErr)
 			metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricLast", status).Inc()
 			metrics.RecordRequest("aliyun", "DescribeMetricLast", status)
 			if status == "auth_error" || status == "region_skip" {
@@ -1703,21 +1724,4 @@ func (a *Collector) processMetricBatch(client CMSClient, req *cms.DescribeMetric
 		nextToken = resp.NextToken
 		time.Sleep(25 * time.Millisecond)
 	}
-}
-
-func classifyAliyunError(err error) string {
-	msg := err.Error()
-	if strings.Contains(msg, "InvalidAccessKeyId") || strings.Contains(msg, "Forbidden") || strings.Contains(msg, "SignatureDoesNotMatch") {
-		return "auth_error"
-	}
-	if strings.Contains(msg, "Throttling") || strings.Contains(msg, "flow control") {
-		return "limit_error"
-	}
-	if strings.Contains(msg, "InvalidRegionId") || strings.Contains(msg, "Unsupported") {
-		return "region_skip"
-	}
-	if strings.Contains(msg, "timeout") || strings.Contains(msg, "unreachable") || strings.Contains(msg, "Temporary network") {
-		return "network_error"
-	}
-	return "error"
 }

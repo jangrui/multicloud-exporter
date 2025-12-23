@@ -77,6 +77,10 @@ spec:
               value: {{ $v | quote }}
 {{- end }}
 {{- end }}
+{{- if .Values.server }}
+            - name: SERVER_PATH
+              value: "/app/configs/server.yaml"
+{{- end }}
 {{- if and .Values.accounts .Values.accounts.grouped }}
             - name: ACCOUNTS_PATH
               value: "/app/configs/accounts.yaml"
@@ -155,6 +159,11 @@ spec:
                 name: {{ .Values.security.adminSecretName }}
 {{- end }}
           volumeMounts:
+{{- if .Values.server }}
+            - name: server-config
+              mountPath: "/app/configs/server.yaml"
+              subPath: server.yaml
+{{- end }}
 {{- if and .Values.accounts .Values.accounts.grouped }}
             - name: accounts
               mountPath: "/app/configs/accounts.yaml"
@@ -162,6 +171,11 @@ spec:
 {{- end }}
           resources: {{- toYaml .Values.resources | nindent 12 }}
       volumes:
+{{- if .Values.server }}
+        - name: server-config
+          configMap:
+            name: {{ default "multicloud-exporter" .Values.fullname }}-config
+{{- end }}
 {{- if and .Values.accounts .Values.accounts.grouped }}
         - name: accounts
           configMap:

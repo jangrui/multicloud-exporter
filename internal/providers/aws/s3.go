@@ -11,6 +11,7 @@ import (
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/logger"
 	"multicloud-exporter/internal/metrics"
+	"multicloud-exporter/internal/providers/common"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
@@ -61,7 +62,7 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 			metrics.RequestDuration.WithLabelValues("aws", "ListBuckets").Observe(time.Since(start).Seconds())
 			break
 		}
-		status := classifyAWSError(err)
+		status := common.ClassifyAWSError(err)
 		metrics.RequestTotal.WithLabelValues("aws", "ListBuckets", status).Inc()
 		metrics.RecordRequest("aws", "ListBuckets", status)
 		if status == "limit_error" {
@@ -195,7 +196,7 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 						metrics.RequestDuration.WithLabelValues("aws", "GetMetricData").Observe(time.Since(reqStart).Seconds())
 						break
 					}
-					status := classifyAWSError(err)
+					status := common.ClassifyAWSError(err)
 					metrics.RequestTotal.WithLabelValues("aws", "GetMetricData", status).Inc()
 					metrics.RecordRequest("aws", "GetMetricData", status)
 					if status == "limit_error" {
@@ -348,7 +349,7 @@ func (c *Collector) fetchS3BucketCodeNames(ctx context.Context, client S3API, bu
 					metrics.RequestDuration.WithLabelValues("aws", "GetBucketTagging").Observe(time.Since(reqStart).Seconds())
 					break
 				}
-				status := classifyAWSError(err)
+				status := common.ClassifyAWSError(err)
 				metrics.RequestTotal.WithLabelValues("aws", "GetBucketTagging", status).Inc()
 				metrics.RecordRequest("aws", "GetBucketTagging", status)
 				if status == "limit_error" {
@@ -394,16 +395,3 @@ func sanitizeCWQueryID(i int) string {
 	return "q" + strconv.Itoa(i)
 }
 
-func classifyAWSError(err error) string {
-	msg := err.Error()
-	if strings.Contains(msg, "ExpiredToken") || strings.Contains(msg, "InvalidClientTokenId") || strings.Contains(msg, "AccessDenied") {
-		return "auth_error"
-	}
-	if strings.Contains(msg, "Throttling") || strings.Contains(msg, "Rate exceeded") || strings.Contains(msg, "TooManyRequests") {
-		return "limit_error"
-	}
-	if strings.Contains(msg, "timeout") || strings.Contains(msg, "network") {
-		return "network_error"
-	}
-	return "error"
-}

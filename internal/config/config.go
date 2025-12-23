@@ -40,8 +40,9 @@ func expandEnv(s string) string {
 type Config struct {
 	Mu sync.RWMutex `yaml:"-"`
 
-	Server     *ServerConf `yaml:"server"`
-	ServerConf *ServerConf `yaml:"serverconf"`
+	Server *ServerConf `yaml:"server"`
+	// ServerConf 已废弃，保留用于向后兼容，将在加载时合并到 Server
+	ServerConf *ServerConf `yaml:"serverconf"` // Deprecated: use Server instead
 	RemoteProm *RemoteProm `yaml:"remote_prom"`
 	Credential *Credential `yaml:"credential"`
 	DataTag    []DataTag   `yaml:"datatag"`
@@ -50,6 +51,14 @@ type Config struct {
 	AccountsByProvider map[string][]CloudAccount `yaml:"accounts"`
 
 	ProductsByProvider map[string][]Product `yaml:"products"`
+}
+
+// GetServer 获取 Server 配置，优先返回 Server，如果为空则返回 ServerConf（向后兼容）
+func (c *Config) GetServer() *ServerConf {
+	if c.Server != nil {
+		return c.Server
+	}
+	return c.ServerConf
 }
 
 // DefaultResourceDimMapping 返回默认的资源维度映射配置
@@ -79,26 +88,14 @@ func LoadConfig() (*Config, error) {
 
 	// 加载 server.yaml
 	serverPath := os.Getenv("SERVER_PATH")
-	if serverPath == "" {
-		// 默认回退路径：优先容器挂载路径，其次本地开发路径
-		for _, p := range []string{"/app/configs/server.yaml", "./configs/server.yaml"} {
-			if _, err := os.Stat(p); err == nil {
-				serverPath = p
-				break
-			}
-		}
-	}
-	if serverPath != "" {
-		data, err := os.ReadFile(serverPath)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read server config: %v", err)
-		}
+	data, actualPath, err := LoadConfigFile(serverPath, []string{"/app/configs/server.yaml", "./configs/server.yaml"})
+	if err == nil && data != nil {
 		expanded := expandEnv(string(data))
 		var s struct {
 			Server *ServerConf `yaml:"server"`
 		}
 		if err := yaml.Unmarshal([]byte(expanded), &s); err != nil {
-			return nil, fmt.Errorf("failed to parse server config: %v", err)
+			return nil, fmt.Errorf("failed to parse server config from %s: %v", actualPath, err)
 		}
 		if s.Server != nil {
 			cfg.Server = s.Server
@@ -128,20 +125,37 @@ func LoadConfig() (*Config, error) {
 	// 手工产品配置已废弃：Exporter 全面采用自动发现生成产品与指标配置
 
 	// 新版拆分：accounts.yaml
-	if accountsPath := os.Getenv("ACCOUNTS_PATH"); accountsPath != "" {
-		accData, err := os.ReadFile(accountsPath)
+	accountsPath := os.Getenv("ACCOUNTS_PATH")
+	if accountsPath != "" {
+		// 如果明确指定了 ACCOUNTS_PATH，文件必须存在
+		accData, _, err := LoadConfigFile(accountsPath, []string{})
 		if err != nil {
-			return nil, fmt.Errorf("failed to read accounts: %v", err)
+			return nil, fmt.Errorf("failed to load accounts config from %s: %v", accountsPath, err)
 		}
 		accExpanded := expandEnv(string(accData))
 		var accCfg struct {
 			AccountsByProvider map[string][]CloudAccount `yaml:"accounts"`
 		}
 		if err := yaml.Unmarshal([]byte(accExpanded), &accCfg); err != nil {
-			return nil, fmt.Errorf("failed to parse accounts: %v", err)
+			return nil, fmt.Errorf("failed to parse accounts config: %v", err)
 		}
 		if accCfg.AccountsByProvider != nil {
 			cfg.AccountsByProvider = accCfg.AccountsByProvider
+		}
+	} else {
+		// 如果没有指定 ACCOUNTS_PATH，尝试默认路径（可选）
+		accData, _, err := LoadConfigFile("", []string{"/app/configs/accounts.yaml", "./configs/accounts.yaml"})
+		if err == nil && accData != nil {
+			accExpanded := expandEnv(string(accData))
+			var accCfg struct {
+				AccountsByProvider map[string][]CloudAccount `yaml:"accounts"`
+			}
+			if err := yaml.Unmarshal([]byte(accExpanded), &accCfg); err != nil {
+				return nil, fmt.Errorf("failed to parse accounts config: %v", err)
+			}
+			if accCfg.AccountsByProvider != nil {
+				cfg.AccountsByProvider = accCfg.AccountsByProvider
+			}
 		}
 	}
 
@@ -178,6 +192,8 @@ type ServerConf struct {
 	DiscoveryTTL     string `yaml:"discovery_ttl"`
 	DiscoveryRefresh string `yaml:"discovery_refresh"`
 	ScrapeInterval   string `yaml:"scrape_interval"`
+	// PeriodFallback 当无法从元数据获取 Period 时的默认值（秒），默认 60
+	PeriodFallback int `yaml:"period_fallback"`
 	// 区域级并发：同一账号下并行采集的地域数量，建议 1-8。
 	RegionConcurrency int `yaml:"region_concurrency"`
 	// 指标级并发：同一地域、同一产品下并行处理的指标批次数，建议 1-10。

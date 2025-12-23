@@ -12,6 +12,7 @@ import (
 	"multicloud-exporter/internal/discovery"
 	"multicloud-exporter/internal/logger"
 	"multicloud-exporter/internal/metrics"
+	providerscommon "multicloud-exporter/internal/providers/common"
 	"multicloud-exporter/internal/utils"
 
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
@@ -86,7 +87,7 @@ func (t *Collector) getAllRegions(account config.CloudAccount) []string {
 			break
 		}
 		if callErr != nil {
-			status := classifyTencentError(callErr)
+			status := providerscommon.ClassifyTencentError(callErr)
 			metrics.RequestTotal.WithLabelValues("tencent", "DescribeRegions", status).Inc()
 			metrics.RecordRequest("tencent", "DescribeRegions", status)
 			if status == "limit_error" {
@@ -220,9 +221,9 @@ func (t *Collector) getCachedIDs(account config.CloudAccount, region, namespace,
 		return nil, false
 	}
 	ttlDur := time.Hour
-	if t.cfg != nil && t.cfg.ServerConf != nil {
-		if t.cfg.ServerConf.DiscoveryTTL != "" {
-			if d, err := utils.ParseDuration(t.cfg.ServerConf.DiscoveryTTL); err == nil {
+	if server := t.cfg.GetServer(); server != nil {
+		if server.DiscoveryTTL != "" {
+			if d, err := utils.ParseDuration(server.DiscoveryTTL); err == nil {
 				ttlDur = d
 			}
 		}
@@ -243,20 +244,6 @@ func (t *Collector) setCachedIDs(account config.CloudAccount, region, namespace,
 	t.cacheMu.Lock()
 	t.resCache[t.cacheKey(account, region, namespace, rtype)] = resCacheEntry{IDs: ids, UpdatedAt: time.Now()}
 	t.cacheMu.Unlock()
-}
-
-func classifyTencentError(err error) string {
-	msg := err.Error()
-	if strings.Contains(msg, "AuthFailure") || strings.Contains(msg, "InvalidCredential") {
-		return "auth_error"
-	}
-	if strings.Contains(msg, "RequestLimitExceeded") {
-		return "limit_error"
-	}
-	if strings.Contains(msg, "timeout") || strings.Contains(msg, "network") {
-		return "network_error"
-	}
-	return "error"
 }
 
 var (
@@ -282,7 +269,7 @@ var (
 				break
 			}
 			if callErr != nil {
-				status := classifyTencentError(callErr)
+				status := providerscommon.ClassifyTencentError(callErr)
 				metrics.RequestTotal.WithLabelValues("tencent", "DescribeBaseMetrics", status).Inc()
 				metrics.RecordRequest("tencent", "DescribeBaseMetrics", status)
 				if status == "limit_error" {
@@ -304,7 +291,7 @@ var (
 	}
 )
 
-func minPeriodForMetric(region string, account config.CloudAccount, namespace, metric string) int64 {
+func minPeriodForMetric(region string, account config.CloudAccount, namespace, metric string, periodFallback int64) int64 {
 	key := namespace + "|" + metric
 	periodMu.RLock()
 	if v, ok := periodCache[key]; ok && v > 0 {
@@ -314,7 +301,7 @@ func minPeriodForMetric(region string, account config.CloudAccount, namespace, m
 	periodMu.RUnlock()
 	bs, err := describeBaseMetricsJSON(region, account.AccessKeyID, account.AccessKeySecret, namespace)
 	if err != nil {
-		status := classifyTencentError(err)
+		status := providerscommon.ClassifyTencentError(err)
 		metrics.RequestTotal.WithLabelValues("tencent", "DescribeBaseMetrics", status).Inc()
 		return 60
 	}
@@ -375,7 +362,11 @@ func minPeriodForMetric(region string, account config.CloudAccount, namespace, m
 		break
 	}
 	if min == 0 {
-		min = 60
+		if periodFallback > 0 {
+			min = periodFallback
+		} else {
+			min = 60 // 默认值
+		}
 	}
 	periodMu.Lock()
 	periodCache[key] = min

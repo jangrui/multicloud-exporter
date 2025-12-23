@@ -17,6 +17,8 @@ server:
   discovery_ttl: ${DISCOVERY_TTL:-1d}
   # 采集间隔：主循环执行云资源指标采集的频率（默认 60s）
   scrape_interval: ${SCRAPE_INTERVAL:-60s}
+  # Period Fallback：当无法从元数据获取 Period 时的默认值（秒），默认 60
+  period_fallback: ${PERIOD_FALLBACK:-60}
   # 区域级并发：同一账号下并行采集的地域数量（建议 1-8）
   region_concurrency: ${REGION_CONCURRENCY:-4}
   # 指标级并发：同一地域、同一产品下并行处理的指标批次（建议 1-10）
