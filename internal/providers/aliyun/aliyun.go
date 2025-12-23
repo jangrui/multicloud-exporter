@@ -89,14 +89,38 @@ func (a *Collector) getAccountUID(account config.CloudAccount, region string) st
 	if region == "" {
 		region = "cn-hangzhou"
 	}
-	client, err := a.clientFactory.NewSTSClient(region, account.AccessKeyID, account.AccessKeySecret)
-	if err != nil {
-		logger.Log.Errorf("Aliyun 初始化 STS 客户端错误: %v", err)
-		return account.AccountID // 回退到配置ID
+
+	// 辅助函数：尝试在指定区域获取
+	doGet := func(r string) (*sts.GetCallerIdentityResponse, error) {
+		client, err := a.clientFactory.NewSTSClient(r, account.AccessKeyID, account.AccessKeySecret)
+		if err != nil {
+			return nil, err
+		}
+		req := sts.CreateGetCallerIdentityRequest()
+		// 增加重试逻辑 (3次)
+		var resp *sts.GetCallerIdentityResponse
+		var callErr error
+		for attempt := 0; attempt < 3; attempt++ {
+			resp, callErr = client.GetCallerIdentity(req)
+			if callErr == nil {
+				return resp, nil
+			}
+			// 如果是网络错误，等待后重试
+			time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
+		}
+		return nil, callErr
 	}
 
-	req := sts.CreateGetCallerIdentityRequest()
-	resp, err := client.GetCallerIdentity(req)
+	// 首次尝试
+	resp, err := doGet(region)
+	if err != nil {
+		// 如果首次失败且 region 不是 cn-hangzhou，尝试 fallback
+		if region != "cn-hangzhou" {
+			logger.Log.Warnf("Aliyun GetCallerIdentity 在 %s 失败: %v, 尝试 fallback 到 cn-hangzhou", region, err)
+			resp, err = doGet("cn-hangzhou")
+		}
+	}
+
 	if err != nil {
 		logger.Log.Errorf("Aliyun GetCallerIdentity 错误: %v", err)
 		return account.AccountID // 回退到配置ID

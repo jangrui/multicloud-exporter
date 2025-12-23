@@ -188,7 +188,7 @@ func (m *mockTagClient) ListTagResources(request *tag.ListTagResourcesRequest) (
 }
 
 type mockOSSClient struct {
-	ListBucketsFunc func(options ...oss.Option) (oss.ListBucketsResult, error)
+	ListBucketsFunc      func(options ...oss.Option) (oss.ListBucketsResult, error)
 	GetBucketTaggingFunc func(bucketName string, options ...oss.Option) (oss.GetBucketTaggingResult, error)
 }
 
