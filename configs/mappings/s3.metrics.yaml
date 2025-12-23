@@ -229,7 +229,7 @@ canonical:
 
   # Requests
   requests_total:
-    description: "总请求数"
+    description: "总请求数（推荐周期：60s；统计口径：Sum；Exporter 输出：count/s）"
     aliyun:
       metric: TotalRequestCount
       dimensions:
@@ -251,7 +251,7 @@ canonical:
       unit: count
       scale: 1
   requests_get:
-    description: "GET 请求数"
+    description: "GET 请求数（推荐周期：60s；统计口径：Sum；Exporter 输出：count/s）"
     aliyun:
       metric: GetObjectCount
       dimensions:
@@ -273,7 +273,7 @@ canonical:
       unit: count
       scale: 1
   requests_put:
-    description: "PUT 请求数"
+    description: "PUT 请求数（推荐周期：60s；统计口径：Sum；Exporter 输出：count/s）"
     aliyun:
       metric: PutObjectCount
       dimensions:
@@ -295,7 +295,7 @@ canonical:
       unit: count
       scale: 1
   requests_head:
-    description: "HEAD 请求数"
+    description: "HEAD 请求数（推荐周期：60s；统计口径：Sum；Exporter 输出：count/s）"
     aliyun:
       metric: HeadObjectCount
       dimensions:
@@ -317,7 +317,7 @@ canonical:
       unit: count
       scale: 1
   requests_list:
-    description: "LIST 请求数"
+    description: "LIST 请求数（推荐周期：60s；统计口径：Sum；Exporter 输出：count/s）"
     aws:
       metric: ListRequests
       dimensions:
@@ -326,7 +326,7 @@ canonical:
       unit: count
       scale: 1
   requests_post:
-    description: "POST 请求数"
+    description: "POST 请求数（推荐周期：60s；统计口径：Sum；Exporter 输出：count/s）"
     aws:
       metric: PostRequests
       dimensions:
@@ -335,7 +335,7 @@ canonical:
       unit: count
       scale: 1
   requests_append:
-    description: "AppendObject 请求数"
+    description: "AppendObject 请求数（推荐周期：60s；统计口径：Sum；Exporter 输出：count/s）"
     aliyun:
       metric: AppendObjectCount
       dimensions:
@@ -344,7 +344,7 @@ canonical:
       unit: count
       scale: 1
   requests_delete:
-    description: "DELETE 请求数"
+    description: "DELETE 请求数（推荐周期：60s；统计口径：Sum；Exporter 输出：count/s）"
     aliyun:
       metric: DeleteObjectCount
       dimensions:
@@ -353,7 +353,7 @@ canonical:
       unit: count
       scale: 1
   requests_copy:
-    description: "CopyObject 请求数"
+    description: "CopyObject 请求数（推荐周期：60s；统计口径：Sum；Exporter 输出：count/s）"
     aliyun:
       metric: CopyObjectCount
       dimensions:

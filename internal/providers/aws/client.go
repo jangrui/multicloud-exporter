@@ -7,15 +7,15 @@ import (
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/cloudwatch"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancing"
 	"github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/ec2"
 )
 
 type ClientFactory interface {
-	NewCloudWatchClient(ctx context.Context, region, ak, sk string) (*cloudwatch.Client, error)
-	NewS3Client(ctx context.Context, region, ak, sk string) (*s3.Client, error)
+	NewCloudWatchClient(ctx context.Context, region, ak, sk string) (CWAPI, error)
+	NewS3Client(ctx context.Context, region, ak, sk string) (S3API, error)
 	NewELBClient(ctx context.Context, region, ak, sk string) (*elasticloadbalancing.Client, error)
 	NewELBv2Client(ctx context.Context, region, ak, sk string) (*elasticloadbalancingv2.Client, error)
 	NewEC2Client(ctx context.Context, region, ak, sk string) (*ec2.Client, error)
@@ -31,7 +31,16 @@ func (f *defaultClientFactory) loadCfg(ctx context.Context, region, ak, sk strin
 	)
 }
 
-func (f *defaultClientFactory) NewCloudWatchClient(ctx context.Context, region, ak, sk string) (*cloudwatch.Client, error) {
+type CWAPI interface {
+	GetMetricData(ctx context.Context, params *cloudwatch.GetMetricDataInput, optFns ...func(*cloudwatch.Options)) (*cloudwatch.GetMetricDataOutput, error)
+}
+
+type S3API interface {
+	ListBuckets(ctx context.Context, params *s3.ListBucketsInput, optFns ...func(*s3.Options)) (*s3.ListBucketsOutput, error)
+	GetBucketTagging(ctx context.Context, params *s3.GetBucketTaggingInput, optFns ...func(*s3.Options)) (*s3.GetBucketTaggingOutput, error)
+}
+
+func (f *defaultClientFactory) NewCloudWatchClient(ctx context.Context, region, ak, sk string) (CWAPI, error) {
 	cfg, err := f.loadCfg(ctx, region, ak, sk)
 	if err != nil {
 		return nil, err
@@ -39,7 +48,7 @@ func (f *defaultClientFactory) NewCloudWatchClient(ctx context.Context, region, 
 	return cloudwatch.NewFromConfig(cfg), nil
 }
 
-func (f *defaultClientFactory) NewS3Client(ctx context.Context, region, ak, sk string) (*s3.Client, error) {
+func (f *defaultClientFactory) NewS3Client(ctx context.Context, region, ak, sk string) (S3API, error) {
 	cfg, err := f.loadCfg(ctx, region, ak, sk)
 	if err != nil {
 		return nil, err

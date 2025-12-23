@@ -252,6 +252,9 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 					continue
 				}
 				val := r.Values[0]
+				if stat == "Sum" && localPeriod > 0 {
+					val = val / float64(localPeriod)
+				}
 				// 标准 labels: cloud_provider, account_id, region, resource_type, resource_id, namespace, metric_name, code_name
 				// 然后加上动态维度值（BucketName 的值就是 resource_id，所以只需要添加其他维度值）
 				labels := []string{"aws", account.AccountID, "global", rtype, bn, s3Prod.Namespace, metricName, codeNames[bn]}
@@ -320,7 +323,7 @@ func statForS3Metric(metricName string) string {
 	}
 }
 
-func (c *Collector) fetchS3BucketCodeNames(ctx context.Context, client *s3.Client, buckets []string) map[string]string {
+func (c *Collector) fetchS3BucketCodeNames(ctx context.Context, client S3API, buckets []string) map[string]string {
 	out := make(map[string]string, len(buckets))
 	var mu sync.Mutex
 	const maxConcurrency = 10
