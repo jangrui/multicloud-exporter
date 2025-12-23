@@ -162,7 +162,7 @@ canonical:
       unit: count
       scale: 1
     tencent:
-      metric: VNewConn
+      metric: PvvNewConn
       dimensions: []
       unit: count/s
       scale: 1
@@ -316,10 +316,7 @@ canonical:
         - instanceId
       unit: count/s
     aws:
-      metric: RequestCount
-      dimensions:
-        - Service
-      unit: count
+      metric: ""
 
   instance_rt:
     description: "实例响应时间 (L7)"
@@ -330,10 +327,7 @@ canonical:
         - instanceId
       unit: ms
     aws:
-      metric: Latency
-      dimensions: []
-      unit: s
-      scale: 1000
+      metric: ""
 
   instance_status_code_2xx:
     description: "实例级 HTTP 2XX 状态码数量"
@@ -478,11 +472,6 @@ canonical:
         - port
         - protocol
       unit: ms
-  pvv_new_conn:
-    description: "腾讯 CLB 私有实例新建连接数"
-    tencent:
-      metric: PvvNewConn
-      unit: count/s
   pvv_outpkg:
     description: "腾讯 CLB 私有实例出网包速率"
     tencent:

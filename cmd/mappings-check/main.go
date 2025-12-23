@@ -168,6 +168,31 @@ func checkMappingAgainstProducts(mappingPath, productsRoot, provider string, pm 
 	}
 
 	var errs []string
+	// 先检查同一 provider 下是否存在多个 canonical 映射到同一原始 metric（潜在别名冲突）
+	dup := make(map[string]string) // metricName -> canonical
+	for canonical, entry := range mf.Canonical {
+		var def metricDef
+		switch provider {
+		case "aws":
+			def = entry.AWS
+		case "aliyun":
+			def = entry.Aliyun
+		case "tencent":
+			def = entry.Tencent
+		default:
+			continue
+		}
+		if strings.TrimSpace(def.Metric) == "" {
+			continue
+		}
+		mn := strings.TrimSpace(def.Metric)
+		if prev, exists := dup[mn]; exists && prev != canonical {
+			errs = append(errs, fmt.Sprintf("%s: %s alias conflict: canonical=%q and %q both map to metric=%q namespace=%q",
+				mappingPath, provider, prev, canonical, mn, ns))
+		} else {
+			dup[mn] = canonical
+		}
+	}
 	for canonical, entry := range mf.Canonical {
 		var def metricDef
 		switch provider {

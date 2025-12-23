@@ -421,21 +421,6 @@ canonical:
         - FilterId
       unit: count
       scale: 1
-  response_client_error_count:
-    description: "客户端错误数（4xx）"
-    tencent:
-      metric: 4xxResponse
-      dimensions:
-        - bucket
-      unit: count
-      scale: 1
-    aws:
-      metric: 4xxErrors
-      dimensions:
-        - BucketName
-        - FilterId
-      unit: count
-      scale: 1
   response_2xx_count:
     description: "2xx 响应数"
     tencent:
