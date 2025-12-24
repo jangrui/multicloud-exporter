@@ -77,6 +77,11 @@ server: {}
 #  region_concurrency: 4              # 区域级并发：同一账号下并行采集的地域数量（建议 1-8）；默认 4（与 configs/server.yaml 一致）
 #  product_concurrency: 2             # 产品级并发：同一地域下并行处理的命名空间数量（建议 1-4）；默认 2
 #  metric_concurrency: 5              # 指标级并发：同一地域、同一产品下并行处理的指标批次（建议 1-10）；默认 5
+#  region_discovery:               # 智能区域发现配置
+#    enabled: true                 # 是否启用智能区域发现；默认 true
+#    discovery_interval: "24h"     # 重新发现周期；支持 s/m/h/d；默认 24h
+#    empty_threshold: 3            # 连续空次数阈值；默认 3
+#    persist_file: "./data/region_status.json"  # 持久化文件路径（临时文件，重启后重新创建）
 
 # 环境变量覆盖（按需）：如果设置将覆盖 server.yaml 中的对应配置
 # 所有环境变量都会传递给容器，支持覆盖 server.yaml 中的配置
@@ -104,7 +109,13 @@ env: {}
 #  REGION_CONCURRENCY: "4"            # 区域级并发：同一账号下并行采集的地域数量（建议 1-8）；默认 4
 #  PRODUCT_CONCURRENCY: "2"           # 产品级并发：同一地域下并行处理的命名空间数量（建议 1-4）；默认 2
 #  METRIC_CONCURRENCY: "5"            # 指标级并发：同一地域、同一产品下并行处理的指标批次（建议 1-10）；默认 5
-#  
+#
+#  # 智能区域发现配置
+#  REGION_DISCOVERY_ENABLED: "true"         # 是否启用智能区域发现；默认 true
+#  REGION_DISCOVERY_INTERVAL: "24h"         # 重新发现周期；支持 s/m/h/d；默认 24h
+#  REGION_EMPTY_THRESHOLD: "3"              # 连续空次数阈值；默认 3
+#  REGION_PERSIST_FILE: "./data/region_status.json"  # 持久化文件路径；默认 ./data/region_status.json
+#
 #  # 安全配置
 #  ADMIN_AUTH_ENABLED: "false"        # 是否启用管理接口认证；默认 false
 

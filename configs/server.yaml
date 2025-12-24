@@ -25,5 +25,11 @@ server:
   metric_concurrency: ${METRIC_CONCURRENCY:-5}
   # 产品级并发：同一地域下并行处理的命名空间数量（建议 1-4）
   product_concurrency: ${PRODUCT_CONCURRENCY:-2}
+  # 智能区域发现配置
+  region_discovery:
+    enabled: ${REGION_DISCOVERY_ENABLED:-true}
+    discovery_interval: ${REGION_DISCOVERY_INTERVAL:-24h}
+    empty_threshold: ${REGION_EMPTY_THRESHOLD:-3}
+    persist_file: ${REGION_PERSIST_FILE:-./data/region_status.json}
   admin_auth_enabled: ${ADMIN_AUTH_ENABLED:-false}
   admin_auth: []

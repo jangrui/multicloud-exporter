@@ -201,12 +201,23 @@ type ServerConf struct {
 	// 产品级并发：同一地域下并行处理的命名空间（云产品）数量，建议 1-4。
 	ProductConcurrency int `yaml:"product_concurrency"`
 
+	// RegionDiscovery 定义智能区域发现配置
+	RegionDiscovery *RegionDiscoveryConf `yaml:"region_discovery"`
+
 	// ResourceDimMapping 定义各云厂商、各产品（Namespace）的资源维度校验规则。
 	// Key 为 "provider.namespace"，例如 "aliyun.acs_ecs_dashboard"。
 	// Value 为该产品必须包含的维度键列表（任一匹配即可），例如 ["InstanceId", "instance_id"]。
 	ResourceDimMapping map[string][]string `yaml:"resource_dim_mapping"`
 	AdminAuthEnabled   bool                `yaml:"admin_auth_enabled"`
 	AdminAuth          []BasicAuth         `yaml:"admin_auth"`
+}
+
+// RegionDiscoveryConf 定义智能区域发现配置
+type RegionDiscoveryConf struct {
+	Enabled          bool   `yaml:"enabled"`           // 是否启用智能区域发现，默认 true
+	DiscoveryInterval string `yaml:"discovery_interval"` // 重新发现周期，如 "24h"
+	EmptyThreshold   int    `yaml:"empty_threshold"`    // 连续空次数阈值，默认 3
+	PersistFile      string `yaml:"persist_file"`       // 持久化文件路径，如 "./data/region_status.json"
 }
 
 type FileLogConfig struct {

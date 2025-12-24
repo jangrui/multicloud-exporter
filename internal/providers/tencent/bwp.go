@@ -110,6 +110,18 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 	}
 	
 	t.setCachedIDs(account, region, "QCE/BWP", "bwp", ids)
+
+	// 更新区域状态
+	if t.regionManager != nil {
+		status := providerscommon.RegionStatusEmpty
+		if len(ids) > 0 {
+			status = providerscommon.RegionStatusActive
+		}
+		t.regionManager.UpdateRegionStatus(account.AccountID, region, len(ids), status)
+		ctxLog.Debugf("更新区域状态 account=%s region=%s status=%s count=%d",
+			account.AccountID, region, status, len(ids))
+	}
+
 	if len(ids) > 0 {
 		max := 5
 		if len(ids) < max {

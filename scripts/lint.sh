@@ -11,6 +11,14 @@ set +e
 go vet ./... 2>&1 | grep -v "operation not permitted" | grep -v "package encoding/pem is not in std" || true
 set -e
 
+# 检查 golangci-lint 是否可执行
+GOLANGCI_LINT_BIN="${ROOT_DIR}/bin/golangci-lint"
+if [[ ! -x "${GOLANGCI_LINT_BIN}" ]]; then
+  echo "ERROR: golangci-lint not executable: ${GOLANGCI_LINT_BIN}" >&2
+  echo "Run 'chmod 755 ${GOLANGCI_LINT_BIN}' to fix" >&2
+  exit 1
+fi
+
 "${ROOT_DIR}/scripts/golangci-lint.sh" --version
 "${ROOT_DIR}/scripts/golangci-lint.sh" run ./...
 

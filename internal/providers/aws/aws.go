@@ -3,28 +3,61 @@ package aws
 import (
 	"context"
 	"strings"
+	"time"
 
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/discovery"
 	"multicloud-exporter/internal/logger"
+	providerscommon "multicloud-exporter/internal/providers/common"
 
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 )
 
 // Collector AWS 采集器：按账号/区域采集 CloudWatch 指标
 type Collector struct {
-	cfg  *config.Config
-	disc *discovery.Manager
-
+	cfg           *config.Config
+	disc          *discovery.Manager
 	clientFactory ClientFactory
+	regionManager providerscommon.RegionManager
 }
 
 func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
-	return &Collector{
+	c := &Collector{
 		cfg:           cfg,
 		disc:          mgr,
 		clientFactory: &defaultClientFactory{},
 	}
+
+	// 初始化区域管理器
+	if cfg != nil && cfg.GetServer() != nil && cfg.GetServer().RegionDiscovery != nil {
+		c.regionManager = providerscommon.NewRegionManager(providerscommon.RegionDiscoveryConfig{
+			Enabled:          cfg.GetServer().RegionDiscovery.Enabled,
+			DiscoveryInterval: parseDuration(cfg.GetServer().RegionDiscovery.DiscoveryInterval),
+			EmptyThreshold:   cfg.GetServer().RegionDiscovery.EmptyThreshold,
+			PersistFile:      cfg.GetServer().RegionDiscovery.PersistFile,
+		})
+
+		// 加载持久化的区域状态
+		if err := c.regionManager.Load(); err != nil {
+			logger.Log.Warnf("加载区域状态失败: %v", err)
+		}
+
+		// 启动定期重新发现调度器
+		c.regionManager.StartRediscoveryScheduler()
+	}
+
+	return c
+}
+
+// parseDuration 解析时长字符串为 time.Duration
+func parseDuration(s string) time.Duration {
+	if s == "" {
+		return 0
+	}
+	if d, err := time.ParseDuration(s); err == nil {
+		return d
+	}
+	return 0
 }
 
 func (c *Collector) Collect(account config.CloudAccount) {
@@ -77,5 +110,15 @@ func (c *Collector) getAllRegions(account config.CloudAccount) []string {
 		}
 	}
 	logger.Log.Debugf("AWS DescribeRegions 成功，数量=%d 账号ID=%s", len(regions), account.AccountID)
+
+	// 使用区域管理器进行智能过滤
+	if c.regionManager != nil {
+		activeRegions := c.regionManager.GetActiveRegions(account.AccountID, regions)
+		logger.Log.Infof("AWS 智能区域选择: 总=%d 活跃=%d 账号ID=%s",
+			len(regions), len(activeRegions), account.AccountID)
+		return activeRegions
+	}
+
+	// 如果未启用区域管理器，返回所有区域
 	return regions
 }

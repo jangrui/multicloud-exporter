@@ -14,6 +14,8 @@ if [[ ! -x "${GOLANGCI_LINT_BIN}" ]]; then
   echo "Installing golangci-lint ${GOLANGCI_LINT_VERSION} -> ${GOLANGCI_LINT_BIN}" >&2
   curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh \
     | sh -s -- -b "${BIN_DIR}" "${GOLANGCI_LINT_VERSION}"
+  # 确保二进制文件具有正确的权限
+  chmod 755 "${GOLANGCI_LINT_BIN}"
 fi
 
 exec "${GOLANGCI_LINT_BIN}" "$@"

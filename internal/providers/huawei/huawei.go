@@ -9,6 +9,7 @@ import (
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/discovery"
 	"multicloud-exporter/internal/logger"
+	providerscommon "multicloud-exporter/internal/providers/common"
 	"multicloud-exporter/internal/utils"
 )
 
@@ -32,6 +33,7 @@ type Collector struct {
 	resCache      map[string]resCacheEntry
 	cacheMu       sync.RWMutex
 	clientFactory ClientFactory
+	regionManager providerscommon.RegionManager
 }
 
 type resCacheEntry struct {
@@ -56,6 +58,14 @@ func (h *Collector) Collect(account config.CloudAccount) {
 	regions := account.Regions
 	if len(regions) == 0 || (len(regions) == 1 && regions[0] == "*") {
 		regions = defaultHuaweiRegions
+	}
+
+	// 使用区域管理器进行智能过滤
+	if h.regionManager != nil {
+		activeRegions := h.regionManager.GetActiveRegions(account.AccountID, regions)
+		logger.Log.Infof("华为云智能区域选择: 总=%d 活跃=%d 账号ID=%s",
+			len(regions), len(activeRegions), account.AccountID)
+		regions = activeRegions
 	}
 
 	var wg sync.WaitGroup

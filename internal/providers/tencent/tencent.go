@@ -27,6 +27,7 @@ type Collector struct {
 	resCache      map[string]resCacheEntry
 	cacheMu       sync.RWMutex
 	clientFactory ClientFactory
+	regionManager providerscommon.RegionManager
 }
 
 type resCacheEntry struct {
@@ -35,12 +36,43 @@ type resCacheEntry struct {
 }
 
 func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
-	return &Collector{
+	c := &Collector{
 		cfg:           cfg,
 		disc:          mgr,
 		resCache:      make(map[string]resCacheEntry),
 		clientFactory: &defaultClientFactory{},
 	}
+
+	// 初始化区域管理器
+	if cfg != nil && cfg.GetServer() != nil && cfg.GetServer().RegionDiscovery != nil {
+		c.regionManager = providerscommon.NewRegionManager(providerscommon.RegionDiscoveryConfig{
+			Enabled:           cfg.GetServer().RegionDiscovery.Enabled,
+			DiscoveryInterval: parseDuration(cfg.GetServer().RegionDiscovery.DiscoveryInterval),
+			EmptyThreshold:    cfg.GetServer().RegionDiscovery.EmptyThreshold,
+			PersistFile:       cfg.GetServer().RegionDiscovery.PersistFile,
+		})
+
+		// 加载持久化的区域状态
+		if err := c.regionManager.Load(); err != nil {
+			logger.Log.Warnf("加载区域状态失败: %v", err)
+		}
+
+		// 启动定期重新发现调度器
+		c.regionManager.StartRediscoveryScheduler()
+	}
+
+	return c
+}
+
+// parseDuration 解析时长字符串为 time.Duration
+func parseDuration(s string) time.Duration {
+	if s == "" {
+		return 0
+	}
+	if d, err := time.ParseDuration(s); err == nil {
+		return d
+	}
+	return 0
 }
 
 func (t *Collector) Collect(account config.CloudAccount) {
@@ -130,6 +162,15 @@ func (t *Collector) getAllRegions(account config.CloudAccount) []string {
 	if len(regions) == 0 {
 		regions = []string{"ap-guangzhou"}
 	}
+
+	// 使用区域管理器进行智能过滤
+	if t.regionManager != nil {
+		activeRegions := t.regionManager.GetActiveRegions(account.AccountID, regions)
+		logger.Log.Infof("智能区域选择: 总=%d 活跃=%d 账号ID=%s",
+			len(regions), len(activeRegions), account.AccountID)
+		return activeRegions
+	}
+
 	return regions
 }
 

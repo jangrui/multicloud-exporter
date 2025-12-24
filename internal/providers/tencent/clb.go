@@ -114,6 +114,18 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 	}
 	
 	t.setCachedIDs(account, region, "QCE/LB", "clb", vips)
+
+	// 更新区域状态
+	if t.regionManager != nil {
+		status := providerscommon.RegionStatusEmpty
+		if len(vips) > 0 {
+			status = providerscommon.RegionStatusActive
+		}
+		t.regionManager.UpdateRegionStatus(account.AccountID, region, len(vips), status)
+		ctxLog.Debugf("更新区域状态 account=%s region=%s status=%s count=%d",
+			account.AccountID, region, status, len(vips))
+	}
+
 	if len(vips) > 0 {
 		max := 5
 		if len(vips) < max {

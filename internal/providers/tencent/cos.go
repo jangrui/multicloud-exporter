@@ -136,6 +136,18 @@ func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) [
 	}
 
 	t.setCachedIDs(account, region, "QCE/COS", "cos", buckets)
+
+	// 更新区域状态
+	if t.regionManager != nil {
+		status := providerscommon.RegionStatusEmpty
+		if len(buckets) > 0 {
+			status = providerscommon.RegionStatusActive
+		}
+		t.regionManager.UpdateRegionStatus(account.AccountID, region, len(buckets), status)
+		logger.Log.Debugf("更新区域状态 account=%s region=%s status=%s count=%d",
+			account.AccountID, region, status, len(buckets))
+	}
+
 	if len(buckets) > 0 {
 		max := 5
 		if len(buckets) < max {

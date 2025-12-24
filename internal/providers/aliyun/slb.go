@@ -185,6 +185,18 @@ func (a *Collector) listSLBIDs(account config.CloudAccount, region string) ([]st
 	}
 
 	ctxLog.Debugf("枚举SLB实例完成 实例数=%d 带监听器数=%d", len(ids), len(meta))
+
+	// 更新区域状态
+	if a.regionManager != nil {
+		status := common.RegionStatusEmpty
+		if len(ids) > 0 {
+			status = common.RegionStatusActive
+		}
+		a.regionManager.UpdateRegionStatus(account.AccountID, region, len(ids), status)
+		ctxLog.Debugf("更新区域状态 account=%s region=%s status=%s count=%d",
+			account.AccountID, region, status, len(ids))
+	}
+
 	return ids, meta
 }
 

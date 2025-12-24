@@ -145,6 +145,17 @@ func (h *Collector) listOBSBuckets(account config.CloudAccount, region string) [
 	}
 	h.setCachedIDs(account, region, "SYS.OBS", "obs", ids)
 
+	// 更新区域状态
+	if h.regionManager != nil {
+		status := providerscommon.RegionStatusEmpty
+		if len(ids) > 0 {
+			status = providerscommon.RegionStatusActive
+		}
+		h.regionManager.UpdateRegionStatus(account.AccountID, region, len(ids), status)
+		ctxLog.Debugf("更新区域状态 account=%s region=%s status=%s count=%d",
+			account.AccountID, region, status, len(ids))
+	}
+
 	if len(buckets) > 0 {
 		max := 5
 		if len(buckets) < max {

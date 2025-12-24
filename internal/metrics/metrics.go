@@ -68,6 +68,31 @@ var (
 		},
 		[]string{"cache_type"},
 	)
+	// RegionDiscovery 区域发现状态统计
+	RegionDiscoveryStatus = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "multicloud_region_status_total",
+			Help: " - 区域状态统计（active/empty/unknown）",
+		},
+		[]string{"cloud_provider", "status"},
+	)
+	// RegionDiscoveryDuration 区域发现耗时
+	RegionDiscoveryDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Name: "multicloud_region_discovery_duration_seconds",
+			Help: " - 区域发现耗时（秒）",
+			Buckets: prometheus.DefBuckets,
+		},
+		[]string{"cloud_provider"},
+	)
+	// RegionSkippedTotal 跳过的空区域次数
+	RegionSkippedTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "multicloud_region_skip_total",
+			Help: " - 跳过的空区域次数",
+		},
+		[]string{"cloud_provider"},
+	)
 )
 
 var (

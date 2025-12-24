@@ -42,6 +42,7 @@ type Collector struct {
 	ossMu         sync.Mutex
 	clientFactory ClientFactory
 	sf            singleflight.Group
+	regionManager common.RegionManager
 }
 
 // resCacheEntry 缓存资源ID及元数据
@@ -64,7 +65,7 @@ type ossBucketInfo struct {
 
 // NewCollector 创建阿里云采集器实例
 func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
-	return &Collector{
+	c := &Collector{
 		cfg:           cfg,
 		disc:          mgr,
 		metaCache:     make(map[string]metricMeta),
@@ -73,6 +74,37 @@ func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
 		ossCache:      make(map[string]ossCacheEntry),
 		clientFactory: &defaultClientFactory{},
 	}
+
+	// 初始化区域管理器
+	if cfg != nil && cfg.GetServer() != nil && cfg.GetServer().RegionDiscovery != nil {
+		c.regionManager = common.NewRegionManager(common.RegionDiscoveryConfig{
+			Enabled:          cfg.GetServer().RegionDiscovery.Enabled,
+			DiscoveryInterval: parseDuration(cfg.GetServer().RegionDiscovery.DiscoveryInterval),
+			EmptyThreshold:   cfg.GetServer().RegionDiscovery.EmptyThreshold,
+			PersistFile:      cfg.GetServer().RegionDiscovery.PersistFile,
+		})
+
+		// 加载持久化的区域状态
+		if err := c.regionManager.Load(); err != nil {
+			logger.Log.Warnf("加载区域状态失败: %v", err)
+		}
+
+		// 启动定期重新发现调度器
+		c.regionManager.StartRediscoveryScheduler()
+	}
+
+	return c
+}
+
+// parseDuration 解析时长字符串为 time.Duration
+func parseDuration(s string) time.Duration {
+	if s == "" {
+		return 0
+	}
+	if d, err := time.ParseDuration(s); err == nil {
+		return d
+	}
+	return 0
 }
 
 // getAccountUID 获取阿里云账号的数字 ID (UID)
@@ -177,7 +209,7 @@ func (a *Collector) Collect(account config.CloudAccount) {
 	wg.Wait()
 }
 
-// getAllRegions 通过 DescribeRegions 自动发现全部区域
+// getAllRegions 通过 DescribeRegions 自动发现全部区域，并使用区域管理器进行智能过滤
 func (a *Collector) getAllRegions(account config.CloudAccount) []string {
 	client, err := a.clientFactory.NewECSClient("cn-hangzhou", account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
@@ -221,7 +253,17 @@ func (a *Collector) getAllRegions(account config.CloudAccount) []string {
 	for _, region := range response.Regions.Region {
 		regions = append(regions, region.RegionId)
 	}
-	logger.Log.Debugf("Aliyun DescribeRegions 成功，数量=%d 账号ID=%s", len(regions), account.AccountID)
+	logger.Log.Debugf("Aliyun DescribeRegions 成功，总区域数=%d 账号ID=%s", len(regions), account.AccountID)
+
+	// 使用区域管理器进行智能过滤
+	if a.regionManager != nil {
+		activeRegions := a.regionManager.GetActiveRegions(account.AccountID, regions)
+		logger.Log.Infof("智能区域选择: 总=%d 活跃=%d 账号ID=%s",
+			len(regions), len(activeRegions), account.AccountID)
+		return activeRegions
+	}
+
+	// 如果未启用区域管理器，返回所有区域
 	return regions
 }
 

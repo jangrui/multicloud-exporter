@@ -14,6 +14,9 @@ import (
 )
 
 func (t *Collector) listGWLBIDs(account config.CloudAccount, region string) []string {
+	ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "rtype", "gwlb")
+	ctxLog.Debugf("开始枚举 GWLB IDs")
+
 	if ids, hit := t.getCachedIDs(account, region, "qce/gwlb", "gwlb"); hit {
 		logger.Log.Debugf("Tencent GWLB IDs 缓存命中，账号ID=%s 区域=%s 数量=%d", account.AccountID, region, len(ids))
 		return ids
@@ -63,6 +66,18 @@ func (t *Collector) listGWLBIDs(account config.CloudAccount, region string) []st
 		}
 	}
 	t.setCachedIDs(account, region, "qce/gwlb", "gwlb", ids)
+
+	// 更新区域状态
+	if t.regionManager != nil {
+		status := providerscommon.RegionStatusEmpty
+		if len(ids) > 0 {
+			status = providerscommon.RegionStatusActive
+		}
+		t.regionManager.UpdateRegionStatus(account.AccountID, region, len(ids), status)
+		ctxLog.Debugf("更新区域状态 account=%s region=%s status=%s count=%d",
+			account.AccountID, region, status, len(ids))
+	}
+
 	if len(ids) > 0 {
 		max := 5
 		if len(ids) < max {

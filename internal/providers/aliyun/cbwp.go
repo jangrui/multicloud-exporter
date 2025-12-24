@@ -132,6 +132,18 @@ func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []st
 	} else {
 		ctxLog.Debugf("枚举共享带宽包完成 数量=%d", len(ids))
 	}
+
+	// 更新区域状态
+	if a.regionManager != nil {
+		status := common.RegionStatusEmpty
+		if len(ids) > 0 {
+			status = common.RegionStatusActive
+		}
+		a.regionManager.UpdateRegionStatus(account.AccountID, region, len(ids), status)
+		ctxLog.Debugf("更新区域状态 account=%s region=%s status=%s count=%d",
+			account.AccountID, region, status, len(ids))
+	}
+
 	return ids
 }
 
