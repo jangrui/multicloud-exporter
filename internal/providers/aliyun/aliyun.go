@@ -998,6 +998,8 @@ func (a *Collector) listIDsByCMS(client CMSClient, region, namespace, metric, id
 		time.Sleep(time.Duration(200*(1<<attempt)) * time.Millisecond)
 	}
 	if callErr != nil || resp == nil {
+		// region 参数保留用于未来可能的日志记录或错误处理
+		_ = region
 		return []string{}
 	}
 	var out []string
@@ -1053,6 +1055,8 @@ func (a *Collector) setCachedIDs(account config.CloudAccount, region, namespace,
 	a.cacheMu.Unlock()
 }
 func (a *Collector) buildALBMetaByCMS(client CMSClient, region string, ids []string) map[string]interface{} {
+	// region 参数保留用于未来可能的日志记录或错误处理
+	_ = region
 	idSet := make(map[string]struct{}, len(ids))
 	for _, id := range ids {
 		idSet[id] = struct{}{}
@@ -1145,6 +1149,8 @@ func (a *Collector) buildALBMetaByCMS(client CMSClient, region string, ids []str
 	return out
 }
 func (a *Collector) buildNLBMetaByCMS(client CMSClient, region string, ids []string) map[string]interface{} {
+	// region 参数保留用于未来可能的日志记录或错误处理
+	_ = region
 	idSet := make(map[string]struct{}, len(ids))
 	for _, id := range ids {
 		idSet[id] = struct{}{}
@@ -1574,6 +1580,8 @@ func (a *Collector) fetchAndRecordMetrics(
 }
 
 func (a *Collector) processMetricBatch(client CMSClient, req *cms.DescribeMetricLastRequest, dims []map[string]string, account config.CloudAccount, region, ns, m, dkey, rtype string, dynamicDims []string, tags map[string]string, stats []string, ctxLog *logger.ContextLogger) {
+	// dims 参数已在调用前序列化为 req.Dimensions，此处保留用于函数签名一致性
+	_ = dims
 	nextToken := ""
 	for {
 		if nextToken != "" {

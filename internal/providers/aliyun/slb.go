@@ -68,6 +68,9 @@ func (a *Collector) listSLBIDs(account config.CloudAccount, region string) ([]st
 		if callErr != nil {
 			break
 		}
+		if resp == nil {
+			break
+		}
 		if len(resp.LoadBalancers.LoadBalancer) == 0 {
 			break
 		}
@@ -76,10 +79,34 @@ func (a *Collector) listSLBIDs(account config.CloudAccount, region string) ([]st
 				ids = append(ids, lb.LoadBalancerId)
 			}
 		}
-		if len(resp.LoadBalancers.LoadBalancer) < pageSize {
+
+		// 使用 TotalCount 和当前已获取的数量来判断是否还有更多数据
+		// 如果返回的数据量小于 pageSize，说明已经是最后一页
+		// 如果返回的数据量等于 pageSize，需要检查是否还有更多页
+		currentCount := len(resp.LoadBalancers.LoadBalancer)
+
+		// 检查是否还有更多页：如果返回的数据量小于 pageSize，说明已经是最后一页
+		// 如果返回的数据量等于 pageSize，可能还有更多页，继续下一页
+		// 使用 TotalCount 来验证（如果存在）
+		if resp.TotalCount > 0 {
+			// 如果 TotalCount 存在，可以用它来判断是否还有更多数据
+			totalCollected := len(ids)
+			if totalCollected >= resp.TotalCount {
+				// 已收集的数量达到总数，停止分页
+				ctxLog.Debugf("SLB 分页采集完成 page=%d current_count=%d total_collected=%d total_count=%d",
+					page, currentCount, totalCollected, resp.TotalCount)
+				break
+			}
+		}
+
+		if currentCount < pageSize {
+			// 当前页数据量小于 pageSize，说明已经是最后一页
 			break
 		}
+
+		// 继续下一页
 		page++
+		ctxLog.Debugf("SLB 分页采集 page=%d current_count=%d total_collected=%d", page, currentCount, len(ids))
 		time.Sleep(50 * time.Millisecond)
 	}
 
