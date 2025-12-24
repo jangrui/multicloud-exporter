@@ -372,8 +372,13 @@ func (c *Collector) fetchS3BucketCodeNames(ctx context.Context, client S3API, bu
 				if status == "auth_error" {
 					return
 				}
+				// 指数退避重试
 				if attempt < 2 {
-					time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
+					sleep := time.Duration(200*(1<<attempt)) * time.Millisecond
+					if sleep > 5*time.Second {
+						sleep = 5 * time.Second
+					}
+					time.Sleep(sleep)
 				}
 			}
 			if err != nil {

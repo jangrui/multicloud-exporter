@@ -72,6 +72,8 @@ func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) [
 
 	start := time.Now()
 	// Get Service lists all buckets
+	// 注意：腾讯云 COS GetService API 遵循 S3 兼容协议，一次性返回所有 bucket，不支持分页
+	// 通常一个账号的 bucket 数量不会太多（通常 < 1000），所以单次返回是合理的
 	var s *cos.ServiceGetResult
 	var callErr error
 	for attempt := 0; attempt < 3; attempt++ {
@@ -93,7 +95,12 @@ func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) [
 			logger.Log.Errorf("Tencent ListBuckets 错误: %v", callErr)
 			return []string{}
 		}
-		time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
+		// 指数退避重试
+		sleep := time.Duration(200*(1<<attempt)) * time.Millisecond
+		if sleep > 5*time.Second {
+			sleep = 5 * time.Second
+		}
+		time.Sleep(sleep)
 	}
 	if callErr != nil {
 		logger.Log.Errorf("Tencent ListBuckets 错误: %v", callErr)
@@ -153,7 +160,12 @@ func (t *Collector) fetchCOSBucketCodeNames(account config.CloudAccount, region 
 				if status == "auth_error" {
 					return
 				}
-				time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
+				// 指数退避重试
+				sleep := time.Duration(200*(1<<attempt)) * time.Millisecond
+				if sleep > 5*time.Second {
+					sleep = 5 * time.Second
+				}
+				time.Sleep(sleep)
 			}
 			if callErr != nil || len(tags) == 0 {
 				return

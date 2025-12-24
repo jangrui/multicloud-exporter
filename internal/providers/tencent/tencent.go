@@ -97,7 +97,12 @@ func (t *Collector) getAllRegions(account config.CloudAccount) []string {
 			if status == "auth_error" {
 				break
 			}
-			time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
+			// 指数退避重试
+			sleep := time.Duration(200*(1<<attempt)) * time.Millisecond
+			if sleep > 5*time.Second {
+				sleep = 5 * time.Second
+			}
+			time.Sleep(sleep)
 		} else {
 			break
 		}

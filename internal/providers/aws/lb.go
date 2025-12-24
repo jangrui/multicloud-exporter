@@ -44,11 +44,17 @@ func (l *clbLister) List(ctx context.Context, region string, account config.Clou
 		return nil, err
 	}
 	var lbs []lbInfo
+	// AWS SDK Paginator 自动处理分页：HasMorePages() 检查是否还有更多页，NextPage() 获取下一页
+	// 边界情况处理：
+	// - 空结果：HasMorePages() 返回 false，不会进入循环
+	// - 单页结果：HasMorePages() 返回 true 一次，然后 false
+	// - 多页结果：HasMorePages() 返回 true 直到所有页都被获取
 	paginator := elasticloadbalancing.NewDescribeLoadBalancersPaginator(client, &elasticloadbalancing.DescribeLoadBalancersInput{})
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
-			return nil, err
+			// API 调用失败时，返回已收集的数据和错误，允许上层决定如何处理
+			return lbs, err
 		}
 		for _, lb := range page.LoadBalancerDescriptions {
 			if lb.LoadBalancerName != nil {
@@ -111,11 +117,17 @@ func (l *elbv2Lister) List(ctx context.Context, region string, account config.Cl
 		return nil, err
 	}
 	var lbs []lbInfo
+	// AWS SDK Paginator 自动处理分页：HasMorePages() 检查是否还有更多页，NextPage() 获取下一页
+	// 边界情况处理：
+	// - 空结果：HasMorePages() 返回 false，不会进入循环
+	// - 单页结果：HasMorePages() 返回 true 一次，然后 false
+	// - 多页结果：HasMorePages() 返回 true 直到所有页都被获取
 	paginator := elasticloadbalancingv2.NewDescribeLoadBalancersPaginator(client, &elasticloadbalancingv2.DescribeLoadBalancersInput{})
 	for paginator.HasMorePages() {
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
-			return nil, err
+			// API 调用失败时，返回已收集的数据和错误，允许上层决定如何处理
+			return lbs, err
 		}
 		for _, lb := range page.LoadBalancers {
 			if lb.Type == l.lbType && lb.LoadBalancerName != nil && lb.LoadBalancerArn != nil {
