@@ -71,12 +71,12 @@ cluster:
 server: {}
 #  port: 9101
 #  page_size: 1000
-#  discovery_ttl: "1h"
-#  scrape_interval: "60s"
-#  period_fallback: 60  # Period Fallback：当无法从元数据获取 Period 时的默认值（秒），默认 60
-#  region_concurrency: 3
-#  product_concurrency: 2
-#  metric_concurrency: 5
+#  discovery_ttl: "1d"                # 资源发现缓存生命周期；支持 s/m/h/d；默认 1d（与 configs/server.yaml 一致）
+#  scrape_interval: "60s"             # 采集间隔；支持 "60s", "1m" 等；默认 60s
+#  period_fallback: 60                # Period Fallback：当无法从元数据获取 Period 时的默认值（秒），默认 60
+#  region_concurrency: 4              # 区域级并发：同一账号下并行采集的地域数量（建议 1-8）；默认 4（与 configs/server.yaml 一致）
+#  product_concurrency: 2             # 产品级并发：同一地域下并行处理的命名空间数量（建议 1-4）；默认 2
+#  metric_concurrency: 5              # 指标级并发：同一地域、同一产品下并行处理的指标批次（建议 1-10）；默认 5
 
 # 环境变量覆盖（按需）：如果设置将覆盖 server.yaml 中的对应配置
 # 所有环境变量都会传递给容器，支持覆盖 server.yaml 中的配置
