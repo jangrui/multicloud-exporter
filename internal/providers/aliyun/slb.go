@@ -63,7 +63,12 @@ func (a *Collector) listSLBIDs(account config.CloudAccount, region string) ([]st
 				ctxLog.Warnf("SLB describe error page=%d status=%s: %v", page, status, callErr)
 				break
 			}
-			time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
+			// 指数退避重试
+			sleep := time.Duration(200*(1<<attempt)) * time.Millisecond
+			if sleep > 5*time.Second {
+				sleep = 5 * time.Second
+			}
+			time.Sleep(sleep)
 		}
 		if callErr != nil {
 			break
@@ -243,7 +248,12 @@ func (a *Collector) fetchSLBTags(account config.CloudAccount, region, namespace,
 			if status == "auth_error" {
 				break
 			}
-			time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
+			// 指数退避重试
+			sleep := time.Duration(200*(1<<attempt)) * time.Millisecond
+			if sleep > 5*time.Second {
+				sleep = 5 * time.Second
+			}
+			time.Sleep(sleep)
 		}
 
 		if callErr == nil && resp != nil {

@@ -106,8 +106,12 @@ func (a *Collector) getAccountUID(account config.CloudAccount, region string) st
 			if callErr == nil {
 				return resp, nil
 			}
-			// 如果是网络错误，等待后重试
-			time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
+			// 指数退避重试
+			sleep := time.Duration(200*(1<<attempt)) * time.Millisecond
+			if sleep > 5*time.Second {
+				sleep = 5 * time.Second
+			}
+			time.Sleep(sleep)
 		}
 		return nil, callErr
 	}
@@ -810,7 +814,12 @@ func (a *Collector) listALBIDs(account config.CloudAccount, region string) []str
 						out = []string{}
 						break
 					}
-					time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
+					// 指数退避重试
+					sleep := time.Duration(200*(1<<attempt)) * time.Millisecond
+					if sleep > 5*time.Second {
+						sleep = 5 * time.Second
+					}
+					time.Sleep(sleep)
 				} else {
 					break
 				}
@@ -829,6 +838,8 @@ func (a *Collector) listALBIDs(account config.CloudAccount, region string) []str
 					}
 				}
 			}
+			// NextToken 分页：如果 NextToken 为空（nil 或空字符串），说明已经是最后一页
+			// 即使当前页返回的数据量小于 MaxResults，只要 NextToken 不为空，就应该继续
 			if resp.Body.NextToken == nil || tea.StringValue(resp.Body.NextToken) == "" {
 				break
 			}
@@ -836,21 +847,37 @@ func (a *Collector) listALBIDs(account config.CloudAccount, region string) []str
 			time.Sleep(25 * time.Millisecond)
 		}
 	}
+	
+	// 回退到 CMS 枚举的条件：
+	// 1. ALB API 客户端创建失败（err != nil 或 albClient == nil）
+	// 2. ALB API 调用成功但返回空列表（可能是该区域确实没有资源，或 API 权限问题）
+	// 注意：如果 ALB API 调用失败（callErr != nil），说明是认证或权限问题，不应该回退到 CMS
+	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", "alb")
 	if len(out) == 0 {
+		ctxLog.Debugf("ALB API 返回空列表，尝试回退到 CMS 枚举")
 		cmsClient, cmsErr := a.clientFactory.NewCMSClient(region, account.AccessKeyID, account.AccessKeySecret)
 		if cmsErr != nil {
+			ctxLog.Warnf("ALB CMS 客户端创建失败，无法回退到 CMS 枚举: %v", cmsErr)
+			// 不缓存空结果，允许下次重新尝试
 			return []string{}
 		}
 		out = a.listIDsByCMS(cmsClient, region, "acs_alb", "LoadBalancerActiveConnection", "loadBalancerId")
 		if len(out) > 0 {
+			ctxLog.Debugf("ALB CMS 枚举成功，数量=%d", len(out))
 			meta = a.buildALBMetaByCMS(cmsClient, region, out)
+		} else {
+			ctxLog.Debugf("ALB CMS 枚举也返回空列表，该区域可能确实没有 ALB 资源")
 		}
 	} else {
+		// ALB API 枚举成功，使用 CMS 补充元数据
 		cmsClient, cmsErr := a.clientFactory.NewCMSClient(region, account.AccessKeyID, account.AccessKeySecret)
 		if cmsErr == nil {
 			meta = a.buildALBMetaByCMS(cmsClient, region, out)
 		}
 	}
+	
+	// 只有在成功枚举到资源或确认该区域确实没有资源时才缓存
+	// 如果是因为 API 调用失败导致的空结果，不缓存，允许下次重新尝试
 	a.setCachedIDs(account, region, "acs_alb", "alb", out, meta)
 	return out
 }
@@ -902,7 +929,12 @@ func (a *Collector) listNLBIDs(account config.CloudAccount, region string) []str
 						out = []string{}
 						break
 					}
-					time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
+					// 指数退避重试
+					sleep := time.Duration(200*(1<<attempt)) * time.Millisecond
+					if sleep > 5*time.Second {
+						sleep = 5 * time.Second
+					}
+					time.Sleep(sleep)
 				} else {
 					break
 				}
@@ -921,6 +953,8 @@ func (a *Collector) listNLBIDs(account config.CloudAccount, region string) []str
 					}
 				}
 			}
+			// NextToken 分页：如果 NextToken 为空（nil 或空字符串），说明已经是最后一页
+			// 即使当前页返回的数据量小于 MaxResults，只要 NextToken 不为空，就应该继续
 			if resp.Body.NextToken == nil || tea.StringValue(resp.Body.NextToken) == "" {
 				break
 			}
@@ -928,21 +962,37 @@ func (a *Collector) listNLBIDs(account config.CloudAccount, region string) []str
 			time.Sleep(25 * time.Millisecond)
 		}
 	}
+	
+	// 回退到 CMS 枚举的条件：
+	// 1. NLB API 客户端创建失败（err != nil 或 nlbClient == nil）
+	// 2. NLB API 调用成功但返回空列表（可能是该区域确实没有资源，或 API 权限问题）
+	// 注意：如果 NLB API 调用失败（callErr != nil），说明是认证或权限问题，不应该回退到 CMS
+	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", "nlb")
 	if len(out) == 0 {
+		ctxLog.Debugf("NLB API 返回空列表，尝试回退到 CMS 枚举")
 		cmsClient, cmsErr := a.clientFactory.NewCMSClient(region, account.AccessKeyID, account.AccessKeySecret)
 		if cmsErr != nil {
+			ctxLog.Warnf("NLB CMS 客户端创建失败，无法回退到 CMS 枚举: %v", cmsErr)
+			// 不缓存空结果，允许下次重新尝试
 			return []string{}
 		}
 		out = a.listIDsByCMS(cmsClient, region, "acs_nlb", "InstanceActiveConnection", "instanceId")
 		if len(out) > 0 {
+			ctxLog.Debugf("NLB CMS 枚举成功，数量=%d", len(out))
 			meta = a.buildNLBMetaByCMS(cmsClient, region, out)
+		} else {
+			ctxLog.Debugf("NLB CMS 枚举也返回空列表，该区域可能确实没有 NLB 资源")
 		}
 	} else {
+		// NLB API 枚举成功，使用 CMS 补充元数据
 		cmsClient, cmsErr := a.clientFactory.NewCMSClient(region, account.AccessKeyID, account.AccessKeySecret)
 		if cmsErr == nil {
 			meta = a.buildNLBMetaByCMS(cmsClient, region, out)
 		}
 	}
+	
+	// 只有在成功枚举到资源或确认该区域确实没有资源时才缓存
+	// 如果是因为 API 调用失败导致的空结果，不缓存，允许下次重新尝试
 	a.setCachedIDs(account, region, "acs_nlb", "nlb", out, meta)
 	return out
 }
@@ -1356,10 +1406,14 @@ func (a *Collector) fetchNLBTags(account config.CloudAccount, region string, ids
 					metrics.RateLimitTotal.WithLabelValues("aliyun", "ListTagResources").Inc()
 				}
 				if status == "auth_error" {
-					time.Sleep(50 * time.Millisecond)
-					continue
+					break
 				}
-				time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
+				// 指数退避重试
+				sleep := time.Duration(200*(1<<attempt)) * time.Millisecond
+				if sleep > 5*time.Second {
+					sleep = 5 * time.Second
+				}
+				time.Sleep(sleep)
 			} else {
 				break
 			}

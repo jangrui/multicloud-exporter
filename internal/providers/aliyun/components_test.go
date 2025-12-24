@@ -152,6 +152,56 @@ func TestListSLBIDs(t *testing.T) {
 	}
 }
 
+func TestListSLBIDs_Pagination(t *testing.T) {
+	// Set PageSize to 1 to test pagination loop
+	c := NewCollector(&config.Config{
+		ServerConf: &config.ServerConf{
+			PageSize: 1,
+		},
+	}, nil)
+
+	callCount := 0
+	mockSLB := &mockSLBClient{
+		DescribeLoadBalancersFunc: func(request *slb.DescribeLoadBalancersRequest) (*slb.DescribeLoadBalancersResponse, error) {
+			callCount++
+			resp := slb.CreateDescribeLoadBalancersResponse()
+			switch callCount {
+			case 1:
+				resp.TotalCount = 2
+				resp.PageNumber = 1
+				resp.PageSize = 1
+				resp.LoadBalancers.LoadBalancer = []slb.LoadBalancer{
+					{LoadBalancerId: "lb-1"},
+				}
+			case 2:
+				resp.TotalCount = 2
+				resp.PageNumber = 2
+				resp.LoadBalancers.LoadBalancer = []slb.LoadBalancer{
+					{LoadBalancerId: "lb-2"},
+				}
+			default:
+				// Stop the loop - should not reach here if TotalCount logic works
+				resp.TotalCount = 2
+				resp.PageNumber = 3
+				resp.LoadBalancers.LoadBalancer = []slb.LoadBalancer{}
+			}
+			return resp, nil
+		},
+		DescribeLoadBalancerAttributeFunc: func(request *slb.DescribeLoadBalancerAttributeRequest) (*slb.DescribeLoadBalancerAttributeResponse, error) {
+			resp := slb.CreateDescribeLoadBalancerAttributeResponse()
+			resp.ListenerPortsAndProtocol.ListenerPortAndProtocol = []slb.ListenerPortAndProtocol{}
+			return resp, nil
+		},
+	}
+
+	c.clientFactory = &mockClientFactory{slb: mockSLB}
+	ids, _ := c.listSLBIDs(config.CloudAccount{AccountID: "acc1"}, "cn-hangzhou")
+	assert.Len(t, ids, 2, "Should collect all 2 LBs using TotalCount pagination")
+	assert.Contains(t, ids, "lb-1")
+	assert.Contains(t, ids, "lb-2")
+	assert.Equal(t, 2, callCount, "Should only call API twice (page 1 and page 2)")
+}
+
 func TestFetchSLBTags(t *testing.T) {
 	c := NewCollector(&config.Config{}, nil)
 
