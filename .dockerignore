@@ -34,3 +34,4 @@ coverage/
 # Local Resources
 local/
 .cursor/
+data/
