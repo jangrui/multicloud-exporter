@@ -240,10 +240,16 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 		ak := accounts[0].AccessKeyID
 		sk := accounts[0].AccessKeySecret
 
-		// 兜底补充常用 COS 指标
-		fallback := []string{
+		// COS 容量类指标（每日更新，需要 Period=86400）
+		// 注意：StdMultipartStorage 和 SiaMultipartStorage 在腾讯云 COS 中不存在，已移除
+		capacityFallback := []string{
 			"StdStorage", "SiaStorage", "ArcStorage", "DeepArcStorage",
 			"ItFreqStorage", "ItInfreqStorage",
+			"DeepArcMultipartStorage", "DeepArcMultipartNumber", "DeepArcObjectNumber",
+		}
+
+		// COS 请求类指标（实时更新，使用 Period=300）
+		requestFallback := []string{
 			"InternetTraffic", "InternalTraffic", "CdnOriginTraffic",
 			"InternetTrafficUp", "InternetTrafficDown",
 			"InternalTrafficUp", "InternalTrafficDown",
@@ -256,14 +262,23 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 			"CrossRegionReplicationTraffic",
 			"FirstByteDelay",
 			"FetchBandwidth",
-			"DeepArcMultipartStorage", "DeepArcMultipartNumber", "DeepArcObjectNumber",
 			"DeepArcStandardRetrieval", "DeepArcBulkRetrieval", "DeepArcReadRequests", "DeepArcWriteRequests",
 		}
 
-		var metrics []string
+		// 容量类指标集合（用于分类）
+		capacitySet := map[string]bool{
+			"StdStorage": true, "SiaStorage": true, "ArcStorage": true, "DeepArcStorage": true,
+			"ItFreqStorage": true, "ItInfreqStorage": true,
+			"DeepArcMultipartStorage": true, "DeepArcMultipartNumber": true, "DeepArcObjectNumber": true,
+		}
+
+		var capacityMetrics, requestMetrics []string
 		client, err := newTencentMonitorClient(region, ak, sk)
 		if err != nil {
 			logger.Log.Warnf("Tencent 客户端创建失败，命名空间=QCE/COS 错误=%v", err)
+			// 使用兜底指标
+			capacityMetrics = capacityFallback
+			requestMetrics = requestFallback
 		} else {
 			req := monitor.NewDescribeBaseMetricsRequest()
 			req.Namespace = common.StringPtr("QCE/COS")
@@ -276,23 +291,60 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 					if m == nil || m.MetricName == nil {
 						continue
 					}
-					metrics = append(metrics, *m.MetricName)
+					name := *m.MetricName
+					// 根据指标名称分类
+					if capacitySet[name] {
+						capacityMetrics = append(capacityMetrics, name)
+					} else {
+						requestMetrics = append(requestMetrics, name)
+					}
 				}
 			}
 		}
 
-		cur := make(map[string]struct{}, len(metrics))
-		for _, m := range metrics {
-			cur[m] = struct{}{}
+		// 合并兜底指标 - 容量类
+		capCur := make(map[string]struct{}, len(capacityMetrics))
+		for _, m := range capacityMetrics {
+			capCur[m] = struct{}{}
 		}
-		for _, m := range fallback {
-			if _, ok := cur[m]; !ok {
-				metrics = append(metrics, m)
+		for _, m := range capacityFallback {
+			if _, ok := capCur[m]; !ok {
+				capacityMetrics = append(capacityMetrics, m)
 			}
 		}
-		if len(metrics) > 0 {
-			prods = append(prods, config.Product{Namespace: "QCE/COS", AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: metrics}}})
-			logger.Log.Infof("Tencent 发现服务完成，命名空间=QCE/COS，指标数量=%d", len(metrics))
+
+		// 合并兜底指标 - 请求类
+		reqCur := make(map[string]struct{}, len(requestMetrics))
+		for _, m := range requestMetrics {
+			reqCur[m] = struct{}{}
+		}
+		for _, m := range requestFallback {
+			if _, ok := reqCur[m]; !ok {
+				requestMetrics = append(requestMetrics, m)
+			}
+		}
+
+		if len(capacityMetrics) > 0 || len(requestMetrics) > 0 {
+			// 创建包含两个 MetricGroup 的产品配置：
+			// - 容量类指标：Period=86400（每日更新）
+			// - 请求类指标：Period=300（实时更新）
+			metricGroups := []config.MetricGroup{}
+			if len(capacityMetrics) > 0 {
+				capacityPeriod := 86400
+				metricGroups = append(metricGroups, config.MetricGroup{
+					Period:     &capacityPeriod,
+					MetricList: capacityMetrics,
+				})
+			}
+			if len(requestMetrics) > 0 {
+				requestPeriod := 300
+				metricGroups = append(metricGroups, config.MetricGroup{
+					Period:     &requestPeriod,
+					MetricList: requestMetrics,
+				})
+			}
+			prods = append(prods, config.Product{Namespace: "QCE/COS", AutoDiscover: true, MetricInfo: metricGroups})
+			logger.Log.Infof("Tencent 发现服务完成，命名空间=QCE/COS，容量类指标=%d 请求类指标=%d", len(capacityMetrics), len(requestMetrics))
 		} else {
 			logger.Log.Warnf("Tencent 发现服务未发现指标，命名空间=QCE/COS")
 		}

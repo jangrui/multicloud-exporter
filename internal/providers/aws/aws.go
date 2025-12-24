@@ -7,7 +7,6 @@ import (
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/discovery"
 	"multicloud-exporter/internal/logger"
-	"multicloud-exporter/internal/utils"
 
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 )
@@ -29,12 +28,8 @@ func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
 }
 
 func (c *Collector) Collect(account config.CloudAccount) {
-	// AWS 的 S3 采集不依赖 region 列表（bucket 分布在各 region），这里仅做分片入口：
-	wTotal, wIndex := utils.ClusterConfig()
-	key := account.AccountID + "|aws"
-	if !utils.ShouldProcess(key, wTotal, wIndex) {
-		return
-	}
+	// 注意：分片逻辑已下沉到产品级（collectS3/collectALB 等），此处不做账号级分片
+	// 这样可以避免双重分片导致的任务丢失问题
 	for _, resource := range account.Resources {
 		r := strings.ToLower(strings.TrimSpace(resource))
 		switch r {

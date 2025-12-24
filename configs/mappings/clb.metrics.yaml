@@ -7,6 +7,7 @@ namespaces:
   aliyun: acs_slb_dashboard
   tencent: QCE/LB
   aws: AWS/ELB
+  huawei: SYS.ELB
 
 canonical:
   traffic_rx_bps:
@@ -23,10 +24,12 @@ canonical:
       dimensions: []
       unit: Mbps
       scale: 1000000
-    # AWS CLB doesn't have direct RX/TX bytes metrics exposed easily like ALB/NLB.
-    # It has RequestCount but not bandwidth.
-    # EstimatedProcessedBytes might be available but it's not standard.
-    # We'll skip bandwidth for AWS CLB or use custom metrics if available.
+    huawei:
+      metric: m7_in_Bps
+      dimensions:
+        - lbaas_instance_id
+      unit: Bytes/s
+      scale: 8
 
   traffic_tx_bps:
     description: "出网流量 (实例级)"
@@ -42,6 +45,12 @@ canonical:
       dimensions: []
       unit: Mbps
       scale: 1000000
+    huawei:
+      metric: m8_out_Bps
+      dimensions:
+        - lbaas_instance_id
+      unit: Bytes/s
+      scale: 8
 
   packet_rx:
     description: "入网包速率"
@@ -57,6 +66,12 @@ canonical:
       dimensions: []
       unit: count/s
       scale: 1
+    huawei:
+      metric: m5_in_pps
+      dimensions:
+        - lbaas_instance_id
+      unit: count/s
+      scale: 1
 
   packet_tx:
     description: "出网包速率"
@@ -70,6 +85,12 @@ canonical:
     tencent:
       metric: VOutpkg
       dimensions: []
+      unit: count/s
+      scale: 1
+    huawei:
+      metric: m6_out_pps
+      dimensions:
+        - lbaas_instance_id
       unit: count/s
       scale: 1
 
@@ -196,6 +217,12 @@ canonical:
       dimensions: []
       unit: count
       scale: 1
+    huawei:
+      metric: m2_act_conn
+      dimensions:
+        - lbaas_instance_id
+      unit: count
+      scale: 1
 
   drop_connection:
     description: "丢弃连接数"
@@ -227,6 +254,12 @@ canonical:
       dimensions:
         - Service
       unit: count # Sum over period.
+    huawei:
+      metric: mb_l7_qps
+      dimensions:
+        - lbaas_instance_id
+      unit: count/s
+      scale: 1
 
   rt:
     description: "响应时间 (L7)"
@@ -243,6 +276,12 @@ canonical:
       dimensions: []
       unit: s
       scale: 1000
+    huawei:
+      metric: m14_l7_rt
+      dimensions:
+        - lbaas_instance_id
+      unit: ms
+      scale: 1
 
   status_code_2xx:
     description: "HTTP 2XX 状态码数量"
@@ -254,6 +293,12 @@ canonical:
         - port
         - protocol
       unit: count/s
+    huawei:
+      metric: mc_l7_http_2xx
+      dimensions:
+        - lbaas_instance_id
+      unit: count/s
+      scale: 1
 
   status_code_3xx:
     description: "HTTP 3XX 状态码数量"
@@ -276,6 +321,12 @@ canonical:
         - port
         - protocol
       unit: count/s
+    huawei:
+      metric: me_l7_http_4xx
+      dimensions:
+        - lbaas_instance_id
+      unit: count/s
+      scale: 1
 
   status_code_5xx:
     description: "HTTP 5XX 状态码数量"
@@ -287,6 +338,12 @@ canonical:
         - port
         - protocol
       unit: count/s
+    huawei:
+      metric: mf_l7_http_5xx
+      dimensions:
+        - lbaas_instance_id
+      unit: count/s
+      scale: 1
 
   unhealthy_server_count:
     description: "异常后端服务数"
@@ -304,6 +361,12 @@ canonical:
         - AvailabilityZone
         - LoadBalancerName
       unit: count
+    huawei:
+      metric: m9_abnormal_servers
+      dimensions:
+        - lbaas_instance_id
+      unit: count
+      scale: 1
 
   healthy_server_count:
     description: "健康后端服务数"
@@ -320,6 +383,12 @@ canonical:
       dimensions:
         - Namespace
       unit: count
+    huawei:
+      metric: ma_normal_servers
+      dimensions:
+        - lbaas_instance_id
+      unit: count
+      scale: 1
 
   instance_qps:
     description: "实例每秒请求数 (L7)"

@@ -1,35 +1,88 @@
-// 华为云采集器：按配置采集 ECS 等资源的静态属性
+// 华为云采集器：按配置采集 ELB、OBS 等资源的监控指标
 package huawei
 
 import (
+	"strings"
+	"sync"
+	"time"
+
 	"multicloud-exporter/internal/config"
+	"multicloud-exporter/internal/discovery"
 	"multicloud-exporter/internal/logger"
+	"multicloud-exporter/internal/utils"
 )
 
+// 华为云默认区域列表
+var defaultHuaweiRegions = []string{
+	"cn-north-4",     // 北京四
+	"cn-north-1",     // 北京一
+	"cn-east-3",      // 上海一
+	"cn-east-2",      // 上海二
+	"cn-south-1",     // 广州
+	"cn-southwest-2", // 贵阳一
+	"ap-southeast-1", // 香港
+	"ap-southeast-2", // 曼谷
+	"ap-southeast-3", // 新加坡
+}
+
 // Collector 封装华为云资源采集逻辑
-type Collector struct{}
+type Collector struct {
+	cfg           *config.Config
+	disc          *discovery.Manager
+	resCache      map[string]resCacheEntry
+	cacheMu       sync.RWMutex
+	clientFactory ClientFactory
+}
+
+type resCacheEntry struct {
+	IDs       []string
+	UpdatedAt time.Time
+}
 
 // NewCollector 创建华为云采集器实例
-func NewCollector() *Collector { return &Collector{} }
+func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
+	return &Collector{
+		cfg:           cfg,
+		disc:          mgr,
+		resCache:      make(map[string]resCacheEntry),
+		clientFactory: &defaultClientFactory{},
+	}
+}
 
 // Collect 根据账号配置遍历区域与资源类型并采集
+// 注意：分片逻辑已下沉到产品级（collectELB/collectOBS），此处不做区域级分片
+// 这样可以避免双重分片导致的任务丢失问题
 func (h *Collector) Collect(account config.CloudAccount) {
 	regions := account.Regions
 	if len(regions) == 0 || (len(regions) == 1 && regions[0] == "*") {
-		regions = []string{"cn-north-4", "cn-north-1", "cn-east-3", "cn-south-1", "ap-southeast-1", "ap-southeast-2", "ap-southeast-3"}
+		regions = defaultHuaweiRegions
 	}
 
+	var wg sync.WaitGroup
 	for _, region := range regions {
-		for _, resource := range account.Resources {
-			switch resource {
-			case "rds":
-				h.collectRDS(account, region)
-			case "redis":
-				h.collectRedis(account, region)
-			case "elb":
+		wg.Add(1)
+		go func(r string) {
+			defer wg.Done()
+			h.collectRegion(account, r)
+		}(region)
+	}
+	wg.Wait()
+}
+
+// collectRegion 采集指定区域的资源
+func (h *Collector) collectRegion(account config.CloudAccount, region string) {
+	logger.Log.Debugf("开始采集 Huawei 区域 %s", region)
+	for _, resource := range account.Resources {
+		r := strings.ToLower(resource)
+		if resource == "*" {
+			h.collectELB(account, region)
+			h.collectOBS(account, region)
+		} else {
+			switch r {
+			case "clb", "elb":
 				h.collectELB(account, region)
-			case "eip":
-				h.collectEIP(account, region)
+			case "s3", "obs":
+				h.collectOBS(account, region)
 			default:
 				logger.Log.Warnf("Huawei 资源类型 %s 尚未实现", resource)
 			}
@@ -37,18 +90,42 @@ func (h *Collector) Collect(account config.CloudAccount) {
 	}
 }
 
-func (h *Collector) collectRDS(account config.CloudAccount, region string) {
-	logger.Log.Warnf("正在采集 Huawei RDS，区域=%s (未实现)", region)
+// cacheKey 生成缓存键
+func (h *Collector) cacheKey(account config.CloudAccount, region, namespace, rtype string) string {
+	return account.AccountID + "|" + region + "|" + namespace + "|" + rtype
 }
 
-func (h *Collector) collectRedis(account config.CloudAccount, region string) {
-	logger.Log.Warnf("正在采集 Huawei Redis，区域=%s (未实现)", region)
+// getCachedIDs 获取缓存的资源 ID 列表
+func (h *Collector) getCachedIDs(account config.CloudAccount, region, namespace, rtype string) ([]string, bool) {
+	h.cacheMu.RLock()
+	entry, ok := h.resCache[h.cacheKey(account, region, namespace, rtype)]
+	h.cacheMu.RUnlock()
+	if !ok || len(entry.IDs) == 0 {
+		return nil, false
+	}
+	ttlDur := time.Hour
+	if server := h.cfg.GetServer(); server != nil {
+		if server.DiscoveryTTL != "" {
+			if d, err := utils.ParseDuration(server.DiscoveryTTL); err == nil {
+				ttlDur = d
+			}
+		}
+	} else if h.cfg != nil && h.cfg.Server != nil {
+		if h.cfg.Server.DiscoveryTTL != "" {
+			if d, err := utils.ParseDuration(h.cfg.Server.DiscoveryTTL); err == nil {
+				ttlDur = d
+			}
+		}
+	}
+	if time.Since(entry.UpdatedAt) > ttlDur {
+		return nil, false
+	}
+	return entry.IDs, true
 }
 
-func (h *Collector) collectELB(account config.CloudAccount, region string) {
-	logger.Log.Warnf("正在采集 Huawei ELB，区域=%s (未实现)", region)
-}
-
-func (h *Collector) collectEIP(account config.CloudAccount, region string) {
-	logger.Log.Warnf("正在采集 Huawei EIP，区域=%s (未实现)", region)
+// setCachedIDs 设置缓存的资源 ID 列表
+func (h *Collector) setCachedIDs(account config.CloudAccount, region, namespace, rtype string, ids []string) {
+	h.cacheMu.Lock()
+	h.resCache[h.cacheKey(account, region, namespace, rtype)] = resCacheEntry{IDs: ids, UpdatedAt: time.Now()}
+	h.cacheMu.Unlock()
 }

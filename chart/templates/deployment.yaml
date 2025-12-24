@@ -49,9 +49,9 @@ spec:
           env:
             - name: CLUSTER_DISCOVERY
               value: {{ .Values.cluster.discovery | quote }}
-{{- if .Values.cluster.svcName }}
+{{- if or .Values.cluster.svcName (and (eq .Values.cluster.discovery "headless") .Values.headless.enabled) }}
             - name: CLUSTER_SVC
-              value: {{ .Values.cluster.svcName | quote }}
+              value: {{ .Values.cluster.svcName | default (printf "%s-headless" (default "multicloud-exporter" .Values.fullname)) | quote }}
 {{- end }}
 {{- if .Values.cluster.file }}
             - name: CLUSTER_FILE

@@ -159,14 +159,11 @@ func (a *Collector) Collect(account config.CloudAccount) {
 	if limit < 1 {
 		limit = 1
 	}
+	// 注意：分片逻辑已下沉到产品级（collectCMSMetrics 内部），此处不做区域级分片
+	// 这样可以避免双重分片导致的任务丢失问题
 	sem := make(chan struct{}, limit)
 	var wg sync.WaitGroup
 	for _, region := range regions {
-		wTotal, wIndex := utils.ClusterConfig()
-		key := account.AccountID + "|" + region
-		if !utils.ShouldProcess(key, wTotal, wIndex) {
-			continue
-		}
 		wg.Add(1)
 		sem <- struct{}{}
 		go func(r string) {
@@ -847,7 +844,7 @@ func (a *Collector) listALBIDs(account config.CloudAccount, region string) []str
 			time.Sleep(25 * time.Millisecond)
 		}
 	}
-	
+
 	// 回退到 CMS 枚举的条件：
 	// 1. ALB API 客户端创建失败（err != nil 或 albClient == nil）
 	// 2. ALB API 调用成功但返回空列表（可能是该区域确实没有资源，或 API 权限问题）
@@ -875,7 +872,7 @@ func (a *Collector) listALBIDs(account config.CloudAccount, region string) []str
 			meta = a.buildALBMetaByCMS(cmsClient, region, out)
 		}
 	}
-	
+
 	// 只有在成功枚举到资源或确认该区域确实没有资源时才缓存
 	// 如果是因为 API 调用失败导致的空结果，不缓存，允许下次重新尝试
 	a.setCachedIDs(account, region, "acs_alb", "alb", out, meta)
@@ -962,7 +959,7 @@ func (a *Collector) listNLBIDs(account config.CloudAccount, region string) []str
 			time.Sleep(25 * time.Millisecond)
 		}
 	}
-	
+
 	// 回退到 CMS 枚举的条件：
 	// 1. NLB API 客户端创建失败（err != nil 或 nlbClient == nil）
 	// 2. NLB API 调用成功但返回空列表（可能是该区域确实没有资源，或 API 权限问题）
@@ -990,7 +987,7 @@ func (a *Collector) listNLBIDs(account config.CloudAccount, region string) []str
 			meta = a.buildNLBMetaByCMS(cmsClient, region, out)
 		}
 	}
-	
+
 	// 只有在成功枚举到资源或确认该区域确实没有资源时才缓存
 	// 如果是因为 API 调用失败导致的空结果，不缓存，允许下次重新尝试
 	a.setCachedIDs(account, region, "acs_nlb", "nlb", out, meta)

@@ -41,7 +41,7 @@ func ValidateMappingStructure(path string) error {
 			for j := 0; j+1 < len(v.Content); j += 2 {
 				vendor := v.Content[j].Value
 				val := v.Content[j+1]
-				if vendor != "aliyun" && vendor != "tencent" && vendor != "aws" {
+				if vendor != "aliyun" && vendor != "tencent" && vendor != "aws" && vendor != "huawei" {
 					return fmt.Errorf("invalid namespaces key %q in %s", vendor, path)
 				}
 				if val.Kind != yaml.ScalarNode || val.Value == "" {
@@ -58,7 +58,7 @@ func ValidateMappingStructure(path string) error {
 				if entryVal.Kind != yaml.MappingNode {
 					return fmt.Errorf("canonical entry %q must be a mapping in %s", entryKey, path)
 				}
-				allowedCanonical := map[string]bool{"description": true, "aliyun": true, "tencent": true, "aws": true}
+				allowedCanonical := map[string]bool{"description": true, "aliyun": true, "tencent": true, "aws": true, "huawei": true}
 				for kidx := 0; kidx+1 < len(entryVal.Content); kidx += 2 {
 					ck := entryVal.Content[kidx].Value
 					cv := entryVal.Content[kidx+1]
@@ -68,7 +68,7 @@ func ValidateMappingStructure(path string) error {
 					if !allowedCanonical[ck] {
 						return fmt.Errorf("unexpected key %q in canonical entry %q in %s", ck, entryKey, path)
 					}
-					if ck == "aliyun" || ck == "tencent" || ck == "aws" {
+					if ck == "aliyun" || ck == "tencent" || ck == "aws" || ck == "huawei" {
 						if cv.Kind != yaml.MappingNode {
 							return fmt.Errorf("vendor entry %q must be a mapping in %s (entry %q)", ck, path, entryKey)
 						}

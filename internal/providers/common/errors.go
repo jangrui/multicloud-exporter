@@ -97,21 +97,55 @@ func (c *AWSErrorClassifier) Classify(err error) string {
 	return ErrorStatusUnknown
 }
 
+// HuaweiErrorClassifier 华为云错误分类器
+type HuaweiErrorClassifier struct{}
+
+// Classify 分类华为云错误
+func (c *HuaweiErrorClassifier) Classify(err error) string {
+	if err == nil {
+		return ErrorStatusUnknown
+	}
+	msg := err.Error()
+	// 认证错误
+	if strings.Contains(msg, "Authenticate") || strings.Contains(msg, "401") ||
+		strings.Contains(msg, "InvalidAccessKeyId") || strings.Contains(msg, "SignatureDoesNotMatch") ||
+		strings.Contains(msg, "AK/SK") {
+		return ErrorStatusAuth
+	}
+	// 限流错误
+	if strings.Contains(msg, "throttling") || strings.Contains(msg, "429") ||
+		strings.Contains(msg, "TooManyRequests") || strings.Contains(msg, "rate limit") {
+		return ErrorStatusLimit
+	}
+	// 区域错误
+	if strings.Contains(msg, "region") || strings.Contains(msg, "endpoint") {
+		return ErrorStatusRegion
+	}
+	// 网络错误
+	if strings.Contains(msg, "timeout") || strings.Contains(msg, "network") ||
+		strings.Contains(msg, "connection") {
+		return ErrorStatusNetwork
+	}
+	return ErrorStatusUnknown
+}
+
 // 全局错误分类器实例
 var (
 	AliyunClassifier  = &AliyunErrorClassifier{}
 	TencentClassifier = &TencentErrorClassifier{}
 	AWSClassifier     = &AWSErrorClassifier{}
+	HuaweiClassifier  = &HuaweiErrorClassifier{}
 )
 
 // ClassifyAliyunError 分类阿里云错误（兼容函数）
 // 这是为了保持向后兼容而提供的便捷函数
 // 示例：
-//   err := someAliyunAPI()
-//   status := ClassifyAliyunError(err)
-//   if status == common.ErrorStatusLimit {
-//       // 处理限流错误
-//   }
+//
+//	err := someAliyunAPI()
+//	status := ClassifyAliyunError(err)
+//	if status == common.ErrorStatusLimit {
+//	    // 处理限流错误
+//	}
 func ClassifyAliyunError(err error) string {
 	return AliyunClassifier.Classify(err)
 }
@@ -119,11 +153,12 @@ func ClassifyAliyunError(err error) string {
 // ClassifyTencentError 分类腾讯云错误（兼容函数）
 // 这是为了保持向后兼容而提供的便捷函数
 // 示例：
-//   err := someTencentAPI()
-//   status := ClassifyTencentError(err)
-//   if status == common.ErrorStatusLimit {
-//       // 处理限流错误
-//   }
+//
+//	err := someTencentAPI()
+//	status := ClassifyTencentError(err)
+//	if status == common.ErrorStatusLimit {
+//	    // 处理限流错误
+//	}
 func ClassifyTencentError(err error) string {
 	return TencentClassifier.Classify(err)
 }
@@ -131,11 +166,25 @@ func ClassifyTencentError(err error) string {
 // ClassifyAWSError 分类 AWS 错误（兼容函数）
 // 这是为了保持向后兼容而提供的便捷函数
 // 示例：
-//   err := someAWSAPI()
-//   status := ClassifyAWSError(err)
-//   if status == common.ErrorStatusLimit {
-//       // 处理限流错误
-//   }
+//
+//	err := someAWSAPI()
+//	status := ClassifyAWSError(err)
+//	if status == common.ErrorStatusLimit {
+//	    // 处理限流错误
+//	}
 func ClassifyAWSError(err error) string {
 	return AWSClassifier.Classify(err)
+}
+
+// ClassifyHuaweiError 分类华为云错误（兼容函数）
+// 这是为了保持向后兼容而提供的便捷函数
+// 示例：
+//
+//	err := someHuaweiAPI()
+//	status := ClassifyHuaweiError(err)
+//	if status == common.ErrorStatusLimit {
+//	    // 处理限流错误
+//	}
+func ClassifyHuaweiError(err error) string {
+	return HuaweiClassifier.Classify(err)
 }

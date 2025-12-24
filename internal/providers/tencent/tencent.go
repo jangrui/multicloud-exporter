@@ -52,13 +52,10 @@ func (t *Collector) Collect(account config.CloudAccount) {
 		}
 	}
 
+	// 注意：分片逻辑已下沉到产品级（collectCLB/collectBWP/collectCOS 等），此处不做区域级分片
+	// 这样可以避免双重分片导致的任务丢失问题
 	var wg sync.WaitGroup
-	wTotal, wIndex := utils.ClusterConfig()
 	for _, region := range regions {
-		key := account.AccountID + "|" + region
-		if !utils.ShouldProcess(key, wTotal, wIndex) {
-			continue
-		}
 		wg.Add(1)
 		go func(r string) {
 			defer wg.Done()

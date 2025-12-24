@@ -1,3 +1,4 @@
+// 华为云 Provider 注册
 package huawei
 
 import (
@@ -8,11 +9,11 @@ import (
 
 // GetDefaultResources 返回华为云默认采集的资源类型
 func (h *Collector) GetDefaultResources() []string {
-	return []string{}
+	return []string{"clb", "s3"}
 }
 
 func init() {
 	providers.Register("huawei", func(cfg *config.Config, mgr *discovery.Manager) providers.Provider {
-		return NewCollector()
+		return NewCollector(cfg, mgr)
 	})
 }

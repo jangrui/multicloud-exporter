@@ -5,6 +5,7 @@ namespaces:
   aliyun: acs_oss_dashboard
   tencent: QCE/COS
   aws: AWS/S3
+  huawei: SYS.OBS
 
 canonical:
   # Storage Usage
@@ -30,6 +31,12 @@ canonical:
       dimensions:
         - BucketName
         - StorageType
+      unit: Bytes
+      scale: 1
+    huawei:
+      metric: capacity_total
+      dimensions:
+        - bucket_name
       unit: Bytes
       scale: 1
   storage_ia_bytes:
@@ -123,6 +130,12 @@ canonical:
         - FilterId
       unit: Bytes
       scale: 1
+    huawei:
+      metric: upload_bytes_extranet
+      dimensions:
+        - bucket_name
+      unit: Bytes
+      scale: 1
   traffic_internet_tx_bytes:
     description: "公网出流量 (下载)"
     aliyun:
@@ -143,6 +156,12 @@ canonical:
       dimensions:
         - BucketName
         - FilterId
+      unit: Bytes
+      scale: 1
+    huawei:
+      metric: download_bytes_extranet
+      dimensions:
+        - bucket_name
       unit: Bytes
       scale: 1
   traffic_intranet_rx_bytes:
@@ -250,6 +269,12 @@ canonical:
         - FilterId
       unit: count
       scale: 1
+    huawei:
+      metric: request_count_per_second
+      dimensions:
+        - bucket_name
+      unit: count/s
+      scale: 1
   requests_get:
     description: "GET 请求数（推荐周期：60s；统计口径：Sum；Exporter 输出：count/s）"
     aliyun:
@@ -272,6 +297,12 @@ canonical:
         - FilterId
       unit: count
       scale: 1
+    huawei:
+      metric: get_request_count
+      dimensions:
+        - bucket_name
+      unit: count
+      scale: 1
   requests_put:
     description: "PUT 请求数（推荐周期：60s；统计口径：Sum；Exporter 输出：count/s）"
     aliyun:
@@ -292,6 +323,12 @@ canonical:
       dimensions:
         - BucketName
         - FilterId
+      unit: count
+      scale: 1
+    huawei:
+      metric: put_request_count
+      dimensions:
+        - bucket_name
       unit: count
       scale: 1
   requests_head:
@@ -397,6 +434,12 @@ canonical:
       metric: RequestsSuccessRate
       dimensions:
         - bucket
+      unit: percent
+      scale: 1
+    huawei:
+      metric: request_success_rate
+      dimensions:
+        - bucket_name
       unit: percent
       scale: 1
   response_server_error_count:
@@ -520,6 +563,12 @@ canonical:
         - userId
         - BucketName
       unit: ms
+    huawei:
+      metric: download_total_request_latency
+      dimensions:
+        - bucket_name
+      unit: ms
+      scale: 1
   latency_server_get_ms:
     description: "GET 服务端延迟"
     aliyun:
@@ -589,6 +638,12 @@ canonical:
         - BucketName
         - FilterId
       unit: ms
+    huawei:
+      metric: first_byte_latency
+      dimensions:
+        - bucket_name
+      unit: ms
+      scale: 1
   latency_total_request_ms:
     description: "总请求延迟"
     aws:

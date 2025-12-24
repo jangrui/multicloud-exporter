@@ -51,6 +51,25 @@ func (t *Collector) collectCOS(account config.CloudAccount, region string) {
 	}
 }
 
+// isCOSCapacityMetric 判断是否为容量类指标（每日更新）
+// 腾讯云 COS 容量类指标每日更新一次，需要使用更长的 Period 和时间窗口
+func isCOSCapacityMetric(metricName string) bool {
+	capacityMetrics := map[string]bool{
+		// 存储容量类指标（每日更新）
+		"StdStorage":              true, // 标准存储用量
+		"SiaStorage":              true, // 低频存储用量
+		"ArcStorage":              true, // 归档存储用量
+		"DeepArcStorage":          true, // 深度归档存储用量
+		"ItFreqStorage":           true, // 智能分层高频用量
+		"ItInfreqStorage":         true, // 智能分层低频用量
+		"DeepArcMultipartStorage": true, // 深度归档碎片容量
+		"DeepArcMultipartNumber":  true, // 深度归档碎片数量
+		"DeepArcObjectNumber":     true, // 深度归档对象数量
+		// 注意：StdMultipartStorage 和 SiaMultipartStorage 在腾讯云 COS 中不存在，已移除
+	}
+	return capacityMetrics[metricName]
+}
+
 func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) []string {
 	if ids, hit := t.getCachedIDs(account, region, "QCE/COS", "cos"); hit {
 		return ids
@@ -201,10 +220,29 @@ func (t *Collector) fetchCOSMonitor(account config.CloudAccount, region string, 
 	codeNames := t.fetchCOSBucketCodeNames(account, region, buckets)
 
 	for _, group := range prod.MetricInfo {
+		groupPeriod := period
 		if group.Period != nil {
-			period = int64(*group.Period)
+			groupPeriod = int64(*group.Period)
 		}
 		for _, m := range group.MetricList {
+			// 根据指标类型动态调整 Period 和时间窗口
+			var localPeriod int64
+			var startT, endT time.Time
+			now := time.Now()
+
+			if isCOSCapacityMetric(m) {
+				// 容量类指标：每日更新，使用 86400 秒 Period，时间窗口回溯 48 小时
+				localPeriod = 86400
+				startT = now.Add(-48 * time.Hour)
+				endT = now
+				logger.Log.Debugf("Tencent COS 容量类指标 metric=%s period=%d", m, localPeriod)
+			} else {
+				// 请求类指标：使用配置的 Period，时间窗口回溯 2 个周期
+				localPeriod = groupPeriod
+				startT = now.Add(-time.Duration(localPeriod*2) * time.Second)
+				endT = now.Add(-time.Duration(localPeriod) * time.Second)
+			}
+
 			for i := 0; i < len(buckets); i += batchSize {
 				end := i + batchSize
 				if end > len(buckets) {
@@ -215,7 +253,7 @@ func (t *Collector) fetchCOSMonitor(account config.CloudAccount, region string, 
 				req := monitor.NewGetMonitorDataRequest()
 				req.Namespace = common.StringPtr(prod.Namespace)
 				req.MetricName = common.StringPtr(m)
-				req.Period = common.Uint64Ptr(uint64(period))
+				req.Period = common.Uint64Ptr(uint64(localPeriod))
 
 				var inst []*monitor.Instance
 				for _, bucket := range batch {
@@ -226,12 +264,6 @@ func (t *Collector) fetchCOSMonitor(account config.CloudAccount, region string, 
 					})
 				}
 				req.Instances = inst
-
-				now := time.Now()
-				// Adjust time window to ensure data availability (e.g. 5 mins ago)
-				// Cloud Monitor data might have delay.
-				startT := now.Add(-time.Duration(period*2) * time.Second)
-				endT := now.Add(-time.Duration(period) * time.Second)
 
 				req.StartTime = common.StringPtr(startT.UTC().Format("2006-01-02T15:04:05Z"))
 				req.EndTime = common.StringPtr(endT.UTC().Format("2006-01-02T15:04:05Z"))
