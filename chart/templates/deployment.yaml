@@ -17,6 +17,7 @@ spec:
 {{- else }}
         configmap.reloader.stakater.com/reload: "{{ default "multicloud-exporter" .Values.fullname }}-config{{- if and .Values.accounts .Values.accounts.grouped }},{{ default "multicloud-exporter" .Values.fullname }}-accounts{{- end }}"
 {{- end }}
+{{- end }}
     spec:
       containers:
         - name: exporter
@@ -80,7 +81,7 @@ spec:
             - name: SERVER_PATH
               value: "/app/configs/server.yaml"
 {{- end }}
-{{- if .Values.server.regionDiscovery.enabled }}
+{{- if and .Values.server .Values.server.regionDiscovery .Values.server.regionDiscovery.enabled }}
             - name: REGION_DATA_DIR
               value: /app/data
 {{- end }}
@@ -204,7 +205,7 @@ spec:
               mountPath: "/app/configs/accounts.yaml"
               subPath: accounts.yaml
 {{- end }}
-{{- if .Values.server.regionDiscovery.enabled }}
+{{- if and .Values.server .Values.server.regionDiscovery .Values.server.regionDiscovery.enabled }}
             - name: region-data
               mountPath: /app/data
 {{- end }}
@@ -220,7 +221,7 @@ spec:
           configMap:
             name: {{ default "multicloud-exporter" .Values.fullname }}-accounts
 {{- end }}
-{{- if .Values.server.regionDiscovery.enabled }}
+{{- if and .Values.server .Values.server.regionDiscovery .Values.server.regionDiscovery.enabled }}
         - name: region-data
 {{- if .Values.regionData.persistence.enabled }}
           persistentVolumeClaim:
