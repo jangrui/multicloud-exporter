@@ -2,5 +2,5 @@ apiVersion: v2
 name: multicloud-exporter
 description: Prometheus exporter for multi-cloud metrics
 type: application
-version: 0.3.6
-appVersion: 0.3.6
+version: v0.3.6
+appVersion: v0.3.6

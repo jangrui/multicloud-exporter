@@ -106,11 +106,11 @@ spec:
                   key: access_key_secret
 {{- if $a.regions }}
             - name: ALY_REGIONS_{{ $i }}
-              value: {{ toYaml $a.regions | nindent 12 }}
+              value: {{ printf "%s" (toYaml $a.regions) | quote }}
 {{- end }}
 {{- if $a.resources }}
             - name: ALY_RESOURCES_{{ $i }}
-              value: {{ toYaml $a.resources | nindent 12 }}
+              value: {{ printf "%s" (toYaml $a.resources) | quote }}
 {{- end }}
 {{- end }}
 {{- range $i, $a := .Values.accounts.grouped.tencent }}
@@ -131,11 +131,11 @@ spec:
                   key: access_key_secret
 {{- if $a.regions }}
             - name: TCE_REGIONS_{{ $i }}
-              value: {{ toYaml $a.regions | nindent 12 }}
+              value: {{ printf "%s" (toYaml $a.regions) | quote }}
 {{- end }}
 {{- if $a.resources }}
             - name: TCE_RESOURCES_{{ $i }}
-              value: {{ toYaml $a.resources | nindent 12 }}
+              value: {{ printf "%s" (toYaml $a.resources) | quote }}
 {{- end }}
 {{- end }}
 {{- range $i, $a := .Values.accounts.grouped.huawei }}
@@ -156,11 +156,11 @@ spec:
                   key: access_key_secret
 {{- if $a.regions }}
             - name: HUA_REGIONS_{{ $i }}
-              value: {{ toYaml $a.regions | nindent 12 }}
+              value: {{ printf "%s" (toYaml $a.regions) | quote }}
 {{- end }}
 {{- if $a.resources }}
             - name: HUA_RESOURCES_{{ $i }}
-              value: {{ toYaml $a.resources | nindent 12 }}
+              value: {{ printf "%s" (toYaml $a.resources) | quote }}
 {{- end }}
 {{- end }}
 {{- range $i, $a := .Values.accounts.grouped.aws }}
@@ -181,11 +181,11 @@ spec:
                   key: access_key_secret
 {{- if $a.regions }}
             - name: AWS_REGIONS_{{ $i }}
-              value: {{ toYaml $a.regions | nindent 12 }}
+              value: {{ printf "%s" (toYaml $a.regions) | quote }}
 {{- end }}
 {{- if $a.resources }}
             - name: AWS_RESOURCES_{{ $i }}
-              value: {{ toYaml $a.resources | nindent 12 }}
+              value: {{ printf "%s" (toYaml $a.resources) | quote }}
 {{- end }}
 {{- end }}
 {{- end }}
