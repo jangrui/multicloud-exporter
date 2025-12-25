@@ -42,10 +42,10 @@ type Config struct {
 
 	Server *ServerConf `yaml:"server"`
 	// ServerConf 已废弃，保留用于向后兼容，将在加载时合并到 Server
-	ServerConf *ServerConf `yaml:"serverconf"` // Deprecated: use Server instead
-	RemoteProm *RemoteProm `yaml:"remote_prom"`
-	Credential *Credential `yaml:"credential"`
-	DataTag    []DataTag   `yaml:"datatag"`
+	ServerConf *ServerConf     `yaml:"serverconf"` // Deprecated: use Server instead
+	RemoteProm *RemoteProm     `yaml:"remote_prom"`
+	Credential *Credential     `yaml:"credential"`
+	DataTag    []DataTag       `yaml:"datatag"`
 	Estimation *EstimationConf `yaml:"estimation"`
 
 	AccountsByProvider map[string][]CloudAccount `yaml:"accounts"`
@@ -214,10 +214,11 @@ type ServerConf struct {
 
 // RegionDiscoveryConf 定义智能区域发现配置
 type RegionDiscoveryConf struct {
-	Enabled          bool   `yaml:"enabled"`           // 是否启用智能区域发现，默认 true
+	Enabled           bool   `yaml:"enabled"`            // 是否启用智能区域发现，默认 true
 	DiscoveryInterval string `yaml:"discovery_interval"` // 重新发现周期，如 "24h"
-	EmptyThreshold   int    `yaml:"empty_threshold"`    // 连续空次数阈值，默认 3
-	PersistFile      string `yaml:"persist_file"`       // 持久化文件路径，如 "./data/region_status.json"
+	EmptyThreshold    int    `yaml:"empty_threshold"`    // 连续空次数阈值，默认 3
+	DataDir           string `yaml:"data_dir"`           // 数据目录路径，如 "/app/data"
+	PersistFile       string `yaml:"persist_file"`       // 持久化文件名，如 "region_status.json"（相对于 data_dir）
 }
 
 type FileLogConfig struct {

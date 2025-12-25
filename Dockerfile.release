@@ -20,6 +20,11 @@ ENV EXPORTER_PORT=${EXPORTER_PORT:-9101}
 
 EXPOSE ${EXPORTER_PORT:-9101}
 
+# 创建数据目录并设置正确的所有者权限
+# 非特权用户（UID 65532）需要有写入权限以保存区域状态
+RUN mkdir -p /app/data && \
+    chown -R 65532:65532 /app/data
+
 USER 65532:65532
 
 ENTRYPOINT ["./multicloud-exporter"]

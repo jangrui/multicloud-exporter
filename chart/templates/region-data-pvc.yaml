@@ -1,0 +1,17 @@
+{{- if and .Values.server.regionDiscovery.enabled .Values.regionData.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.regionData.persistence.existingClaim | default (printf "%s-region-data" (default "multicloud-exporter" .Values.fullname)) }}
+  labels: {{- include "multicloud-exporter.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.regionData.persistence.accessMode | default "ReadWriteOnce" }}
+  resources:
+    requests:
+      storage: {{ .Values.regionData.persistence.size | default "1Gi" }}
+{{- if .Values.regionData.persistence.storageClass }}
+  storageClassName: {{ .Values.regionData.persistence.storageClass }}
+{{- end }}
+{{- end }}
+

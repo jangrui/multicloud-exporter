@@ -11,6 +11,8 @@ services:
       # - ./configs/server.yaml:/app/configs/server.yaml:ro
       # 可选：若提供账号配置文件
       - ./configs/accounts.yaml:/app/configs/accounts.yaml:ro
+      # 区域状态数据目录
+      - ./data:/app/data
     ports:
       - "${EXPORTER_PORT:-9101}:${EXPORTER_PORT:-9101}"
     restart: unless-stopped

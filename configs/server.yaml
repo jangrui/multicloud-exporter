@@ -30,6 +30,21 @@ server:
     enabled: ${REGION_DISCOVERY_ENABLED:-true}
     discovery_interval: ${REGION_DISCOVERY_INTERVAL:-24h}
     empty_threshold: ${REGION_EMPTY_THRESHOLD:-3}
-    persist_file: ${REGION_PERSIST_FILE:-./data/region_status.json}
+    data_dir: ${REGION_DATA_DIR:-/app/data}
+    persist_file: ${REGION_PERSIST_FILE:-region_status.json}
+
+# 区域数据持久化配置（仅 Kubernetes 部署有效）
+# - enabled: 是否启用 PVC 持久化（默认 false，使用 emptyDir）
+# - storageClass: StorageClass 名称（留空使用集群默认）
+# - size: PVC 大小（默认 1Gi）
+# - accessMode: 访问模式（默认 ReadWriteOnce）
+# - existingClaim: 使用已存在的 PVC 名称（可选）
+regionData:
+  persistence:
+    enabled: ${REGION_DATA_PERSISTENCE_ENABLED:-false}
+    storageClass: ${REGION_DATA_STORAGE_CLASS:-}
+    size: ${REGION_DATA_SIZE:-1Gi}
+    accessMode: ${REGION_DATA_ACCESS_MODE:-ReadWriteOnce}
+    existingClaim: ${REGION_DATA_EXISTING_CLAIM:-}
   admin_auth_enabled: ${ADMIN_AUTH_ENABLED:-false}
   admin_auth: []

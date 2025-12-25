@@ -81,7 +81,18 @@ server: {}
 #    enabled: true                 # 是否启用智能区域发现；默认 true
 #    discovery_interval: "24h"     # 重新发现周期；支持 s/m/h/d；默认 24h
 #    empty_threshold: 3            # 连续空次数阈值；默认 3
-#    persist_file: "./data/region_status.json"  # 持久化文件路径（临时文件，重启后重新创建）
+#    data_dir: "/app/data"         # 数据目录路径；默认 /app/data
+#    persist_file: "region_status.json"  # 持久化文件名（相对于 data_dir）；默认 region_status.json
+
+# 区域数据持久化配置（可选）：启用后使用 PVC 保存区域状态，跨 Pod 重启保留
+# 默认使用 emptyDir，仅在 Pod 生命周期内保留状态
+regionData:
+  persistence:
+    enabled: false                # 是否启用 PVC 持久化存储；默认 false（使用 emptyDir）
+    storageClass: ""              # StorageClass 名称；留空使用集群默认 StorageClass
+    size: 1Gi                   # PVC 大小；默认 1Gi（区域状态文件很小，1Gi 已足够）
+    accessMode: ReadWriteOnce      # 访问模式；默认 ReadWriteOnce
+    existingClaim: ""            # 使用已存在的 PVC 名称；可选（留空时创建新 PVC）
 
 # 环境变量覆盖（按需）：如果设置将覆盖 server.yaml 中的对应配置
 # 所有环境变量都会传递给容器，支持覆盖 server.yaml 中的配置
@@ -159,7 +170,7 @@ topologySpreadConstraints: []
   #     matchLabels:
   #       app.kubernetes.io/name: multicloud-exporter
 
-# priorityClassName: "system-cluster-critical"
+priorityClassName: "system-cluster-critical"
 
 reloader:
   enabled: true

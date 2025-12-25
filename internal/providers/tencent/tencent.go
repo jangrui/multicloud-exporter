@@ -49,6 +49,7 @@ func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
 			Enabled:           cfg.GetServer().RegionDiscovery.Enabled,
 			DiscoveryInterval: parseDuration(cfg.GetServer().RegionDiscovery.DiscoveryInterval),
 			EmptyThreshold:    cfg.GetServer().RegionDiscovery.EmptyThreshold,
+			DataDir:           cfg.GetServer().RegionDiscovery.DataDir,
 			PersistFile:       cfg.GetServer().RegionDiscovery.PersistFile,
 		})
 

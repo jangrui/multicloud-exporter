@@ -81,6 +81,10 @@ spec:
             - name: SERVER_PATH
               value: "/app/configs/server.yaml"
 {{- end }}
+{{- if and .Values.server.regionDiscovery.enabled }}
+            - name: REGION_DATA_DIR
+              value: /app/data
+{{- end }}
 {{- if and .Values.accounts .Values.accounts.grouped }}
             - name: ACCOUNTS_PATH
               value: "/app/configs/accounts.yaml"
@@ -169,6 +173,10 @@ spec:
               mountPath: "/app/configs/accounts.yaml"
               subPath: accounts.yaml
 {{- end }}
+{{- if .Values.server.regionDiscovery.enabled }}
+            - name: region-data
+              mountPath: /app/data
+{{- end }}
           resources: {{- toYaml .Values.resources | nindent 12 }}
       volumes:
 {{- if .Values.server }}
@@ -180,6 +188,15 @@ spec:
         - name: accounts
           configMap:
             name: {{ default "multicloud-exporter" .Values.fullname }}-accounts
+{{- end }}
+{{- if .Values.server.regionDiscovery.enabled }}
+        - name: region-data
+{{- if .Values.regionData.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.regionData.persistence.existingClaim | default (printf "%s-region-data" (default "multicloud-exporter" .Values.fullname)) }}
+{{- else }}
+          emptyDir: {}
+{{- end }}
 {{- end }}
       nodeSelector: {{- toYaml .Values.nodeSelector | nindent 8 }}
       tolerations: {{- toYaml .Values.tolerations | nindent 8 }}

@@ -35,8 +35,8 @@
 - [x] 对象存储 (COS)
 
 ### 华为云
-- [ ] 弹性负载均衡（ELB）
-- [ ] 对象存储（OBS）
+- [x] 弹性负载均衡（ELB）
+- [x] 对象存储（OBS）
 
 ### AWS
 - [x] 负载均衡
@@ -95,7 +95,8 @@ server:
     enabled: true              # 是否启用智能区域发现（默认 true）
     discovery_interval: "24h"   # 重新发现周期，定期将所有区域设为 unknown，重新探测（默认 24h）
     empty_threshold: 3           # 空区域跳过阈值，连续 N 次为空后跳过该区域（默认 3）
-    persist_file: "./data/region_status.json"  # 区域状态持久化文件路径
+    data_dir: "/app/data"        # 数据目录路径（默认 /app/data）
+    persist_file: "region_status.json"  # 持久化文件名，相对于 data_dir（默认 region_status.json）
 ```
 
 **工作原理**：
@@ -111,6 +112,89 @@ server:
 - **成本降低**：减少云厂商 API 配额消耗
 - **自适应**：定期重新发现，自动适应新增资源或区域
 - **可观测性**：提供区域状态统计和跳过次数指标
+
+**状态持久化选项**：
+
+区域状态支持两种持久化方式（Kubernetes 部署时可选）：
+
+| 方式 | 说明 | 生命周期 | 适用场景 | 配置方式 |
+|------|------|----------|----------|----------|
+| **emptyDir**（默认） | 临时存储，Pod 生命周期内保留 | Pod 删除后数据丢失 | 开发测试、短期运行 |
+| **PVC** | 持久化存储，跨 Pod 重启保留 | Pod 删除后数据仍保留 | 生产环境、长期运行 |
+
+#### 使用 emptyDir（默认）
+
+```yaml
+# values.yaml
+server:
+  regionDiscovery:
+    enabled: true
+
+regionData:
+  persistence:
+    enabled: false  # 默认 false，使用 emptyDir
+```
+
+**特点**：
+- 无需额外配置
+- Pod 重启后状态保留
+- Pod 删除后状态丢失
+- 适合开发和测试环境
+
+#### 使用 PVC（持久化存储）
+
+```yaml
+# values.yaml
+server:
+  regionDiscovery:
+    enabled: true
+
+regionData:
+  persistence:
+    enabled: true           # 启用 PVC
+    storageClass: standard   # StorageClass 名称（可选）
+    size: 1Gi               # PVC 大小（默认 1Gi）
+    accessMode: ReadWriteOnce # 访问模式（默认 ReadWriteOnce）
+    # existingClaim: my-existing-pvc  # 使用已存在的 PVC（可选）
+```
+
+**特点**：
+- 需要配置 StorageClass
+- Pod 删除和重新调度后状态保留
+- 适合生产环境
+- 支持使用已存在的 PVC
+
+**安装示例**：
+
+```bash
+# 使用 emptyDir（默认）
+helm install multicloud-exporter ./chart
+
+# 使用 PVC 持久化
+helm install multicloud-exporter ./chart \
+  --set regionData.persistence.enabled=true \
+  --set regionData.persistence.storageClass=standard \
+  --set regionData.persistence.size=2Gi
+
+# 使用已存在的 PVC
+helm install multicloud-exporter ./chart \
+  --set regionData.persistence.enabled=true \
+  --set regionData.persistence.existingClaim=my-region-data-pvc
+```
+
+**验证持久化**：
+
+```bash
+# 1. 检查 PVC 是否创建（仅启用 PVC 时）
+kubectl get pvc | grep region-data
+
+# 2. 检查区域状态文件
+kubectl exec deployment/multicloud-exporter -- cat /app/data/region_status.json
+
+# 3. 测试跨 Pod 保留：删除 Pod 后检查新 Pod 是否加载旧状态
+kubectl delete pod -l app.kubernetes.io/name=multicloud-exporter
+kubectl exec deployment/multicloud-exporter -- cat /app/data/region_status.json
+```
 
 ## 部署模式
 

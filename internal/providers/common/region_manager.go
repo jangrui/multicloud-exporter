@@ -17,25 +17,26 @@ type RegionStatus string
 
 const (
 	RegionStatusUnknown RegionStatus = "unknown" // 未知，首次运行
-	RegionStatusActive  RegionStatus = "active"   // 有资源
-	RegionStatusEmpty   RegionStatus = "empty"    // 无资源
+	RegionStatusActive  RegionStatus = "active"  // 有资源
+	RegionStatusEmpty   RegionStatus = "empty"   // 无资源
 )
 
 // RegionInfo 定义区域信息
 type RegionInfo struct {
-	Status         RegionStatus `json:"status"`
-	LastSeen       time.Time   `json:"last_seen"`       // 最后一次检查时间
-	LastActive     time.Time   `json:"last_active"`     // 最后一次发现资源的时间
-	EmptyCount     int        `json:"empty_count"`      // 连续为空的次数
-	ResourceCount  int        `json:"resource_count"`   // 最后一次发现的资源数量
+	Status        RegionStatus `json:"status"`
+	LastSeen      time.Time    `json:"last_seen"`      // 最后一次检查时间
+	LastActive    time.Time    `json:"last_active"`    // 最后一次发现资源的时间
+	EmptyCount    int          `json:"empty_count"`    // 连续为空的次数
+	ResourceCount int          `json:"resource_count"` // 最后一次发现的资源数量
 }
 
 // RegionDiscoveryConfig 定义区域发现配置
 type RegionDiscoveryConfig struct {
-	Enabled          bool          `json:"enabled"`           // 是否启用智能发现
+	Enabled           bool          `json:"enabled"`            // 是否启用智能发现
 	DiscoveryInterval time.Duration `json:"discovery_interval"` // 重新发现周期
-	EmptyThreshold   int           `json:"empty_threshold"`    // 空区域跳过阈值（连续空次数）
-	PersistFile      string        `json:"persist_file"`      // 持久化文件路径
+	EmptyThreshold    int           `json:"empty_threshold"`    // 空区域跳过阈值（连续空次数）
+	DataDir           string        `json:"data_dir"`           // 数据目录路径
+	PersistFile       string        `json:"persist_file"`       // 持久化文件名（相对于 data_dir）
 }
 
 // RegionManager 区域管理器接口
@@ -71,7 +72,7 @@ type RegionManager interface {
 // DefaultRegionManager 默认的区域管理器实现
 type DefaultRegionManager struct {
 	mu            sync.RWMutex
-	config         RegionDiscoveryConfig
+	config        RegionDiscoveryConfig
 	regionMap     map[string]map[string]RegionInfo // accountID -> region -> RegionInfo
 	stopChan      chan struct{}
 	schedulerOnce sync.Once
@@ -86,18 +87,22 @@ func NewRegionManager(config RegionDiscoveryConfig) RegionManager {
 	if config.EmptyThreshold <= 0 {
 		config.EmptyThreshold = 3
 	}
+	if config.DataDir == "" {
+		config.DataDir = "/app/data"
+	}
 	if config.PersistFile == "" {
-		config.PersistFile = "./data/region_status.json"
+		config.PersistFile = "region_status.json"
 	}
 
 	rm := &DefaultRegionManager{
-		config:      config,
-		regionMap:   make(map[string]map[string]RegionInfo),
-		stopChan:    make(chan struct{}),
+		config:    config,
+		regionMap: make(map[string]map[string]RegionInfo),
+		stopChan:  make(chan struct{}),
 	}
 
 	// 确保持久化目录存在
-	if err := os.MkdirAll(filepath.Dir(config.PersistFile), 0755); err != nil {
+	dataDir := config.DataDir
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
 		logger.Log.Warnf("创建区域状态持久化目录失败: %v", err)
 	}
 
@@ -185,7 +190,7 @@ func (rm *DefaultRegionManager) UpdateRegionStatus(accountID, region string, res
 	if !ok {
 		// 新区域
 		info = RegionInfo{
-			LastSeen:  now,
+			LastSeen:   now,
 			EmptyCount: 0,
 		}
 	}
@@ -273,14 +278,17 @@ func (rm *DefaultRegionManager) Load() error {
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
-	data, err := os.ReadFile(rm.config.PersistFile)
+	// 构建完整路径
+	persistPath := filepath.Join(rm.config.DataDir, rm.config.PersistFile)
+
+	data, err := os.ReadFile(persistPath)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			logger.Log.Warnf("加载区域状态失败: %v", err)
 			return err
 		}
 		// 文件不存在是正常的（首次运行）
-		logger.Log.Infof("区域状态文件不存在，将使用空状态: %s", rm.config.PersistFile)
+		logger.Log.Infof("区域状态文件不存在，将使用空状态: %s", persistPath)
 		return nil
 	}
 
@@ -306,16 +314,19 @@ func (rm *DefaultRegionManager) Save() error {
 	rm.mu.RLock()
 	defer rm.mu.RUnlock()
 
-	if rm.config.PersistFile == "" {
+	if rm.config.PersistFile == "" || rm.config.DataDir == "" {
 		return nil
 	}
 
+	// 构建完整路径
+	persistPath := filepath.Join(rm.config.DataDir, rm.config.PersistFile)
+
 	data, err := json.MarshalIndent(struct {
 		RegionMap map[string]map[string]RegionInfo `json:"region_map"`
-		UpdatedAt  time.Time                        `json:"updated_at"`
+		UpdatedAt time.Time                        `json:"updated_at"`
 	}{
 		RegionMap: rm.regionMap,
-		UpdatedAt:  time.Now(),
+		UpdatedAt: time.Now(),
 	}, "", "  ")
 
 	if err != nil {
@@ -324,20 +335,20 @@ func (rm *DefaultRegionManager) Save() error {
 	}
 
 	// 确保目录存在
-	if err := os.MkdirAll(filepath.Dir(rm.config.PersistFile), 0755); err != nil {
+	if err := os.MkdirAll(rm.config.DataDir, 0755); err != nil {
 		logger.Log.Errorf("创建持久化目录失败: %v", err)
 		return err
 	}
 
 	// 写入临时文件
-	tmpFile := rm.config.PersistFile + ".tmp"
+	tmpFile := persistPath + ".tmp"
 	if err := os.WriteFile(tmpFile, data, 0644); err != nil {
 		logger.Log.Errorf("写入区域状态临时文件失败: %v", err)
 		return err
 	}
 
 	// 原子性重命名
-	if err := os.Rename(tmpFile, rm.config.PersistFile); err != nil {
+	if err := os.Rename(tmpFile, persistPath); err != nil {
 		logger.Log.Errorf("重命名区域状态文件失败: %v", err)
 		return err
 	}
@@ -440,4 +451,3 @@ func (rm *DefaultRegionManager) GetStats() map[string]int {
 
 	return stats
 }
-

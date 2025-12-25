@@ -78,10 +78,11 @@ func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
 	// 初始化区域管理器
 	if cfg != nil && cfg.GetServer() != nil && cfg.GetServer().RegionDiscovery != nil {
 		c.regionManager = common.NewRegionManager(common.RegionDiscoveryConfig{
-			Enabled:          cfg.GetServer().RegionDiscovery.Enabled,
+			Enabled:           cfg.GetServer().RegionDiscovery.Enabled,
 			DiscoveryInterval: parseDuration(cfg.GetServer().RegionDiscovery.DiscoveryInterval),
-			EmptyThreshold:   cfg.GetServer().RegionDiscovery.EmptyThreshold,
-			PersistFile:      cfg.GetServer().RegionDiscovery.PersistFile,
+			EmptyThreshold:    cfg.GetServer().RegionDiscovery.EmptyThreshold,
+			DataDir:           cfg.GetServer().RegionDiscovery.DataDir,
+			PersistFile:       cfg.GetServer().RegionDiscovery.PersistFile,
 		})
 
 		// 加载持久化的区域状态
