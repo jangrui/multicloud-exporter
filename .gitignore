@@ -32,6 +32,6 @@ configs/products/
 *.key
 
 # Local Resources
-local/
+.local/
 .cursor/
 data/

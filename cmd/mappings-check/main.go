@@ -12,7 +12,6 @@ import (
 )
 
 // 目标：
-// - 让 configs/mappings/*.yaml 能自动对照 local/configs/products/<provider>/<product>.yaml 做一致性校验
 // - 使用 product-map 把 prefix -> 各云产品文件名/命名空间 的映射显式固化，形成可执行规范
 
 type metricDef struct {
@@ -69,7 +68,7 @@ type productMap struct {
 func main() {
 	var (
 		mappingsDir = flag.String("mappings-dir", "configs/mappings", "mappings directory")
-		productsDir = flag.String("products-dir", "local/configs/products", "products directory")
+		productsDir = flag.String("products-dir", ".local/configs/products", "products directory")
 		productMapF = flag.String("product-map", "configs/product-map.yaml", "prefix->provider product mapping")
 		providers   = flag.String("providers", "aws", "comma separated providers to validate")
 	)
