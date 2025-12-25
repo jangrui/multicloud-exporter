@@ -1,4 +1,6 @@
-{{- if and .Values.server.regionDiscovery.enabled .Values.regionData.persistence.enabled }}
+{{- if .Values.server }}
+{{- if .Values.server.regionDiscovery.enabled }}
+{{- if .Values.regionData.persistence.enabled }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -14,4 +16,7 @@ spec:
   storageClassName: {{ .Values.regionData.persistence.storageClass }}
 {{- end }}
 {{- end }}
+{{- end }}
+{{- end }}
+
 

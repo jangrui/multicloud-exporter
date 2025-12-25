@@ -17,7 +17,6 @@ spec:
 {{- else }}
         configmap.reloader.stakater.com/reload: "{{ default "multicloud-exporter" .Values.fullname }}-config{{- if and .Values.accounts .Values.accounts.grouped }},{{ default "multicloud-exporter" .Values.fullname }}-accounts{{- end }}"
 {{- end }}
-{{- end }}
     spec:
       containers:
         - name: exporter
@@ -81,7 +80,7 @@ spec:
             - name: SERVER_PATH
               value: "/app/configs/server.yaml"
 {{- end }}
-{{- if and .Values.server.regionDiscovery.enabled }}
+{{- if .Values.server.regionDiscovery.enabled }}
             - name: REGION_DATA_DIR
               value: /app/data
 {{- end }}
@@ -104,6 +103,18 @@ spec:
                 secretKeyRef:
                   name: {{ $a.name }}
                   key: access_key_secret
+{{- if $a.regions }}
+            - name: ALY_REGIONS_{{ $i }}
+              value: {{ toYaml $a.regions | nindent 12 }}
+{{- end }}
+{{- if $a.resources }}
+            - name: ALY_RESOURCES_{{ $i }}
+              value: {{ toYaml $a.resources | nindent 12 }}
+{{- end }}
+{{- end }}
+{{- else }}
+            - name: ALY_REGIONS_0
+              value: []
 {{- end }}
 {{- range $i, $a := .Values.accounts.grouped.tencent }}
             - name: TCE_ACC_{{ $i }}_ID
@@ -121,6 +132,18 @@ spec:
                 secretKeyRef:
                   name: {{ $a.name }}
                   key: access_key_secret
+{{- if $a.regions }}
+            - name: TCE_REGIONS_{{ $i }}
+              value: {{ toYaml $a.regions | nindent 12 }}
+{{- end }}
+{{- if $a.resources }}
+            - name: TCE_RESOURCES_{{ $i }}
+              value: {{ toYaml $a.resources | nindent 12 }}
+{{- end }}
+{{- end }}
+{{- else }}
+            - name: TCE_REGIONS_0
+              value: []
 {{- end }}
 {{- range $i, $a := .Values.accounts.grouped.huawei }}
             - name: HUA_ACC_{{ $i }}_ID
@@ -138,6 +161,18 @@ spec:
                 secretKeyRef:
                   name: {{ $a.name }}
                   key: access_key_secret
+{{- if $a.regions }}
+            - name: HUA_REGIONS_{{ $i }}
+              value: {{ toYaml $a.regions | nindent 12 }}
+{{- end }}
+{{- if $a.resources }}
+            - name: HUA_RESOURCES_{{ $i }}
+              value: {{ toYaml $a.resources | nindent 12 }}
+{{- end }}
+{{- end }}
+{{- else }}
+            - name: HUA_REGIONS_0
+              value: []
 {{- end }}
 {{- range $i, $a := .Values.accounts.grouped.aws }}
             - name: AWS_ACC_{{ $i }}_ID
@@ -155,6 +190,18 @@ spec:
                 secretKeyRef:
                   name: {{ $a.name }}
                   key: access_key_secret
+{{- if $a.regions }}
+            - name: AWS_REGIONS_{{ $i }}
+              value: {{ toYaml $a.regions | nindent 12 }}
+{{- end }}
+{{- if $a.resources }}
+            - name: AWS_RESOURCES_{{ $i }}
+              value: {{ toYaml $a.resources | nindent 12 }}
+{{- end }}
+{{- end }}
+{{- else }}
+            - name: AWS_REGIONS_0
+              value: []
 {{- end }}
 {{- end }}
 {{- if .Values.security.adminSecretName }}
