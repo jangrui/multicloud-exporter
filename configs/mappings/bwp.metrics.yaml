@@ -1,41 +1,12 @@
-# Unified Bandwidth Package Metrics (Aliyun CBWP / Tencent BWP)
-# 排序整理：2025-12-15；修改者：@jangrui；规则：按带宽/包速率/利用率类别分组展示（仅调整可读性，不改变键与字段）
 prefix: bwp
 namespaces:
   aliyun: acs_bandwidth_package
   tencent: QCE/BWP
 
 canonical:
-  traffic_rx_bps:
-    description: "入网流量"
-    aliyun:
-      metric: net_rx.rate
-      dimensions:
-        - userId
-        - instanceId
-      unit: bit/s
-      scale: 1
-    tencent:
-      metric: InTraffic
-      dimensions:
-        - bandwidthPackageId
-      unit: Mbps
-      scale: 1000000
-  traffic_tx_bps:
-    description: "出网流量"
-    aliyun:
-      metric: net_tx.rate
-      dimensions:
-        - userId
-        - instanceId
-      unit: bit/s
-      scale: 1
-    tencent:
-      metric: OutTraffic
-      dimensions:
-        - bandwidthPackageId
-      unit: Mbps
-      scale: 1000000
+  # ========================================
+  # 全映射指标（2 家云厂商）
+  # ========================================
   packet_rx:
     description: "入网包速率"
     aliyun:
@@ -66,6 +37,36 @@ canonical:
         - bandwidthPackageId
       unit: count/s
       scale: 1
+  traffic_rx_bps:
+    description: "入网流量"
+    aliyun:
+      metric: net_rx.rate
+      dimensions:
+        - userId
+        - instanceId
+      unit: bit/s
+      scale: 1
+    tencent:
+      metric: InTraffic
+      dimensions:
+        - bandwidthPackageId
+      unit: Mbps
+      scale: 1000000
+  traffic_tx_bps:
+    description: "出网流量"
+    aliyun:
+      metric: net_tx.rate
+      dimensions:
+        - userId
+        - instanceId
+      unit: bit/s
+      scale: 1
+    tencent:
+      metric: OutTraffic
+      dimensions:
+        - bandwidthPackageId
+      unit: Mbps
+      scale: 1000000
   utilization_rx_pct:
     description: "入网带宽利用率"
     aliyun:
@@ -96,6 +97,10 @@ canonical:
         - bandwidthPackageId
       unit: percent
       scale: 1
+
+  # ========================================
+  # 单独指标（阿里云专用）
+  # ========================================
   drop_rx_pps:
     description: "入方向限速丢包速率"
     aliyun:

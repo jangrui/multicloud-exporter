@@ -53,3 +53,23 @@ func TestParseMetricMappings_ALB(t *testing.T) {
 		t.Fatalf("ALB active_connection aws metric mismatch: %q", m.Canonical["active_connection"].AWS.Metric)
 	}
 }
+
+func TestParseMetricMappings_GWLB(t *testing.T) {
+	path := filepath.Join("..", "..", "configs", "mappings", "gwlb.metrics.yaml")
+	m, err := ParseMetricMappings(path)
+	if err != nil {
+		t.Fatalf("ParseMetricMappings GWLB error: %v", err)
+	}
+	if m.Prefix != "gwlb" {
+		t.Fatalf("GWLB prefix mismatch: %q", m.Prefix)
+	}
+	if m.Namespaces["aws"] != "AWS/GatewayELB" {
+		t.Fatalf("GWLB aws namespace mismatch: %q", m.Namespaces["aws"])
+	}
+	if m.Canonical["active_connection"].AWS.Metric != "ActiveFlowCount" {
+		t.Fatalf("GWLB active_connection aws metric mismatch: %q", m.Canonical["active_connection"].AWS.Metric)
+	}
+	if m.Canonical["new_connection"].AWS.Metric != "NewFlowCount" {
+		t.Fatalf("GWLB new_connection aws metric mismatch: %q", m.Canonical["new_connection"].AWS.Metric)
+	}
+}

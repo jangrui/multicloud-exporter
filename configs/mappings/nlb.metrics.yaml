@@ -1,13 +1,12 @@
-# 统一 NLB 指标映射关系（Aliyun / Tencent）
-# 说明：canonical 指代统一后的 `nlb_*` 名称；各云平台原始指标在 providers 下声明，并给出单位与查询层的缩放建议。
-
 prefix: nlb
 namespaces:
   aliyun: acs_nlb
   aws: AWS/NetworkELB
 
 canonical:
-  # 连接类指标
+  # ========================================
+  # 全映射指标（2 家云厂商）
+  # ========================================
   active_connection:
     description: "活跃连接数"
     aliyun:
@@ -15,6 +14,43 @@ canonical:
       dimensions:
         - userId
         - instanceId
+      unit: count
+    aws:
+      metric: ActiveFlowCount
+      dimensions:
+        - LoadBalancer
+      unit: count
+  listener_healthy_server_count:
+    description: "监听器健康后端数"
+    aliyun:
+      metric: ListenerHeathyServerCount
+      dimensions:
+        - userId
+        - instanceId
+        - listenerPort
+        - listenerProtocol
+      unit: count
+    aws:
+      metric: HealthyHostCount
+      dimensions:
+        - LoadBalancer
+        - TargetGroup
+      unit: count
+  listener_unhealthy_server_count:
+    description: "监听器异常后端数"
+    aliyun:
+      metric: ListenerUnhealthyServerCount
+      dimensions:
+        - userId
+        - instanceId
+        - listenerPort
+        - listenerProtocol
+      unit: count
+    aws:
+      metric: UnHealthyHostCount
+      dimensions:
+        - LoadBalancer
+        - TargetGroup
       unit: count
   new_connection:
     description: "新建连接数"
@@ -24,6 +60,15 @@ canonical:
         - userId
         - instanceId
       unit: count/s
+    aws:
+      metric: NewFlowCount
+      dimensions:
+        - LoadBalancer
+      unit: count
+
+  # ========================================
+  # 单独指标（阿里云专用）
+  # ========================================
   dropped_connection:
     description: "丢弃连接数"
     aliyun:
@@ -34,30 +79,6 @@ canonical:
         - listenerPort
         - listenerProtocol
       unit: count/s
-    # AWS NLB has TCP_Client_Reset_Count etc., but not a single "Dropped Connection" metric.
-    # Skipping for AWS.
-
-  # 流量类指标
-  traffic_rx_bps:
-    description: "入网流量"
-    aliyun:
-      metric: InstanceTrafficRX
-      dimensions:
-        - userId
-        - instanceId
-      unit: bit/s
-      scale: 1
-  traffic_tx_bps:
-    description: "出网流量"
-    aliyun:
-      metric: InstanceTrafficTX
-      dimensions:
-        - userId
-        - instanceId
-      unit: bit/s
-      scale: 1
-    # AWS ProcessedBytes is total. Skipping TX to avoid double counting or confusion.
-
   drop_packet_rx:
     description: "入网丢包速率"
     aliyun:
@@ -76,67 +97,46 @@ canonical:
         - instanceId
       unit: count/s
       scale: 1
-  
-  # 包转发类
-  packet_rx:
-    description: "入网包速率"
+  instance_drop_connection:
+    description: "实例丢弃连接数"
     aliyun:
-      metric: InstancePacketRX
+      metric: InstanceDropConnection
       dimensions:
         - userId
         - instanceId
       unit: count/s
-      scale: 1
-  packet_tx:
-    description: "出网包速率"
+  instance_drop_traffic_rx_bps:
+    description: "实例入网丢弃流量"
     aliyun:
-      metric: InstancePacketTX
+      metric: InstanceDropTrafficRX
       dimensions:
         - userId
         - instanceId
-      unit: count/s
-      scale: 1
-  
-  listener_healthy_server_count:
-    description: "监听器健康后端数"
+      unit: bit/s
+  instance_drop_traffic_tx_bps:
+    description: "实例出网丢弃流量"
     aliyun:
-      metric: ListenerHeathyServerCount
+      metric: InstanceDropTrafficTX
       dimensions:
         - userId
         - instanceId
-        - listenerPort
-        - listenerProtocol
+      unit: bit/s
+  instance_inactive_connection:
+    description: "实例非活跃连接数"
+    aliyun:
+      metric: InstanceInactiveConnection
+      dimensions:
+        - userId
+        - instanceId
       unit: count
-  listener_unhealthy_server_count:
-    description: "监听器异常后端数"
+  instance_max_connection:
+    description: "实例最大连接数"
     aliyun:
-      metric: ListenerUnhealthyServerCount
+      metric: InstanceMaxConnection
       dimensions:
         - userId
         - instanceId
-        - listenerPort
-        - listenerProtocol
       unit: count
-  listener_packet_rx:
-    description: "监听器入网包速率"
-    aliyun:
-      metric: ListenerPacketRX
-      dimensions:
-        - userId
-        - instanceId
-        - listenerPort
-        - listenerProtocol
-      unit: count/s
-  listener_packet_tx:
-    description: "监听器出网包速率"
-    aliyun:
-      metric: ListenerPacketTX
-      dimensions:
-        - userId
-        - instanceId
-        - listenerPort
-        - listenerProtocol
-      unit: count/s
   listener_drop_packet_rx:
     description: "监听器入网丢包速率"
     aliyun:
@@ -177,48 +177,62 @@ canonical:
         - listenerPort
         - listenerProtocol
       unit: bit/s
-  
-  instance_inactive_connection:
-    description: "实例非活跃连接数"
+  listener_packet_rx:
+    description: "监听器入网包速率"
     aliyun:
-      metric: InstanceInactiveConnection
+      metric: ListenerPacketRX
       dimensions:
         - userId
         - instanceId
-      unit: count
-  instance_max_connection:
-    description: "实例最大连接数"
+        - listenerPort
+        - listenerProtocol
+      unit: count/s
+  listener_packet_tx:
+    description: "监听器出网包速率"
     aliyun:
-      metric: InstanceMaxConnection
+      metric: ListenerPacketTX
       dimensions:
         - userId
         - instanceId
-      unit: count
-  instance_drop_connection:
-    description: "实例丢弃连接数"
+        - listenerPort
+        - listenerProtocol
+      unit: count/s
+  packet_rx:
+    description: "入网包速率"
     aliyun:
-      metric: InstanceDropConnection
+      metric: InstancePacketRX
       dimensions:
         - userId
         - instanceId
       unit: count/s
-  instance_drop_traffic_rx_bps:
-    description: "实例入网丢弃流量"
+      scale: 1
+  packet_tx:
+    description: "出网包速率"
     aliyun:
-      metric: InstanceDropTrafficRX
+      metric: InstancePacketTX
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+      scale: 1
+  traffic_rx_bps:
+    description: "入网流量"
+    aliyun:
+      metric: InstanceTrafficRX
       dimensions:
         - userId
         - instanceId
       unit: bit/s
-  instance_drop_traffic_tx_bps:
-    description: "实例出网丢弃流量"
+      scale: 1
+  traffic_tx_bps:
+    description: "出网流量"
     aliyun:
-      metric: InstanceDropTrafficTX
+      metric: InstanceTrafficTX
       dimensions:
         - userId
         - instanceId
       unit: bit/s
-  
+      scale: 1
   vip_active_connection:
     description: "VIP 活跃连接数"
     aliyun:
@@ -318,3 +332,91 @@ canonical:
         - instanceId
         - vip
       unit: bit/s
+
+  # ========================================
+  # 单独指标（AWS 专用）
+  # ========================================
+  active_flow_count_tcp:
+    description: "TCP 活跃连接数"
+    aws:
+      metric: ActiveFlowCount_TCP
+      dimensions:
+        - LoadBalancer
+      unit: count
+  active_flow_count_tls:
+    description: "TLS 活跃连接数"
+    aws:
+      metric: ActiveFlowCount_TLS
+      dimensions:
+        - LoadBalancer
+      unit: count
+  active_flow_count_udp:
+    description: "UDP 活跃连接数"
+    aws:
+      metric: ActiveFlowCount_UDP
+      dimensions:
+        - LoadBalancer
+      unit: count
+  client_reset_count:
+    description: "客户端复位连接数"
+    aws:
+      metric: ClientResetCount
+      dimensions:
+        - LoadBalancer
+      unit: count
+  consumed_lc_us:
+    description: "消耗的 LCUs 数量"
+    aws:
+      metric: ConsumedLCUs
+      dimensions:
+        - LoadBalancer
+      unit: count
+  new_flow_count_tcp:
+    description: "TCP 新建连接数"
+    aws:
+      metric: NewFlowCount_TCP
+      dimensions:
+        - LoadBalancer
+      unit: count
+  new_flow_count_tls:
+    description: "TLS 新建连接数"
+    aws:
+      metric: NewFlowCount_TLS
+      dimensions:
+        - LoadBalancer
+      unit: count
+  new_flow_count_udp:
+    description: "UDP 新建连接数"
+    aws:
+      metric: NewFlowCount_UDP
+      dimensions:
+        - LoadBalancer
+      unit: count
+  port_allocation_failure_count:
+    description: "端口分配失败数"
+    aws:
+      metric: PortAllocationFailureCount
+      dimensions:
+        - LoadBalancer
+      unit: count
+  processed_bytes:
+    description: "处理字节数"
+    aws:
+      metric: ProcessedBytes
+      dimensions:
+        - LoadBalancer
+      unit: Bytes
+  tcp_client_reset_count:
+    description: "TCP 客户端复位连接数"
+    aws:
+      metric: TCPClientResetCount
+      dimensions:
+        - LoadBalancer
+      unit: count
+  tcp_elb_reset_count:
+    description: "TCP ELB 复位连接数"
+    aws:
+      metric: TCP_ELB_Reset_Count
+      dimensions:
+        - LoadBalancer
+      unit: count

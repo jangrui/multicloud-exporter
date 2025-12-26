@@ -1,6 +1,6 @@
-# 统一 CLB 指标映射关系（Aliyun / Tencent）
+# 统一 CLB 指标映射关系（Aliyun / Tencent / AWS / Huawei）
 # 说明：canonical 指代统一后的 `clb_*` 名称；各云平台原始指标在 providers 下声明，并给出单位与查询层的缩放建议。
-# 排序整理：2025-12-15；修改者：@jangrui；规则：按连接/流量/包速率/丢包/状态码/健康/利用率等类别分组展示（仅调整可读性，不改变键与字段）
+# 排序规则：按"全映射"、"部分映射"、"单独指标"分类，每类内按字母顺序排序
 
 prefix: clb
 namespaces:
@@ -10,47 +10,164 @@ namespaces:
   huawei: SYS.ELB
 
 canonical:
-  traffic_rx_bps:
-    description: "入网流量 (实例级)"
-    aliyun:
-      metric: InstanceTrafficRX
-      dimensions:
-        - userId
-        - instanceId
-      unit: bit/s
-      scale: 1
-    tencent:
-      metric: VIntraffic
-      dimensions: []
-      unit: Mbps
-      scale: 1000000
-    huawei:
-      metric: m7_in_Bps
-      dimensions:
-        - lbaas_instance_id
-      unit: Bytes/s
-      scale: 8
 
-  traffic_tx_bps:
-    description: "出网流量 (实例级)"
+  # ========================================
+  # 全映射指标（4 家云厂商都支持）
+  # ========================================
+
+  active_connection:
+    description: "活跃连接数"
     aliyun:
-      metric: InstanceTrafficTX
+      metric: ActiveConnection
       dimensions:
         - userId
         - instanceId
-      unit: bit/s
+        - port
+      unit: count
       scale: 1
     tencent:
-      metric: VOuttraffic
+      metric: VConnum
       dimensions: []
-      unit: Mbps
-      scale: 1000000
+      unit: count
+      scale: 1
+    aws:
+      metric: EstimatedALBActiveConnectionCount
+      dimensions:
+        - LoadBalancerName
+      unit: count
     huawei:
-      metric: m8_out_Bps
+      metric: m2_act_conn
       dimensions:
         - lbaas_instance_id
-      unit: Bytes/s
-      scale: 8
+      unit: count
+      scale: 1
+
+  healthy_server_count:
+    description: "健康后端服务数"
+    aliyun:
+      metric: HeathyServerCount
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - vip
+      unit: count
+    tencent:
+      metric: ma_normal_servers
+      dimensions:
+        - lbaas_instance_id
+      unit: count
+      scale: 1
+    aws:
+      metric: HealthyHostCount
+      dimensions:
+        - LoadBalancerName
+      unit: count
+    huawei:
+      metric: ma_normal_servers
+      dimensions:
+        - lbaas_instance_id
+      unit: count
+      scale: 1
+
+  unhealthy_server_count:
+    description: "异常后端服务数"
+    aliyun:
+      metric: UnhealthyServerCount
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - vip
+      unit: count
+    tencent:
+      metric: m9_abnormal_servers
+      dimensions:
+        - lbaas_instance_id
+      unit: count
+      scale: 1
+    aws:
+      metric: UnHealthyHostCount
+      dimensions:
+        - AvailabilityZone
+        - LoadBalancerName
+      unit: count
+    huawei:
+      metric: m9_abnormal_servers
+      dimensions:
+        - lbaas_instance_id
+      unit: count
+      scale: 1
+
+  # ========================================
+  # 部分映射指标（3 家云厂商）
+  # ========================================
+
+  drop_connection:
+    description: "丢弃连接数"
+    aliyun:
+      metric: DropConnection
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - protocol
+      unit: count/s
+      scale: 1
+    aws:
+      metric: m1f_lvs_conn_drop
+      dimensions:
+        - lbaas_instance_id
+      unit: count/s
+      scale: 1
+    huawei:
+      metric: m1f_lvs_conn_drop
+      dimensions:
+        - lbaas_instance_id
+      unit: count/s
+      scale: 1
+
+  drop_packet_rx:
+    description: "入网丢包速率"
+    aliyun:
+      metric: InstanceDropPacketRX
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+      scale: 1
+    tencent:
+      metric: Vipindroppkts
+      dimensions: []
+      unit: pps
+      scale: 1
+    huawei:
+      metric: m4_ncps
+      dimensions:
+        - lbaas_instance_id
+      unit: count/s
+      scale: 1
+
+  drop_packet_tx:
+    description: "出网丢包速率"
+    aliyun:
+      metric: InstanceDropPacketTX
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+      scale: 1
+    tencent:
+      metric: Vipoutdroppkts
+      dimensions: []
+      unit: pps
+      scale: 1
+    huawei:
+      metric: m1f_lvs_rps
+      dimensions:
+        - lbaas_instance_id
+      unit: count/s
+      scale: 1
 
   packet_rx:
     description: "入网包速率"
@@ -94,151 +211,6 @@ canonical:
       unit: count/s
       scale: 1
 
-  drop_packet_rx:
-    description: "入网丢包速率"
-    aliyun:
-      metric: InstanceDropPacketRX
-      dimensions:
-        - userId
-        - instanceId
-      unit: count/s
-      scale: 1
-    tencent:
-      metric: Vipindroppkts
-      dimensions:
-        - eip
-      unit: pps
-      scale: 1
-
-  drop_packet_tx:
-    description: "出网丢包速率"
-    aliyun:
-      metric: InstanceDropPacketTX
-      dimensions:
-        - userId
-        - instanceId
-      unit: count/s
-      scale: 1
-    tencent:
-      metric: Vipoutdroppkts
-      dimensions:
-        - eip
-      unit: pps
-      scale: 1
-
-  drop_traffic_rx_bps:
-    description: "入网丢弃流量 (实例级)"
-    aliyun:
-      metric: InstanceDropTrafficRX
-      dimensions:
-        - userId
-        - instanceId
-      unit: bit/s
-      scale: 1
-
-  drop_traffic_tx_bps:
-    description: "出网丢弃流量 (实例级)"
-    aliyun:
-      metric: InstanceDropTrafficTX
-      dimensions:
-        - userId
-        - instanceId
-      unit: bit/s
-      scale: 1
-
-  traffic_rx_utilization_pct:
-    description: "入网带宽利用率"
-    aliyun:
-      metric: InstanceTrafficRXUtilization
-      dimensions:
-        - userId
-        - instanceId
-      unit: '%'
-      scale: 1
-    tencent:
-      metric: IntrafficVipRatio
-      dimensions:
-        - eip
-      unit: '%'
-      scale: 1
-
-  traffic_tx_utilization_pct:
-    description: "出网带宽利用率"
-    aliyun:
-      metric: InstanceTrafficTXUtilization
-      dimensions:
-        - userId
-        - instanceId
-      unit: '%'
-      scale: 1
-    tencent:
-      metric: OuttrafficVipRatio
-      dimensions:
-        - eip
-      unit: '%'
-      scale: 1
-
-  vip_new_connection:
-    description: "VIP 新建连接数 (腾讯云特有)"
-    tencent:
-      metric: VNewConn
-      dimensions: []
-      unit: count/s
-      scale: 1
-
-  new_connection:
-    description: "新建连接数"
-    aliyun:
-      metric: NewConnection
-      dimensions:
-        - userId
-        - instanceId
-        - port
-      unit: count
-      scale: 1
-    tencent:
-      metric: PvvNewConn
-      dimensions: []
-      unit: count/s
-      scale: 1
-
-  active_connection:
-    description: "活跃连接数"
-    aliyun:
-      metric: ActiveConnection
-      dimensions:
-        - userId
-        - instanceId
-        - port
-      unit: count
-      scale: 1
-    tencent:
-      metric: VConnum
-      dimensions: []
-      unit: count
-      scale: 1
-    huawei:
-      metric: m2_act_conn
-      dimensions:
-        - lbaas_instance_id
-      unit: count
-      scale: 1
-
-  drop_connection:
-    description: "丢弃连接数"
-    aliyun:
-      metric: DropConnection
-      dimensions:
-        - userId
-        - instanceId
-        - port
-        - protocol
-      unit: count/s
-      scale: 1
-
-  # AWS CLB doesn't have direct RX/TX bytes metrics exposed easily like ALB/NLB.
-
-
   qps:
     description: "每秒请求数 (L7)"
     aliyun:
@@ -252,8 +224,8 @@ canonical:
     aws:
       metric: RequestCount
       dimensions:
-        - Service
-      unit: count # Sum over period.
+        - LoadBalancerName
+      unit: count
     huawei:
       metric: mb_l7_qps
       dimensions:
@@ -293,23 +265,17 @@ canonical:
         - port
         - protocol
       unit: count/s
+    aws:
+      metric: HTTPCode_Backend_2XX
+      dimensions:
+        - LoadBalancerName
+      unit: count
     huawei:
       metric: mc_l7_http_2xx
       dimensions:
         - lbaas_instance_id
       unit: count/s
       scale: 1
-
-  status_code_3xx:
-    description: "HTTP 3XX 状态码数量"
-    aliyun:
-      metric: StatusCode3xx
-      dimensions:
-        - userId
-        - instanceId
-        - port
-        - protocol
-      unit: count/s
 
   status_code_4xx:
     description: "HTTP 4XX 状态码数量"
@@ -321,6 +287,11 @@ canonical:
         - port
         - protocol
       unit: count/s
+    aws:
+      metric: HTTPCode_Backend_4XX
+      dimensions:
+        - LoadBalancerName
+      unit: count
     huawei:
       metric: me_l7_http_4xx
       dimensions:
@@ -338,6 +309,11 @@ canonical:
         - port
         - protocol
       unit: count/s
+    aws:
+      metric: HTTPCode_Backend_5XX
+      dimensions:
+        - LoadBalancerName
+      unit: count
     huawei:
       metric: mf_l7_http_5xx
       dimensions:
@@ -345,50 +321,264 @@ canonical:
       unit: count/s
       scale: 1
 
-  unhealthy_server_count:
-    description: "异常后端服务数"
+  traffic_rx_bps:
+    description: "入网流量 (实例级)"
     aliyun:
-      metric: UnhealthyServerCount
+      metric: InstanceTrafficRX
       dimensions:
         - userId
         - instanceId
-        - port
-        - vip
-      unit: count
-    aws:
-      metric: UnHealthyHostCount
-      dimensions:
-        - AvailabilityZone
-        - LoadBalancerName
-      unit: count
+      unit: bit/s
+      scale: 1
+    tencent:
+      metric: VIntraffic
+      dimensions: []
+      unit: Mbps
+      scale: 1000000
     huawei:
-      metric: m9_abnormal_servers
+      metric: m7_in_Bps
       dimensions:
         - lbaas_instance_id
-      unit: count
+      unit: Bytes/s
+      scale: 8
+
+  traffic_tx_bps:
+    description: "出网流量 (实例级)"
+    aliyun:
+      metric: InstanceTrafficTX
+      dimensions:
+        - userId
+        - instanceId
+      unit: bit/s
+      scale: 1
+    tencent:
+      metric: VOuttraffic
+      dimensions: []
+      unit: Mbps
+      scale: 1000000
+    huawei:
+      metric: m8_out_Bps
+      dimensions:
+        - lbaas_instance_id
+      unit: Bytes/s
+      scale: 8
+
+  # ========================================
+  # 部分映射指标（2 家云厂商）
+  # ========================================
+
+  drop_traffic_rx_bps:
+    description: "入网丢弃流量 (实例级)"
+    aliyun:
+      metric: InstanceDropTrafficRX
+      dimensions:
+        - userId
+        - instanceId
+      unit: bit/s
+      scale: 1
+    tencent:
+      metric: Vipindroppkts
+      dimensions: []
+      unit: pps
       scale: 1
 
-  healthy_server_count:
-    description: "健康后端服务数"
+  drop_traffic_tx_bps:
+    description: "出网丢弃流量 (实例级)"
     aliyun:
-      metric: HeathyServerCount
+      metric: InstanceDropTrafficTX
+      dimensions:
+        - userId
+        - instanceId
+      unit: bit/s
+      scale: 1
+    tencent:
+      metric: Vipoutdroppkts
+      dimensions: []
+      unit: pps
+      scale: 1
+
+  new_connection:
+    description: "新建连接数"
+    aliyun:
+      metric: NewConnection
       dimensions:
         - userId
         - instanceId
         - port
-        - vip
-      unit: count
-    aws:
-      metric: HealthyHostCount
-      dimensions:
-        - Namespace
-      unit: count
-    huawei:
-      metric: ma_normal_servers
-      dimensions:
-        - lbaas_instance_id
       unit: count
       scale: 1
+    tencent:
+      metric: PvvNewConn
+      dimensions: []
+      unit: count/s
+      scale: 1
+
+  status_code_3xx:
+    description: "HTTP 3XX 状态码数量"
+    aliyun:
+      metric: StatusCode3xx
+      dimensions:
+        - userId
+        - instanceId
+        - port
+        - protocol
+      unit: count/s
+    aws:
+      metric: HTTPCode_Backend_3XX
+      dimensions:
+        - LoadBalancerName
+      unit: count
+
+  traffic_rx_utilization_pct:
+    description: "入网带宽利用率"
+    aliyun:
+      metric: InstanceTrafficRXUtilization
+      dimensions:
+        - userId
+        - instanceId
+      unit: '%'
+      scale: 1
+    tencent:
+      metric: IntrafficVipRatio
+      dimensions:
+        - eip
+      unit: '%'
+      scale: 1
+
+  traffic_tx_utilization_pct:
+    description: "出网带宽利用率"
+    aliyun:
+      metric: InstanceTrafficTXUtilization
+      dimensions:
+        - userId
+        - instanceId
+      unit: '%'
+      scale: 1
+    tencent:
+      metric: OuttrafficVipRatio
+      dimensions:
+        - eip
+      unit: '%'
+      scale: 1
+
+  # ========================================
+  # 单独指标（AWS 专用）
+  # ========================================
+
+  backend_connection_errors:
+    description: "后端连接错误数"
+    aws:
+      metric: BackendConnectionErrors
+      dimensions:
+        - LoadBalancerName
+      unit: count
+
+  dns_lookup_latency:
+    description: "DNS 查询延迟"
+    aws:
+      metric: DNSLookupLatency
+      dimensions:
+        - LoadBalancerName
+      unit: seconds
+
+  spillover_count:
+    description: "溢出连接数"
+    aws:
+      metric: SpilloverCount
+      dimensions:
+        - LoadBalancerName
+      unit: count
+
+  status_code_elb_4xx:
+    description: "ELB 返回的 HTTP 4XX 状态码数量"
+    aws:
+      metric: HTTPCode_ELB_4XX
+      dimensions:
+        - LoadBalancerName
+      unit: count
+
+  status_code_elb_5xx:
+    description: "ELB 返回的 HTTP 5XX 状态码数量"
+    aws:
+      metric: HTTPCode_ELB_5XX
+      dimensions:
+        - LoadBalancerName
+      unit: count
+
+  surge_queue_length:
+    description: "溢出队列长度"
+    aws:
+      metric: SurgeQueueLength
+      dimensions:
+        - LoadBalancerName
+      unit: count
+
+  # ========================================
+  # 单独指标（阿里云专用）
+  # ========================================
+
+  instance_active_connection:
+    description: "实例活跃连接数"
+    aliyun:
+      metric: InstanceActiveConnection
+      dimensions:
+        - userId
+        - instanceId
+      unit: count
+
+  instance_drop_connection:
+    description: "实例丢弃连接数"
+    aliyun:
+      metric: InstanceDropConnection
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+
+  instance_inactive_connection:
+    description: "实例非活跃连接数"
+    aliyun:
+      metric: InstanceInactiveConnection
+      dimensions:
+        - userId
+        - instanceId
+      unit: count
+
+  instance_max_connection:
+    description: "实例最大连接数"
+    aliyun:
+      metric: InstanceMaxConnection
+      dimensions:
+        - userId
+        - instanceId
+      unit: count
+
+  instance_max_connection_utilization:
+    description: "实例最大连接数利用率"
+    aliyun:
+      metric: InstanceMaxConnectionUtilization
+      dimensions:
+        - userId
+        - instanceId
+      unit: ratio
+
+  instance_new_connection:
+    description: "实例新建连接数"
+    aliyun:
+      metric: InstanceNewConnection
+      dimensions:
+        - userId
+        - instanceId
+      unit: count/s
+
+  instance_new_connection_utilization:
+    description: "实例新建连接数利用率"
+    aliyun:
+      metric: InstanceNewConnectionUtilization
+      dimensions:
+        - userId
+        - instanceId
+      unit: ratio
 
   instance_qps:
     description: "实例每秒请求数 (L7)"
@@ -398,6 +588,15 @@ canonical:
         - userId
         - instanceId
       unit: count/s
+
+  instance_qps_utilization:
+    description: "实例每秒请求数利用率"
+    aliyun:
+      metric: InstanceQpsUtilization
+      dimensions:
+        - userId
+        - instanceId
+      unit: ratio
 
   instance_rt:
     description: "实例响应时间 (L7)"
@@ -465,70 +664,18 @@ canonical:
         - port
         - protocol
       unit: count/s
-  instance_active_connection:
-    description: "实例活跃连接数"
+
+  upstream_rt:
+    description: "上游响应时间"
     aliyun:
-      metric: InstanceActiveConnection
+      metric: UpstreamRt
       dimensions:
         - userId
         - instanceId
-      unit: count
-  instance_drop_connection:
-    description: "实例丢弃连接数"
-    aliyun:
-      metric: InstanceDropConnection
-      dimensions:
-        - userId
-        - instanceId
-      unit: count/s
-  instance_inactive_connection:
-    description: "实例非活跃连接数"
-    aliyun:
-      metric: InstanceInactiveConnection
-      dimensions:
-        - userId
-        - instanceId
-      unit: count
-  instance_max_connection:
-    description: "实例最大连接数"
-    aliyun:
-      metric: InstanceMaxConnection
-      dimensions:
-        - userId
-        - instanceId
-      unit: count
-  instance_max_connection_utilization:
-    description: "实例最大连接数利用率"
-    aliyun:
-      metric: InstanceMaxConnectionUtilization
-      dimensions:
-        - userId
-        - instanceId
-      unit: ratio
-  instance_new_connection:
-    description: "实例新建连接数"
-    aliyun:
-      metric: InstanceNewConnection
-      dimensions:
-        - userId
-        - instanceId
-      unit: count/s
-  instance_new_connection_utilization:
-    description: "实例新建连接数利用率"
-    aliyun:
-      metric: InstanceNewConnectionUtilization
-      dimensions:
-        - userId
-        - instanceId
-      unit: ratio
-  instance_qps_utilization:
-    description: "实例每秒请求数利用率"
-    aliyun:
-      metric: InstanceQpsUtilization
-      dimensions:
-        - userId
-        - instanceId
-      unit: ratio
+        - port
+        - protocol
+      unit: ms
+
   unhealthy_server_count_with_rule:
     description: "按规则聚合的异常后端数"
     aliyun:
@@ -541,93 +688,139 @@ canonical:
         - domain
         - url
       unit: count
-  upstream_rt:
-    description: "上游响应时间"
-    aliyun:
-      metric: UpstreamRt
+
+  # ========================================
+  # 单独指标（腾讯云专用）
+  # ========================================
+
+  backend_in_traffic_bps:
+    description: "LB 到后端的入网带宽 (共享实例，腾讯云使用 rrv_intraffic)"
+    tencent:
+      metric: RrvIntraffic
+      dimensions: []
+      unit: bps
+      scale: 1000000
+
+  backend_out_traffic_bps:
+    description: "LB 到后端的出网带宽 (共享实例，腾讯云使用 rrv_outtraffic)"
+    tencent:
+      metric: RrvOuttraffic
+      dimensions: []
+      unit: bps
+      scale: 1000000
+
+  backend_out_traffic_mb:
+    description: "LB 到后端的出网流量 (私有实例，腾讯云使用 pvv_outtraffic)"
+    tencent:
+      metric: PvvOuttraffic
+      dimensions: []
+      unit: bps
+      scale: 1000000
+
+  client_in_traffic_bps:
+    description: "客户端到 LB 的入网带宽"
+    tencent:
+      metric: VipIntraffic
       dimensions:
-        - userId
-        - instanceId
-        - port
-        - protocol
-      unit: ms
+        - eip
+      unit: Mbps
+      scale: 1000000
+
+  client_in_traffic_mb:
+    description: "客户端到 LB 的入网流量 (腾讯云使用 rv_intraffic)"
+    tencent:
+      metric: RvIntraffic
+      dimensions: []
+      unit: bps
+      scale: 1000000
+
+  client_out_traffic_bps:
+    description: "客户端到 LB 的出网带宽"
+    tencent:
+      metric: VipOuttraffic
+      dimensions:
+        - eip
+      unit: Mbps
+      scale: 1000000
+
+  client_out_traffic_mb:
+    description: "客户端到 LB 的出网流量 (腾讯云使用 rv_outtraffic)"
+    tencent:
+      metric: RvOuttraffic
+      dimensions: []
+      unit: bps
+      scale: 1000000
+
   pvv_outpkg:
     description: "腾讯 CLB 私有实例出网包速率"
     tencent:
       metric: PvvOutpkg
       unit: count/s
-  pvv_outtraffic:
-    description: "腾讯 CLB 私有实例出网流量"
-    tencent:
-      metric: PvvOuttraffic
-      unit: bps
+
   rrv_connum:
     description: "腾讯 CLB 共享实例活跃连接数"
     tencent:
       metric: RrvConnum
       unit: count
+
   rrv_inactive_conn:
     description: "腾讯 CLB 共享实例非活跃连接数"
     tencent:
       metric: RrvInactiveConn
       unit: count
+
   rrv_inpkg:
     description: "腾讯 CLB 共享实例入网包速率"
     tencent:
       metric: RrvInpkg
       unit: count/s
-  rrv_intraffic:
-    description: "腾讯 CLB 共享实例入网流量"
-    tencent:
-      metric: RrvIntraffic
-      unit: bps
+
   rrv_new_conn:
     description: "腾讯 CLB 共享实例新建连接数"
     tencent:
       metric: RrvNewConn
       unit: count/s
+
   rrv_outpkg:
     description: "腾讯 CLB 共享实例出网包速率"
     tencent:
       metric: RrvOutpkg
       unit: count/s
-  rrv_outtraffic:
-    description: "腾讯 CLB 共享实例出网流量"
-    tencent:
-      metric: RrvOuttraffic
-      unit: bps
+
   rv_connum:
     description: "腾讯 CLB VIP 活跃连接数"
     tencent:
       metric: RvConnum
       unit: count
+
   rv_inactive_conn:
     description: "腾讯 CLB VIP 非活跃连接数"
     tencent:
       metric: RvInactiveConn
       unit: count
+
   rv_inpkg:
     description: "腾讯 CLB VIP 入网包速率"
     tencent:
       metric: RvInpkg
       unit: count/s
-  rv_intraffic:
-    description: "腾讯 CLB VIP 入网流量"
-    tencent:
-      metric: RvIntraffic
-      unit: bps
+
   rv_new_conn:
     description: "腾讯 CLB VIP 新建连接数"
     tencent:
       metric: RvNewConn
       unit: count/s
+
   rv_outpkg:
     description: "腾讯 CLB VIP 出网包速率"
     tencent:
       metric: RvOutpkg
       unit: count/s
-  rv_outtraffic:
-    description: "腾讯 CLB VIP 出网流量"
+
+  vip_new_connection:
+    description: "VIP 新建连接数 (腾讯云特有)"
     tencent:
-      metric: RvOuttraffic
-      unit: bps
+      metric: VNewConn
+      dimensions: []
+      unit: count/s
+      scale: 1

@@ -1,7 +1,3 @@
-# 统一 GWLB 指标映射关系（Aliyun / Tencent）
-# 说明：canonical 指代统一后的 `gwlb_*` 名称；各云平台原始指标在 providers 下声明，并给出单位与查询层的缩放建议。
-# 排序整理：2025-12-15；修改者：@jangrui；规则：按连接/流量/包速率/健康等类别分组展示（仅调整可读性，不改变键与字段）
-
 prefix: gwlb
 namespaces:
   aliyun: acs_gwlb
@@ -9,7 +5,9 @@ namespaces:
   aws: AWS/GatewayELB
 
 canonical:
-  # 连接类指标
+  # ========================================
+  # 全映射指标（3 家云厂商）
+  # ========================================
   active_connection:
     description: "活跃连接数"
     aliyun:
@@ -26,6 +24,11 @@ canonical:
       dimensions:
         - AppId
         - gwLoadBalancerId
+      unit: count
+    aws:
+      metric: ActiveFlowCount
+      dimensions:
+        - LoadBalancer
       unit: count
   new_connection:
     description: "新建连接数"
@@ -44,8 +47,57 @@ canonical:
         - AppId
         - gwLoadBalancerId
       unit: count/s
+    aws:
+      metric: NewFlowCount
+      dimensions:
+        - LoadBalancer
+      unit: count
+  unhealthy_server_count:
+    description: "异常后端服务数"
+    aliyun:
+      metric: ServerGroupUnhealthyHostCount
+      dimensions:
+        - userId
+        - regionId
+        - availableZone
+        - instanceId
+        - listenerId
+        - serverGroupId
+      unit: count
+    tencent:
+      metric: Unhealthyrscount
+      dimensions:
+        - AppId
+        - targetGroupId
+      unit: count
+    aws:
+      metric: UnHealthyHostCount
+      dimensions:
+        - LoadBalancer
+        - TargetGroup
+      unit: count
 
-  # 流量类指标
+  # ========================================
+  # 部分映射指标（2 家云厂商）
+  # ========================================
+  healthy_server_count:
+    description: "健康后端服务数"
+    aliyun:
+      metric: ServerGroupHealthyHostCount
+      dimensions:
+        - userId
+        - regionId
+        - availableZone
+        - instanceId
+        - listenerId
+        - serverGroupId
+      unit: count
+    aws:
+      metric: HealthyHostCount
+      dimensions:
+        - LoadBalancer
+        - TargetGroup
+      unit: count
   traffic_rx_bps:
     description: "入网流量"
     aliyun:
@@ -84,9 +136,10 @@ canonical:
         - gwLoadBalancerId
       unit: Mbps
       scale: 1000000
-    # AWS GWLB ProcessedBytes is total. Skipping TX.
 
-  # 包转发类
+  # ========================================
+  # 单独指标（阿里云专用）
+  # ========================================
   packet_rx:
     description: "入网包速率"
     aliyun:
@@ -99,7 +152,6 @@ canonical:
         - addressIpVersion
       unit: count/s
       scale: 1
-    # Tencent GWLB 暂无包转发指标
   packet_tx:
     description: "出网包速率"
     aliyun:
@@ -112,39 +164,35 @@ canonical:
         - addressIpVersion
       unit: count/s
       scale: 1
-    # Tencent GWLB 暂无包转发指标
 
-  # 健康检查指标
-  unhealthy_server_count:
-    description: "异常后端服务数"
-    aliyun:
-      metric: ServerGroupUnhealthyHostCount
+  # ========================================
+  # 单独指标（AWS 专用）
+  # ========================================
+  consumed_lc_us:
+    description: "消耗的 LCUs 数量"
+    aws:
+      metric: ConsumedLCUs
       dimensions:
-        - userId
-        - regionId
-        - availableZone
-        - instanceId
-        - listenerId
-        - serverGroupId
+        - LoadBalancer
       unit: count
-    tencent:
-      metric: Unhealthyrscount
+  cross_zone_load_balancing_count:
+    description: "跨可用区负载均衡数"
+    aws:
+      metric: CrossZoneLoadBalancingCount
       dimensions:
-        - AppId
-        - targetGroupId
+        - LoadBalancer
       unit: count
-  healthy_server_count:
-    description: "健康后端服务数"
-    aliyun:
-      metric: ServerGroupHealthyHostCount
+  processed_bytes:
+    description: "处理字节数"
+    aws:
+      metric: ProcessedBytes
       dimensions:
-        - userId
-        - regionId
-        - availableZone
-        - instanceId
-        - listenerId
-        - serverGroupId
+        - LoadBalancer
+      unit: Bytes
+  processed_packets:
+    description: "处理包数"
+    aws:
+      metric: ProcessedPackets
+      dimensions:
+        - LoadBalancer
       unit: count
-    # Tencent GWLB 暂无健康服务器计数指标
-
- 

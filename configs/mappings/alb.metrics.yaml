@@ -1,14 +1,12 @@
-# 统一 ALB 指标映射关系（Aliyun / Tencent）
-# 说明：canonical 指代统一后的 `alb_*` 名称；各云平台原始指标在 providers 下声明，并给出单位与查询层的缩放建议。
-# 排序整理：2025-12-15；修改者：@jangrui；规则：按连接/流量/HTTP 状态码/请求/延迟/健康/上游错误等类别分组展示（仅调整可读性，不改变键与字段）
-
 prefix: alb
 namespaces:
   aliyun: acs_alb
   aws: AWS/ApplicationELB
 
 canonical:
-  # 连接类指标
+  # ========================================
+  # 全映射指标（2 家云厂商）
+  # ========================================
   active_connection:
     description: "活跃连接数"
     aliyun:
@@ -35,54 +33,6 @@ canonical:
       dimensions:
         - LoadBalancer
       unit: count
-  dropped_connection:
-    description: "丢弃连接数"
-    aliyun:
-      metric: LoadBalancerRejectedConnection
-      dimensions:
-        - userId
-        - loadBalancerId
-      unit: count/s
-
-  # 流量类指标
-  traffic_rx_bps:
-    description: "入网流量"
-    aliyun:
-      metric: LoadBalancerInBits
-      dimensions:
-        - userId
-        - loadBalancerId
-      unit: bit/s
-      scale: 1
-    aws:
-      metric: ProcessedBytes
-      dimensions:
-        - LoadBalancer
-      unit: byte
-      scale: 8 # Convert bytes to bits if needed, but AWS gives ProcessedBytes. Usually rate is preferred.
-      # AWS ProcessedBytes is a counter/sum. Rate calculation happens in PromQL usually.
-      # But if we want bps, we might need to rely on the fact that these are scraped periodically.
-      # For now, let's just map ProcessedBytes.
-      # Wait, Aliyun gives bit/s (rate). AWS gives Bytes (sum over period).
-      # If we want consistent metrics, we might need to adjust or just document the difference.
-      # Let's map ProcessedBytes for now.
-  traffic_tx_bps:
-    description: "出网流量"
-    aliyun:
-      metric: LoadBalancerOutBits
-      dimensions:
-        - userId
-        - loadBalancerId
-      unit: bit/s
-      scale: 1
-    # AWS doesn't split In/Out for ALB ProcessedBytes easily without access logs analysis or assuming symmetrical.
-    # Actually AWS ALB has `ProcessedBytes` (Total). It doesn't split In/Out.
-    # So maybe we skip this for AWS or map ProcessedBytes to one of them (inaccurate).
-    # Let's skip for now or use `ProcessedBytes` for a total traffic metric if available.
-    # Since canonical expects rx/tx, maybe AWS doesn't fit this model perfectly.
-    # I'll leave it out for AWS for now to avoid confusion.
-
-  # 七层指标
   qps:
     description: "每秒请求数 (L7)"
     aliyun:
@@ -97,15 +47,6 @@ canonical:
       dimensions:
         - LoadBalancer
       unit: count
-  rt:
-    description: "响应时间 (L7)"
-    aliyun:
-      metric: LoadBalancerRequestTime
-      dimensions:
-        - userId
-        - loadBalancerId
-      unit: ms
-      scale: 1
   status_code_2xx:
     description: "HTTP 2XX 状态码数量"
     aliyun:
@@ -115,6 +56,11 @@ canonical:
         - loadBalancerId
       unit: count/s
       scale: 1
+    aws:
+      metric: HTTPCode_Backend_2XX
+      dimensions:
+        - LoadBalancer
+      unit: count
   status_code_3xx:
     description: "HTTP 3XX 状态码数量"
     aliyun:
@@ -124,6 +70,11 @@ canonical:
         - loadBalancerId
       unit: count/s
       scale: 1
+    aws:
+      metric: HTTPCode_Backend_3XX
+      dimensions:
+        - LoadBalancer
+      unit: count
   status_code_4xx:
     description: "HTTP 4XX 状态码数量"
     aliyun:
@@ -134,7 +85,7 @@ canonical:
       unit: count/s
       scale: 1
     aws:
-      metric: HTTPCode_ELB_4XX_Count
+      metric: HTTPCode_Backend_4XX
       dimensions:
         - LoadBalancer
       unit: count
@@ -148,12 +99,37 @@ canonical:
       unit: count/s
       scale: 1
     aws:
-      metric: HTTPCode_ELB_5XX_Count
+      metric: HTTPCode_Backend_5XX
       dimensions:
         - LoadBalancer
       unit: count
+  traffic_rx_bps:
+    description: "入网流量"
+    aliyun:
+      metric: LoadBalancerInBits
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: bit/s
+      scale: 1
+    aws:
+      metric: ProcessedBytes
+      dimensions:
+        - LoadBalancer
+      unit: byte
+      scale: 8
 
-  # Listener Level
+  # ========================================
+  # 单独指标（阿里云专用）
+  # ========================================
+  dropped_connection:
+    description: "丢弃连接数"
+    aliyun:
+      metric: LoadBalancerRejectedConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
   listener_active_connection:
     aliyun:
       metric: ListenerActiveConnection
@@ -453,8 +429,916 @@ canonical:
         - listenerProtocol
         - listenerPort
       unit: count/s
+  rt:
+    description: "响应时间 (L7)"
+    aliyun:
+      metric: LoadBalancerRequestTime
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: ms
+      scale: 1
+  server_group_http_code_upstream_2xx:
+    description: "该指标表示服务器组上游返回的 HTTP 2XX 状态码数量。"
+    aliyun:
+      metric: ServerGroupHTTPCodeUpstream2XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count/s
+  server_group_http_code_upstream_3xx:
+    description: "该指标表示服务器组上游返回的 HTTP 3XX 状态码数量。"
+    aliyun:
+      metric: ServerGroupHTTPCodeUpstream3XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count/s
+  server_group_http_code_upstream_4xx:
+    description: "该指标表示服务器组上游返回的 HTTP 4XX 状态码数量。"
+    aliyun:
+      metric: ServerGroupHTTPCodeUpstream4XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count/s
+  server_group_http_code_upstream_5xx:
+    description: "该指标表示服务器组上游返回的 HTTP 5XX 状态码数量。"
+    aliyun:
+      metric: ServerGroupHTTPCodeUpstream5XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count/s
+  server_group_healthy_host_count:
+    description: "该指标表示服务器组内处于健康状态的后端主机数量。"
+    aliyun:
+      metric: ServerGroupHealthyHostCount
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count
+  server_group_non_sticky_request:
+    description: "该指标表示服务器组内非会话粘滞的请求次数。"
+    aliyun:
+      metric: ServerGroupNonStickyRequest
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count/s
+  server_group_qps:
+    description: "该指标表示服务器组的每秒请求数。"
+    aliyun:
+      metric: ServerGroupQPS
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count/s
+  server_group_request_time:
+    description: "该指标表示服务器组维度下请求的平均响应时间（毫秒）。"
+    aliyun:
+      metric: ServerGroupRequestTime
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: ms
+  server_group_unhealthy_host_count:
+    description: "该指标表示服务器组内处于异常状态的后端主机数量。"
+    aliyun:
+      metric: ServerGroupUnHealthyHostCount
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count
+  server_group_upstream_connection_error:
+    description: "该指标表示服务器组与上游建立连接时发生的错误次数。"
+    aliyun:
+      metric: ServerGroupUpstreamConnectionError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count/s
+  server_group_upstream_response_time:
+    description: "该指标表示服务器组从上游收到响应的平均耗时（毫秒）。"
+    aliyun:
+      metric: ServerGroupUpstreamResponseTime
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: ms
+  server_group_upstream_tls_negotiation_error:
+    description: "该指标表示服务器组与上游进行 TLS 握手时发生的错误次数。"
+    aliyun:
+      metric: ServerGroupUpstreamTLSNegotiationError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count/s
+  traffic_tx_bps:
+    description: "出网流量"
+    aliyun:
+      metric: LoadBalancerOutBits
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: bit/s
+      scale: 1
 
-  # Vip Level
+  # ========================================
+  # 单独指标（阿里云专用 - DualStack LoadBalancer）
+  # ========================================
+  dual_stack_load_balancer_active_connection:
+    description: "该指标表示双栈负载均衡器的活跃连接数。"
+    aliyun:
+      metric: DualStack_LoadBalancerActiveConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count
+  dual_stack_load_balancer_client_tls_negotiation_error:
+    description: "该指标表示双栈负载均衡器客户端 TLS 握手错误次数。"
+    aliyun:
+      metric: DualStack_LoadBalancerClientTLSNegotiationError
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_http_code_2xx:
+    description: "该指标表示双栈负载均衡器返回的 HTTP 2XX 状态码数量。"
+    aliyun:
+      metric: DualStack_LoadBalancerHTTPCode2XX
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_http_code_3xx:
+    description: "该指标表示双栈负载均衡器返回的 HTTP 3XX 状态码数量。"
+    aliyun:
+      metric: DualStack_LoadBalancerHTTPCode3XX
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_http_code_4xx:
+    description: "该指标表示双栈负载均衡器返回的 HTTP 4XX 状态码数量。"
+    aliyun:
+      metric: DualStack_LoadBalancerHTTPCode4XX
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_http_code_500:
+    description: "该指标表示双栈负载均衡器返回的 HTTP 500 状态码数量。"
+    aliyun:
+      metric: DualStack_LoadBalancerHTTPCode500
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_http_code_502:
+    description: "该指标表示双栈负载均衡器返回的 HTTP 502 状态码数量。"
+    aliyun:
+      metric: DualStack_LoadBalancerHTTPCode502
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_http_code_503:
+    description: "该指标表示双栈负载均衡器返回的 HTTP 503 状态码数量。"
+    aliyun:
+      metric: DualStack_LoadBalancerHTTPCode503
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_http_code_504:
+    description: "该指标表示双栈负载均衡器返回的 HTTP 504 状态码数量。"
+    aliyun:
+      metric: DualStack_LoadBalancerHTTPCode504
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_http_code_5xx:
+    description: "该指标表示双栈负载均衡器返回的 HTTP 5XX 状态码数量。"
+    aliyun:
+      metric: DualStack_LoadBalancerHTTPCode5XX
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_http_fixed_response:
+    description: "该指标表示双栈负载均衡器返回固定响应的次数。"
+    aliyun:
+      metric: DualStack_LoadBalancerHTTPFixedResponse
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_http_redirect:
+    description: "该指标表示双栈负载均衡器发生 HTTP 重定向的次数。"
+    aliyun:
+      metric: DualStack_LoadBalancerHTTPRedirect
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_in_bits:
+    description: "该指标表示双栈负载均衡器的入网流量（比特/秒）。"
+    aliyun:
+      metric: DualStack_LoadBalancerInBits
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: bit/s
+  dual_stack_load_balancer_inactive_connection:
+    description: "该指标表示双栈负载均衡器的非活跃连接数。"
+    aliyun:
+      metric: DualStack_LoadBalancerInactiveConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count
+  dual_stack_load_balancer_max_connection:
+    description: "该指标表示双栈负载均衡器支持的最大并发连接数。"
+    aliyun:
+      metric: DualStack_LoadBalancerMaxConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count
+  dual_stack_load_balancer_new_connection:
+    description: "该指标表示双栈负载均衡器每秒新建连接数。"
+    aliyun:
+      metric: DualStack_LoadBalancerNewConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_non_sticky_request:
+    description: "该指标表示双栈负载均衡器的非会话粘滞请求次数。"
+    aliyun:
+      metric: DualStack_LoadBalancerNonStickyRequest
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_out_bits:
+    description: "该指标表示双栈负载均衡器的出网流量（比特/秒）。"
+    aliyun:
+      metric: DualStack_LoadBalancerOutBits
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: bit/s
+  dual_stack_load_balancer_qps:
+    description: "该指标表示双栈负载均衡器的每秒请求数。"
+    aliyun:
+      metric: DualStack_LoadBalancerQPS
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_rejected_connection:
+    description: "该指标表示双栈负载均衡器每秒被拒绝的连接数。"
+    aliyun:
+      metric: DualStack_LoadBalancerRejectedConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_request_time:
+    description: "该指标表示双栈负载均衡器维度下请求的平均响应时间（毫秒）。"
+    aliyun:
+      metric: DualStack_LoadBalancerRequestTime
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: ms
+  dual_stack_load_balancer_upstream_connection_error:
+    description: "该指标表示双栈负载均衡器与上游建立连接时发生的错误次数。"
+    aliyun:
+      metric: DualStack_LoadBalancerUpstreamConnectionError
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+  dual_stack_load_balancer_upstream_response_time:
+    description: "该指标表示双栈负载均衡器从上游收到响应的平均耗时（毫秒）。"
+    aliyun:
+      metric: DualStack_LoadBalancerUpstreamResponseTime
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: ms
+  dual_stack_load_balancer_upstream_tls_negotiation_error:
+    description: "该指标表示双栈负载均衡器与上游进行 TLS 握手时发生的错误次数。"
+    aliyun:
+      metric: DualStack_LoadBalancerUpstreamTLSNegotiationError
+      dimensions:
+        - userId
+        - loadBalancerId
+      unit: count/s
+
+  # ========================================
+  # 单独指标（阿里云专用 - DualStack Listener）
+  # ========================================
+  dual_stack_listener_active_connection:
+    description: "双栈监听器活跃连接数"
+    aliyun:
+      metric: DualStack_ListenerActiveConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count
+  dual_stack_listener_client_tls_negotiation_error:
+    description: "双栈监听器客户端 TLS 握手错误数"
+    aliyun:
+      metric: DualStack_ListenerClientTLSNegotiationError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_http_code_2xx:
+    description: "双栈监听器 HTTP 2XX 状态码数量"
+    aliyun:
+      metric: DualStack_ListenerHTTPCode2XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_http_code_3xx:
+    description: "双栈监听器 HTTP 3XX 状态码数量"
+    aliyun:
+      metric: DualStack_ListenerHTTPCode3XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_http_code_4xx:
+    description: "双栈监听器 HTTP 4XX 状态码数量"
+    aliyun:
+      metric: DualStack_ListenerHTTPCode4XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_http_code_500:
+    description: "双栈监听器 HTTP 500 状态码数量"
+    aliyun:
+      metric: DualStack_ListenerHTTPCode500
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_http_code_502:
+    description: "双栈监听器 HTTP 502 状态码数量"
+    aliyun:
+      metric: DualStack_ListenerHTTPCode502
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_http_code_503:
+    description: "双栈监听器 HTTP 503 状态码数量"
+    aliyun:
+      metric: DualStack_ListenerHTTPCode503
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_http_code_504:
+    description: "双栈监听器 HTTP 504 状态码数量"
+    aliyun:
+      metric: DualStack_ListenerHTTPCode504
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_http_code_5xx:
+    description: "双栈监听器 HTTP 5XX 状态码数量"
+    aliyun:
+      metric: DualStack_ListenerHTTPCode5XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_http_fixed_response:
+    description: "双栈监听器固定响应次数"
+    aliyun:
+      metric: DualStack_ListenerHTTPFixedResponse
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_http_redirect:
+    description: "双栈监听器重定向次数"
+    aliyun:
+      metric: DualStack_ListenerHTTPRedirect
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_in_bits:
+    description: "双栈监听器入网流量"
+    aliyun:
+      metric: DualStack_ListenerInBits
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: bit/s
+  dual_stack_listener_inactive_connection:
+    description: "双栈监听器非活跃连接数"
+    aliyun:
+      metric: DualStack_ListenerInactiveConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count
+  dual_stack_listener_max_connection:
+    description: "双栈监听器最大连接数"
+    aliyun:
+      metric: DualStack_ListenerMaxConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_new_connection:
+    description: "双栈监听器新建连接数"
+    aliyun:
+      metric: DualStack_ListenerNewConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_non_sticky_request:
+    description: "双栈监听器非会话粘滞请求数"
+    aliyun:
+      metric: DualStack_ListenerNonStickyRequest
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_out_bits:
+    description: "双栈监听器出网流量"
+    aliyun:
+      metric: DualStack_ListenerOutBits
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: bit/s
+  dual_stack_listener_qps:
+    description: "双栈监听器每秒请求数 (L7)"
+    aliyun:
+      metric: DualStack_ListenerQPS
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_rejected_connection:
+    description: "双栈监听器拒绝连接数"
+    aliyun:
+      metric: DualStack_ListenerRejectedConnection
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_request_time:
+    description: "双栈监听器请求响应时间 (L7)"
+    aliyun:
+      metric: DualStack_ListenerRequestTime
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: ms
+  dual_stack_listener_upstream_connection_error:
+    description: "双栈监听器上游连接错误数"
+    aliyun:
+      metric: DualStack_ListenerUpstreamConnectionError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+  dual_stack_listener_upstream_response_time:
+    description: "双栈监听器上游响应时间"
+    aliyun:
+      metric: DualStack_ListenerUpstreamResponseTime
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: ms
+  dual_stack_listener_upstream_tls_negotiation_error:
+    description: "双栈监听器上游 TLS 握手错误数"
+    aliyun:
+      metric: DualStack_ListenerUpstreamTLSNegotiationError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+      unit: count/s
+
+  # ========================================
+  # 单独指标（阿里云专用 - DualStack ServerGroup & Rule）
+  # ========================================
+  dual_stack_server_group_non_sticky_request:
+    description: "双栈服务器组非会话粘滞请求数"
+    aliyun:
+      metric: DualStack_ServerGroupNonStickyRequest
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count/s
+  dual_stack_server_group_qps:
+    description: "双栈服务器组每秒请求数 (L7)"
+    aliyun:
+      metric: DualStack_ServerGroupQPS
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count/s
+  dual_stack_server_group_request_time:
+    description: "双栈服务器组请求响应时间 (L7)"
+    aliyun:
+      metric: DualStack_ServerGroupRequestTime
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: ms
+  dual_stack_server_group_upstream_connection_error:
+    description: "双栈服务器组上游连接错误数"
+    aliyun:
+      metric: DualStack_ServerGroupUpstreamConnectionError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count/s
+  dual_stack_server_group_upstream_response_time:
+    description: "双栈服务器组上游响应时间"
+    aliyun:
+      metric: DualStack_ServerGroupUpstreamResponseTime
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: ms
+  dual_stack_server_group_upstream_tls_negotiation_error:
+    description: "双栈服务器组上游 TLS 握手错误数"
+    aliyun:
+      metric: DualStack_ServerGroupUpstreamTLSNegotiationError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - serverGroupId
+      unit: count/s
+  dual_stack_rule_non_sticky_request:
+    description: "双栈规则非会话粘滞请求数"
+    aliyun:
+      metric: DualStack_RuleNonStickyRequest
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count/s
+  dual_stack_rule_qps:
+    description: "双栈规则每秒请求数 (L7)"
+    aliyun:
+      metric: DualStack_RuleQPS
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count/s
+  dual_stack_rule_request_time:
+    description: "双栈规则请求响应时间 (L7)"
+    aliyun:
+      metric: DualStack_RuleRequestTime
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: ms
+  dual_stack_rule_upstream_connection_error:
+    description: "双栈规则上游连接错误数"
+    aliyun:
+      metric: DualStack_RuleUpstreamConnectionError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count/s
+  dual_stack_rule_upstream_response_time:
+    description: "双栈规则上游响应时间"
+    aliyun:
+      metric: DualStack_RuleUpstreamResponseTime
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: ms
+  dual_stack_rule_upstream_tls_negotiation_error:
+    description: "双栈规则上游 TLS 握手错误数"
+    aliyun:
+      metric: DualStack_RuleUpstreamTLSNegotiationError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count/s
+
+  # ========================================
+  # 单独指标（阿里云专用 - Rule）
+  # ========================================
+  rule_http_code_upstream_2xx:
+    description: "该指标表示转发规则上游返回的 HTTP 2XX 状态码数量。"
+    aliyun:
+      metric: RuleHTTPCodeUpstream2XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count/s
+  rule_http_code_upstream_2xx_ratio:
+    description: "该指标表示转发规则上游返回的 HTTP 2XX 状态码占比。"
+    aliyun:
+      metric: RuleHTTPCodeUpstream2XXRatio
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: ratio
+  rule_http_code_upstream_3xx:
+    description: "该指标表示转发规则上游返回的 HTTP 3XX 状态码数量。"
+    aliyun:
+      metric: RuleHTTPCodeUpstream3XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count/s
+  rule_http_code_upstream_3xx_ratio:
+    description: "该指标表示转发规则上游返回的 HTTP 3XX 状态码占比。"
+    aliyun:
+      metric: RuleHTTPCodeUpstream3XXRatio
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: ratio
+  rule_http_code_upstream_4xx:
+    description: "该指标表示转发规则上游返回的 HTTP 4XX 状态码数量。"
+    aliyun:
+      metric: RuleHTTPCodeUpstream4XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count/s
+  rule_http_code_upstream_4xx_ratio:
+    description: "该指标表示转发规则上游返回的 HTTP 4XX 状态码占比。"
+    aliyun:
+      metric: RuleHTTPCodeUpstream4XXRatio
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: ratio
+  rule_http_code_upstream_5xx:
+    description: "该指标表示转发规则上游返回的 HTTP 5XX 状态码数量。"
+    aliyun:
+      metric: RuleHTTPCodeUpstream5XX
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count/s
+  rule_http_code_upstream_5xx_ratio:
+    description: "该指标表示转发规则上游返回的 HTTP 5XX 状态码占比。"
+    aliyun:
+      metric: RuleHTTPCodeUpstream5XXRatio
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: ratio
+  rule_healthy_host_count:
+    description: "该指标表示转发规则所关联后端中处于健康状态的主机数量。"
+    aliyun:
+      metric: RuleHealthyHostCount
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count
+  rule_non_sticky_request:
+    description: "该指标表示转发规则维度下的非会话粘滞请求次数。"
+    aliyun:
+      metric: RuleNonStickyRequest
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count/s
+  rule_qps:
+    description: "该指标表示转发规则的每秒请求数。"
+    aliyun:
+      metric: RuleQPS
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count/s
+  rule_request_time:
+    description: "该指标表示转发规则维度下请求的平均响应时间（毫秒）。"
+    aliyun:
+      metric: RuleRequestTime
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: ms
+  rule_unhealthy_host_count:
+    description: "该指标表示转发规则所关联后端中处于异常状态的主机数量。"
+    aliyun:
+      metric: RuleUnHealthyHostCount
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count
+  rule_upstream_connection_error:
+    description: "该指标表示转发规则与上游建立连接时发生的错误次数。"
+    aliyun:
+      metric: RuleUpstreamConnectionError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count/s
+  rule_upstream_response_time:
+    description: "该指标表示转发规则从上游收到响应的平均耗时（毫秒）。"
+    aliyun:
+      metric: RuleUpstreamResponseTime
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: ms
+  rule_upstream_tls_negotiation_error:
+    description: "该指标表示转发规则与上游进行 TLS 握手时发生的错误次数。"
+    aliyun:
+      metric: RuleUpstreamTLSNegotiationError
+      dimensions:
+        - userId
+        - loadBalancerId
+        - listenerProtocol
+        - listenerPort
+        - ruleId
+      unit: count/s
+
+  # ========================================
+  # 单独指标（阿里云专用 - VIP）
+  # ========================================
   vip_active_connection:
     description: "该指标表示指定 VIP 的活跃连接数。"
     aliyun:
@@ -672,894 +1556,127 @@ canonical:
         - vip
       unit: count/s
 
-  # ServerGroup Level
-  server_group_http_code_upstream_2xx:
-    description: "该指标表示服务器组上游返回的 HTTP 2XX 状态码数量。"
-    aliyun:
-      metric: ServerGroupHTTPCodeUpstream2XX
+  # ========================================
+  # 单独指标（AWS 专用）
+  # ========================================
+  byoip_utilization_pct:
+    description: "BYOIP 利用率"
+    aws:
+      metric: BYoIPUtilPercentage
       dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - serverGroupId
-      unit: count/s
-  server_group_http_code_upstream_3xx:
-    description: "该指标表示服务器组上游返回的 HTTP 3XX 状态码数量。"
-    aliyun:
-      metric: ServerGroupHTTPCodeUpstream3XX
+        - LoadBalancer
+      unit: percent
+  client_tls_negotiation_error_count:
+    description: "客户端 TLS 握手错误数"
+    aws:
+      metric: ClientTLSNegotiationErrorCount
       dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - serverGroupId
-      unit: count/s
-  server_group_http_code_upstream_4xx:
-    description: "该指标表示服务器组上游返回的 HTTP 4XX 状态码数量。"
-    aliyun:
-      metric: ServerGroupHTTPCodeUpstream4XX
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - serverGroupId
-      unit: count/s
-  server_group_http_code_upstream_5xx:
-    description: "该指标表示服务器组上游返回的 HTTP 5XX 状态码数量。"
-    aliyun:
-      metric: ServerGroupHTTPCodeUpstream5XX
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - serverGroupId
-      unit: count/s
-  server_group_healthy_host_count:
-    description: "该指标表示服务器组内处于健康状态的后端主机数量。"
-    aliyun:
-      metric: ServerGroupHealthyHostCount
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - serverGroupId
+        - LoadBalancer
       unit: count
-  server_group_non_sticky_request:
-    description: "该指标表示服务器组内非会话粘滞的请求次数。"
-    aliyun:
-      metric: ServerGroupNonStickyRequest
+  consumed_lcus:
+    description: "消耗的 LCU 数量"
+    aws:
+      metric: ConsumedLCUs
       dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - serverGroupId
-      unit: count/s
-  server_group_qps:
-    description: "该指标表示服务器组的每秒请求数。"
-    aliyun:
-      metric: ServerGroupQPS
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - serverGroupId
-      unit: count/s
-  server_group_request_time:
-    description: "该指标表示服务器组维度下请求的平均响应时间（毫秒）。"
-    aliyun:
-      metric: ServerGroupRequestTime
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - serverGroupId
-      unit: ms
-  server_group_unhealthy_host_count:
-    description: "该指标表示服务器组内处于异常状态的后端主机数量。"
-    aliyun:
-      metric: ServerGroupUnHealthyHostCount
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - serverGroupId
+        - LoadBalancer
       unit: count
-  server_group_upstream_connection_error:
-    description: "该指标表示服务器组与上游建立连接时发生的错误次数。"
-    aliyun:
-      metric: ServerGroupUpstreamConnectionError
+  healthy_host_count:
+    description: "健康主机数"
+    aws:
+      metric: HealthyHostCount
       dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - serverGroupId
-      unit: count/s
-  server_group_upstream_response_time:
-    description: "该指标表示服务器组从上游收到响应的平均耗时（毫秒）。"
-    aliyun:
-      metric: ServerGroupUpstreamResponseTime
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - serverGroupId
-      unit: ms
-  server_group_upstream_tls_negotiation_error:
-    description: "该指标表示服务器组与上游进行 TLS 握手时发生的错误次数。"
-    aliyun:
-      metric: ServerGroupUpstreamTLSNegotiationError
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - serverGroupId
-      unit: count/s
-
-  # Rule Level
-  rule_http_code_upstream_2xx:
-    description: "该指标表示转发规则上游返回的 HTTP 2XX 状态码数量。"
-    aliyun:
-      metric: RuleHTTPCodeUpstream2XX
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - ruleId
-      unit: count/s
-  rule_http_code_upstream_2xx_ratio:
-    description: "该指标表示转发规则上游返回的 HTTP 2XX 状态码占比。"
-    aliyun:
-      metric: RuleHTTPCodeUpstream2XXRatio
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - ruleId
-      unit: ratio
-  rule_http_code_upstream_3xx:
-    description: "该指标表示转发规则上游返回的 HTTP 3XX 状态码数量。"
-    aliyun:
-      metric: RuleHTTPCodeUpstream3XX
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - ruleId
-      unit: count/s
-  rule_http_code_upstream_3xx_ratio:
-    description: "该指标表示转发规则上游返回的 HTTP 3XX 状态码占比。"
-    aliyun:
-      metric: RuleHTTPCodeUpstream3XXRatio
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - ruleId
-      unit: ratio
-  rule_http_code_upstream_4xx:
-    description: "该指标表示转发规则上游返回的 HTTP 4XX 状态码数量。"
-    aliyun:
-      metric: RuleHTTPCodeUpstream4XX
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - ruleId
-      unit: count/s
-  rule_http_code_upstream_4xx_ratio:
-    description: "该指标表示转发规则上游返回的 HTTP 4XX 状态码占比。"
-    aliyun:
-      metric: RuleHTTPCodeUpstream4XXRatio
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - ruleId
-      unit: ratio
-  rule_http_code_upstream_5xx:
-    description: "该指标表示转发规则上游返回的 HTTP 5XX 状态码数量。"
-    aliyun:
-      metric: RuleHTTPCodeUpstream5XX
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - ruleId
-      unit: count/s
-  rule_http_code_upstream_5xx_ratio:
-    description: "该指标表示转发规则上游返回的 HTTP 5XX 状态码占比。"
-    aliyun:
-      metric: RuleHTTPCodeUpstream5XXRatio
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - ruleId
-      unit: ratio
-  rule_healthy_host_count:
-    description: "该指标表示转发规则所关联后端中处于健康状态的主机数量。"
-    aliyun:
-      metric: RuleHealthyHostCount
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - ruleId
+        - LoadBalancer
+        - TargetGroup
       unit: count
-  rule_non_sticky_request:
-    description: "该指标表示转发规则维度下的非会话粘滞请求次数。"
-    aliyun:
-      metric: RuleNonStickyRequest
+  rejected_connection_count:
+    description: "拒绝连接数"
+    aws:
+      metric: RejectedConnectionCount
       dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - ruleId
-      unit: count/s
-  rule_qps:
-    description: "该指标表示转发规则的每秒请求数。"
-    aliyun:
-      metric: RuleQPS
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - ruleId
-      unit: count/s
-  rule_request_time:
-    description: "该指标表示转发规则维度下请求的平均响应时间（毫秒）。"
-    aliyun:
-      metric: RuleRequestTime
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - ruleId
-      unit: ms
-  rule_unhealthy_host_count:
-    description: "该指标表示转发规则所关联后端中处于异常状态的主机数量。"
-    aliyun:
-      metric: RuleUnHealthyHostCount
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - ruleId
+        - LoadBalancer
       unit: count
-  rule_upstream_connection_error:
-    description: "该指标表示转发规则与上游建立连接时发生的错误次数。"
-    aliyun:
-      metric: RuleUpstreamConnectionError
+  rule_evaluations:
+    description: "规则评估次数"
+    aws:
+      metric: RuleEvaluations
       dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - ruleId
-      unit: count/s
-  rule_upstream_response_time:
-    description: "该指标表示转发规则从上游收到响应的平均耗时（毫秒）。"
-    aliyun:
-      metric: RuleUpstreamResponseTime
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - ruleId
-      unit: ms
-  rule_upstream_tls_negotiation_error:
-    description: "该指标表示转发规则与上游进行 TLS 握手时发生的错误次数。"
-    aliyun:
-      metric: RuleUpstreamTLSNegotiationError
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - ruleId
-      unit: count/s
-
-  # DualStack Metrics
-  dual_stack_load_balancer_active_connection:
-    description: "该指标表示双栈负载均衡器的活跃连接数。"
-    aliyun:
-      metric: DualStack_LoadBalancerActiveConnection
-      dimensions:
-        - userId
-        - loadBalancerId
-      unit: count 
-  dual_stack_load_balancer_client_tls_negotiation_error:
-    description: "该指标表示双栈负载均衡器客户端 TLS 握手错误次数。"
-    aliyun:
-      metric: DualStack_LoadBalancerClientTLSNegotiationError
-      dimensions:
-        - userId
-        - loadBalancerId
-      unit: count/s
-  dual_stack_load_balancer_http_code_2xx:
-    description: "该指标表示双栈负载均衡器返回的 HTTP 2XX 状态码数量。"
-    aliyun:
-      metric: DualStack_LoadBalancerHTTPCode2XX
-      dimensions:
-        - userId
-        - loadBalancerId
-      unit: count/s
-  dual_stack_load_balancer_http_code_3xx:
-    description: "该指标表示双栈负载均衡器返回的 HTTP 3XX 状态码数量。"
-    aliyun:
-      metric: DualStack_LoadBalancerHTTPCode3XX
-      dimensions:
-        - userId
-        - loadBalancerId
-      unit: count/s
-  dual_stack_load_balancer_http_code_4xx:
-    description: "该指标表示双栈负载均衡器返回的 HTTP 4XX 状态码数量。"
-    aliyun:
-      metric: DualStack_LoadBalancerHTTPCode4XX
-      dimensions:
-        - userId
-        - loadBalancerId
-      unit: count/s
-  dual_stack_load_balancer_http_code_500:
-    description: "该指标表示双栈负载均衡器返回的 HTTP 500 状态码数量。"
-    aliyun:
-      metric: DualStack_LoadBalancerHTTPCode500
-      dimensions:
-        - userId
-        - loadBalancerId
-      unit: count/s
-  dual_stack_load_balancer_http_code_502:
-    description: "该指标表示双栈负载均衡器返回的 HTTP 502 状态码数量。"
-    aliyun:
-      metric: DualStack_LoadBalancerHTTPCode502
-      dimensions:
-        - userId
-        - loadBalancerId
-      unit: count/s
-  dual_stack_load_balancer_http_code_503:
-    description: "该指标表示双栈负载均衡器返回的 HTTP 503 状态码数量。"
-    aliyun:
-      metric: DualStack_LoadBalancerHTTPCode503
-      dimensions:
-        - userId
-        - loadBalancerId
-      unit: count/s
-  dual_stack_load_balancer_http_code_504:
-    description: "该指标表示双栈负载均衡器返回的 HTTP 504 状态码数量。"
-    aliyun:
-      metric: DualStack_LoadBalancerHTTPCode504
-      dimensions:
-        - userId
-        - loadBalancerId
-      unit: count/s
-  dual_stack_load_balancer_http_code_5xx:
-    description: "该指标表示双栈负载均衡器返回的 HTTP 5XX 状态码数量。"
-    aliyun:
-      metric: DualStack_LoadBalancerHTTPCode5XX
-      dimensions:
-        - userId
-        - loadBalancerId
-      unit: count/s
-  dual_stack_load_balancer_http_fixed_response:
-    description: "该指标表示双栈负载均衡器返回固定响应的次数。"
-    aliyun:
-      metric: DualStack_LoadBalancerHTTPFixedResponse
-      dimensions:
-        - userId
-        - loadBalancerId
-      unit: count/s 
-  dual_stack_load_balancer_http_redirect:
-    description: "该指标表示双栈负载均衡器发生 HTTP 重定向的次数。"
-    aliyun:
-      metric: DualStack_LoadBalancerHTTPRedirect
-      dimensions:
-        - userId
-        - loadBalancerId
-      unit: count/s
-
-  dual_stack_load_balancer_in_bits:
-    description: "该指标表示双栈负载均衡器的入网流量（比特/秒）。"
-    aliyun:
-      metric: DualStack_LoadBalancerInBits
-      dimensions:
-        - userId
-        - loadBalancerId
-      unit: bit/s
-  dual_stack_load_balancer_inactive_connection:
-    description: "该指标表示双栈负载均衡器的非活跃连接数。"
-    aliyun:
-      metric: DualStack_LoadBalancerInactiveConnection
-      dimensions:
-        - userId
-        - loadBalancerId
+        - LoadBalancer
       unit: count
-  dual_stack_load_balancer_max_connection:
-    description: "该指标表示双栈负载均衡器支持的最大并发连接数。"
-    aliyun:
-      metric: DualStack_LoadBalancerMaxConnection
+  status_code_elb_4xx:
+    description: "ELB 返回的 HTTP 4XX 状态码数量"
+    aws:
+      metric: HTTPCode_ELB_4XX_Count
       dimensions:
-        - userId
-        - loadBalancerId
+        - LoadBalancer
       unit: count
-  dual_stack_load_balancer_new_connection:
-    description: "该指标表示双栈负载均衡器每秒新建连接数。"
-    aliyun:
-      metric: DualStack_LoadBalancerNewConnection
+  status_code_elb_5xx:
+    description: "ELB 返回的 HTTP 5XX 状态码数量"
+    aws:
+      metric: HTTPCode_ELB_5XX_Count
       dimensions:
-        - userId
-        - loadBalancerId
-      unit: count/s
-  dual_stack_load_balancer_non_sticky_request:
-    description: "该指标表示双栈负载均衡器的非会话粘滞请求次数。"
-    aliyun:
-      metric: DualStack_LoadBalancerNonStickyRequest
-      dimensions:
-        - userId
-        - loadBalancerId
-      unit: count/s
-  dual_stack_load_balancer_out_bits:
-    description: "该指标表示双栈负载均衡器的出网流量（比特/秒）。"
-    aliyun:
-      metric: DualStack_LoadBalancerOutBits
-      dimensions:
-        - userId
-        - loadBalancerId
-      unit: bit/s 
-  dual_stack_load_balancer_qps:
-    description: "该指标表示双栈负载均衡器的每秒请求数。"
-    aliyun:
-      metric: DualStack_LoadBalancerQPS
-      dimensions:
-        - userId
-        - loadBalancerId
-      unit: count/s
-  dual_stack_load_balancer_rejected_connection:
-    description: "该指标表示双栈负载均衡器每秒被拒绝的连接数。"
-    aliyun:
-      metric: DualStack_LoadBalancerRejectedConnection
-      dimensions:
-        - userId
-        - loadBalancerId
-      unit: count/s
-  dual_stack_load_balancer_request_time:
-    description: "该指标表示双栈负载均衡器维度下请求的平均响应时间（毫秒）。"
-    aliyun:
-      metric: DualStack_LoadBalancerRequestTime
-      dimensions:
-        - userId
-        - loadBalancerId
-      unit: ms
-
-  dual_stack_load_balancer_upstream_connection_error:
-    description: "该指标表示双栈负载均衡器与上游建立连接时发生的错误次数。"
-    aliyun:
-      metric: DualStack_LoadBalancerUpstreamConnectionError
-      dimensions:
-        - userId
-        - loadBalancerId
-      unit: count/s
-  dual_stack_load_balancer_upstream_response_time:
-    description: "该指标表示双栈负载均衡器从上游收到响应的平均耗时（毫秒）。"
-    aliyun:
-      metric: DualStack_LoadBalancerUpstreamResponseTime
-      dimensions:
-        - userId
-        - loadBalancerId
-      unit: ms
-  dual_stack_load_balancer_upstream_tls_negotiation_error:
-    description: "该指标表示双栈负载均衡器与上游进行 TLS 握手时发生的错误次数。"
-    aliyun:
-      metric: DualStack_LoadBalancerUpstreamTLSNegotiationError
-      dimensions:
-        - userId
-        - loadBalancerId
-      unit: count/s
-
-  # DualStack Listener
-  dual_stack_listener_active_connection:
-    description: "双栈监听器活跃连接数"
-    aliyun:
-      metric: DualStack_ListenerActiveConnection
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
+        - LoadBalancer
       unit: count
-  dual_stack_listener_client_tls_negotiation_error:
-    description: "双栈监听器客户端 TLS 握手错误数"
-    aliyun:
-      metric: DualStack_ListenerClientTLSNegotiationError
+  status_code_target_2xx:
+    description: "Target 返回的 HTTP 2XX 状态码数量"
+    aws:
+      metric: HTTPCode_Target_2XX
       dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-      unit: count/s
-  dual_stack_listener_http_code_2xx:
-    description: "双栈监听器 HTTP 2XX 状态码数量"
-    aliyun:
-      metric: DualStack_ListenerHTTPCode2XX
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-      unit: count/s
-  dual_stack_listener_http_code_3xx:
-    description: "双栈监听器 HTTP 3XX 状态码数量"
-    aliyun:
-      metric: DualStack_ListenerHTTPCode3XX
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-      unit: count/s
-  dual_stack_listener_http_code_4xx:
-    description: "双栈监听器 HTTP 4XX 状态码数量"
-    aliyun:
-      metric: DualStack_ListenerHTTPCode4XX
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-      unit: count/s
-  dual_stack_listener_http_code_500:
-    description: "双栈监听器 HTTP 500 状态码数量"
-    aliyun:
-      metric: DualStack_ListenerHTTPCode500
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-      unit: count/s
-  dual_stack_listener_http_code_502:
-    description: "双栈监听器 HTTP 502 状态码数量"
-    aliyun:
-      metric: DualStack_ListenerHTTPCode502
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-      unit: count/s
-  dual_stack_listener_http_code_503:
-    description: "双栈监听器 HTTP 503 状态码数量"
-    aliyun:
-      metric: DualStack_ListenerHTTPCode503
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-      unit: count/s
-  dual_stack_listener_http_code_504:
-    description: "双栈监听器 HTTP 504 状态码数量"
-    aliyun:
-      metric: DualStack_ListenerHTTPCode504
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-      unit: count/s
-  dual_stack_listener_http_code_5xx:
-    description: "双栈监听器 HTTP 5XX 状态码数量"
-    aliyun:
-      metric: DualStack_ListenerHTTPCode5XX
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-      unit: count/s
-  dual_stack_listener_http_fixed_response:
-    description: "双栈监听器固定响应次数"
-    aliyun:
-      metric: DualStack_ListenerHTTPFixedResponse
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-      unit: count/s
-  dual_stack_listener_http_redirect:
-    description: "双栈监听器重定向次数"
-    aliyun:
-      metric: DualStack_ListenerHTTPRedirect
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-      unit: count/s 
-  dual_stack_listener_in_bits:
-    description: "双栈监听器入网流量"
-    aliyun:
-      metric: DualStack_ListenerInBits
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-      unit: bit/s
-  dual_stack_listener_inactive_connection:
-    description: "双栈监听器非活跃连接数"
-    aliyun:
-      metric: DualStack_ListenerInactiveConnection
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
+        - LoadBalancer
+        - TargetGroup
       unit: count
-  dual_stack_listener_max_connection:
-    description: "双栈监听器最大连接数"
-    aliyun:
-      metric: DualStack_ListenerMaxConnection
+  status_code_target_3xx:
+    description: "Target 返回的 HTTP 3XX 状态码数量"
+    aws:
+      metric: HTTPCode_Target_3XX
       dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-      unit: count/s
-  dual_stack_listener_new_connection:
-    description: "双栈监听器新建连接数"
-    aliyun:
-      metric: DualStack_ListenerNewConnection
+        - LoadBalancer
+        - TargetGroup
+      unit: count
+  status_code_target_4xx:
+    description: "Target 返回的 HTTP 4XX 状态码数量"
+    aws:
+      metric: HTTPCode_Target_4XX
       dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-      unit: count/s
-  dual_stack_listener_non_sticky_request:
-    description: "双栈监听器非会话粘滞请求数"
-    aliyun:
-      metric: DualStack_ListenerNonStickyRequest
+        - LoadBalancer
+        - TargetGroup
+      unit: count
+  status_code_target_5xx:
+    description: "Target 返回的 HTTP 5XX 状态码数量"
+    aws:
+      metric: HTTPCode_Target_5XX
       dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-      unit: count/s
-  dual_stack_listener_out_bits:
-    description: "双栈监听器出网流量"
-    aliyun:
-      metric: DualStack_ListenerOutBits
+        - LoadBalancer
+        - TargetGroup
+      unit: count
+  target_connection_error_count:
+    description: "Target 连接错误数"
+    aws:
+      metric: TargetConnectionErrorCount
       dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-      unit: bit/s
-  dual_stack_listener_qps:
-    description: "双栈监听器每秒请求数 (L7)"
-    aliyun:
-      metric: DualStack_ListenerQPS
+        - LoadBalancer
+        - TargetGroup
+      unit: count
+  target_response_time:
+    description: "Target 响应时间"
+    aws:
+      metric: TargetResponseTime
       dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-      unit: count/s
-  dual_stack_listener_rejected_connection:
-    description: "双栈监听器拒绝连接数"
-    aliyun:
-      metric: DualStack_ListenerRejectedConnection
+        - LoadBalancer
+        - TargetGroup
+      unit: seconds
+  target_tls_negotiation_error_count:
+    description: "Target TLS 握手错误数"
+    aws:
+      metric: TargetTLSNegotiationErrorCount
       dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-      unit: count/s
-  dual_stack_listener_request_time:
-    description: "双栈监听器请求响应时间 (L7)"
-    aliyun:
-      metric: DualStack_ListenerRequestTime
+        - LoadBalancer
+        - TargetGroup
+      unit: count
+  un_healthy_host_count:
+    description: "不健康主机数"
+    aws:
+      metric: UnHealthyHostCount
       dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-      unit: ms
-  dual_stack_listener_upstream_connection_error:
-    description: "双栈监听器上游连接错误数"
-    aliyun:
-      metric: DualStack_ListenerUpstreamConnectionError
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-      unit: count/s
-  dual_stack_listener_upstream_response_time:
-    description: "双栈监听器上游响应时间"
-    aliyun:
-      metric: DualStack_ListenerUpstreamResponseTime
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-      unit: ms
-  dual_stack_listener_upstream_tls_negotiation_error:
-    description: "双栈监听器上游 TLS 握手错误数"
-    aliyun:
-      metric: DualStack_ListenerUpstreamTLSNegotiationError
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-      unit: count/s
-
-
-
-
-
-
-  # DualStack ServerGroup
-
-  dual_stack_server_group_non_sticky_request:
-    description: "双栈服务器组非会话粘滞请求数"
-    aliyun:
-      metric: DualStack_ServerGroupNonStickyRequest
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - serverGroupId
-      unit: count/s
-  dual_stack_server_group_qps:
-    description: "双栈服务器组每秒请求数 (L7)"
-    aliyun:
-      metric: DualStack_ServerGroupQPS
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - serverGroupId
-      unit: count/s
-  dual_stack_server_group_request_time:
-    description: "双栈服务器组请求响应时间 (L7)"
-    aliyun:
-      metric: DualStack_ServerGroupRequestTime
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - serverGroupId
-      unit: ms  
-  dual_stack_server_group_upstream_connection_error:
-    description: "双栈服务器组上游连接错误数"
-    aliyun:
-      metric: DualStack_ServerGroupUpstreamConnectionError
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - serverGroupId
-      unit: count/s
-  dual_stack_server_group_upstream_response_time:
-    description: "双栈服务器组上游响应时间"
-    aliyun:
-      metric: DualStack_ServerGroupUpstreamResponseTime
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - serverGroupId
-      unit: ms
-  dual_stack_server_group_upstream_tls_negotiation_error:
-    description: "双栈服务器组上游 TLS 握手错误数"
-    aliyun:
-      metric: DualStack_ServerGroupUpstreamTLSNegotiationError
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - serverGroupId
-      unit: count/s
-
-  dual_stack_rule_non_sticky_request:
-    description: "双栈规则非会话粘滞请求数"
-    aliyun:
-      metric: DualStack_RuleNonStickyRequest
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - ruleId
-      unit: count/s
-  dual_stack_rule_qps:
-    description: "双栈规则每秒请求数 (L7)"
-    aliyun:
-      metric: DualStack_RuleQPS
-      dimensions:
-        - userId
-        - loadBalancerId  
-        - listenerProtocol
-        - listenerPort
-        - ruleId
-      unit: count/s
-  dual_stack_rule_request_time:
-    description: "双栈规则请求响应时间 (L7)"
-    aliyun:
-      metric: DualStack_RuleRequestTime
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - ruleId
-      unit: ms
-
-  dual_stack_rule_upstream_connection_error:
-    description: "双栈规则上游连接错误数"
-    aliyun:
-      metric: DualStack_RuleUpstreamConnectionError
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - ruleId
-      unit: count/s
-  dual_stack_rule_upstream_response_time:
-    description: "双栈规则上游响应时间"
-    aliyun:
-      metric: DualStack_RuleUpstreamResponseTime
-      dimensions:
-        - userId  
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - ruleId
-      unit: ms
-  dual_stack_rule_upstream_tls_negotiation_error:
-    description: "双栈规则上游 TLS 握手错误数"
-    aliyun:
-      metric: DualStack_RuleUpstreamTLSNegotiationError
-      dimensions:
-        - userId
-        - loadBalancerId
-        - listenerProtocol
-        - listenerPort
-        - ruleId
-      unit: count/s
+        - LoadBalancer
+        - TargetGroup
+      unit: count
