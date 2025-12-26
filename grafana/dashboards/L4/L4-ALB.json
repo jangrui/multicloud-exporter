@@ -1,6 +1,19 @@
 {
   "annotations": {
-    "list": []
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
   },
   "editable": true,
   "fiscalYearStartMonth": 0,
@@ -16,76 +29,30 @@
       "url": "/d/L2-LB-v3"
     },
     {
-      "title": "L4-应用负载均衡-v3",
-      "url": "/d/L4-ALB-v3"
+      "title": "L3-应用负载均衡-v3",
+      "url": "/d/L3-ALB-v3"
     }
   ],
   "liveNow": false,
   "panels": [
     {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "当前区域内ALB实例总数",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "short"
-        }
-      },
+      "collapsed": false,
       "gridPos": {
-        "h": 4,
-        "w": 4,
+        "h": 1,
+        "w": 24,
         "x": 0,
         "y": 0
       },
       "id": 1,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "none",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": ["lastNotNull"],
-          "fields": "",
-          "values": false
-        },
-        "text": {},
-        "textMode": "auto"
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "count(alb_active_connection{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"})",
-          "instant": true,
-          "legendFormat": ""
-        }
-      ],
-      "title": "ALB 实例数",
-      "type": "stat"
+      "panels": [],
+      "title": "实例概览",
+      "type": "row"
     },
     {
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "所有实例当前活跃连接数总和",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -98,14 +65,6 @@
               {
                 "color": "green",
                 "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 10000
-              },
-              {
-                "color": "red",
-                "value": 50000
               }
             ]
           },
@@ -113,10 +72,10 @@
         }
       },
       "gridPos": {
-        "h": 4,
+        "h": 3,
         "w": 4,
-        "x": 4,
-        "y": 0
+        "x": 0,
+        "y": 1
       },
       "id": 2,
       "options": {
@@ -129,20 +88,20 @@
           "fields": "",
           "values": false
         },
-        "text": {},
         "textMode": "auto"
       },
+      "pluginVersion": "10.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(alb_active_connection{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"})",
-          "legendFormat": ""
+          "expr": "alb_active_connection{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
+          "refId": "A"
         }
       ],
-      "title": "总活跃连接数",
+      "title": "活跃连接数",
       "type": "stat"
     },
     {
@@ -150,7 +109,6 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "所有实例每秒请求数总和",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -163,25 +121,17 @@
               {
                 "color": "green",
                 "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 1000
-              },
-              {
-                "color": "red",
-                "value": 10000
               }
             ]
           },
-          "unit": "reqps"
+          "unit": "ops"
         }
       },
       "gridPos": {
-        "h": 4,
+        "h": 3,
         "w": 4,
-        "x": 8,
-        "y": 0
+        "x": 4,
+        "y": 1
       },
       "id": 3,
       "options": {
@@ -194,20 +144,20 @@
           "fields": "",
           "values": false
         },
-        "text": {},
         "textMode": "auto"
       },
+      "pluginVersion": "10.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(alb_qps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"})",
-          "legendFormat": ""
+          "expr": "alb_qps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
+          "refId": "A"
         }
       ],
-      "title": "总 QPS",
+      "title": "QPS",
       "type": "stat"
     },
     {
@@ -215,7 +165,6 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "所有实例平均响应时间",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -243,10 +192,10 @@
         }
       },
       "gridPos": {
-        "h": 4,
+        "h": 3,
         "w": 4,
-        "x": 12,
-        "y": 0
+        "x": 8,
+        "y": 1
       },
       "id": 4,
       "options": {
@@ -259,20 +208,20 @@
           "fields": "",
           "values": false
         },
-        "text": {},
         "textMode": "auto"
       },
+      "pluginVersion": "10.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "avg(alb_response_time{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"})",
-          "legendFormat": ""
+          "expr": "alb_rt{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
+          "refId": "A"
         }
       ],
-      "title": "平均响应时间",
+      "title": "响应时间",
       "type": "stat"
     },
     {
@@ -280,29 +229,18 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "所有实例平均带宽利用率",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
           "mappings": [],
-          "max": 100,
-          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
                 "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 70
-              },
-              {
-                "color": "red",
-                "value": 90
               }
             ]
           },
@@ -310,10 +248,10 @@
         }
       },
       "gridPos": {
-        "h": 4,
+        "h": 3,
         "w": 4,
-        "x": 16,
-        "y": 0
+        "x": 12,
+        "y": 1
       },
       "id": 5,
       "options": {
@@ -326,20 +264,20 @@
           "fields": "",
           "values": false
         },
-        "text": {},
         "textMode": "auto"
       },
+      "pluginVersion": "10.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "avg(alb_traffic_rx_utilization_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"})",
-          "legendFormat": ""
+          "expr": "alb_in_bandwidth_usage{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
+          "refId": "A"
         }
       ],
-      "title": "平均带宽利用率",
+      "title": "入带宽利用率",
       "type": "stat"
     },
     {
@@ -347,29 +285,18 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "5xx错误率",
       "fieldConfig": {
         "defaults": {
           "color": {
             "mode": "thresholds"
           },
           "mappings": [],
-          "max": 100,
-          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
                 "color": "green",
                 "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 1
-              },
-              {
-                "color": "red",
-                "value": 5
               }
             ]
           },
@@ -377,10 +304,10 @@
         }
       },
       "gridPos": {
-        "h": 4,
+        "h": 3,
         "w": 4,
-        "x": 20,
-        "y": 0
+        "x": 16,
+        "y": 1
       },
       "id": 6,
       "options": {
@@ -393,20 +320,20 @@
           "fields": "",
           "values": false
         },
-        "text": {},
         "textMode": "auto"
       },
+      "pluginVersion": "10.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(alb_status_code_5xx{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}[5m])) / sum(rate(alb_qps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}[5m])) * 100",
-          "legendFormat": ""
+          "expr": "alb_out_bandwidth_usage{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
+          "refId": "A"
         }
       ],
-      "title": "5xx 错误率",
+      "title": "出带宽利用率",
       "type": "stat"
     },
     {
@@ -414,350 +341,10 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "每个实例的入方向带宽趋势",
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
-            },
-            "lineInterpolation": "smooth",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "bps"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 4
-      },
-      "id": 7,
-      "options": {
-        "legend": {
-          "calcs": ["mean", "lastNotNull", "max"],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "alb_traffic_rx_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}",
-          "legendFormat": "{{resource_id}} - 入带宽"
-        }
-      ],
-      "title": "入方向带宽",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "每个实例的出方向带宽趋势",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
-            },
-            "lineInterpolation": "smooth",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "bps"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 4
-      },
-      "id": 8,
-      "options": {
-        "legend": {
-          "calcs": ["mean", "lastNotNull", "max"],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "alb_traffic_tx_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}",
-          "legendFormat": "{{resource_id}} - 出带宽"
-        }
-      ],
-      "title": "出方向带宽",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "每个实例的入方向包速率",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
-            },
-            "lineInterpolation": "smooth",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "pps"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 12
-      },
-      "id": 9,
-      "options": {
-        "legend": {
-          "calcs": ["mean", "lastNotNull", "max"],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "alb_packet_rx_rate{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}",
-          "legendFormat": "{{resource_id}} - 入包速率"
-        }
-      ],
-      "title": "入方向包速率",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "每个实例的出方向包速率",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
-            },
-            "lineInterpolation": "smooth",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "pps"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 12
-      },
-      "id": 10,
-      "options": {
-        "legend": {
-          "calcs": ["mean", "lastNotNull", "max"],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "alb_packet_tx_rate{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}",
-          "legendFormat": "{{resource_id}} - 出包速率"
-        }
-      ],
-      "title": "出方向包速率",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "每个实例的活跃连接数趋势",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
-            },
-            "lineInterpolation": "smooth",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true
+            "mode": "thresholds"
           },
           "mappings": [],
           "thresholds": {
@@ -773,43 +360,56 @@
         }
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 20
+        "h": 3,
+        "w": 4,
+        "x": 20,
+        "y": 1
       },
-      "id": 11,
+      "id": 7,
       "options": {
-        "legend": {
-          "calcs": ["mean", "lastNotNull", "max"],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
         },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
+        "textMode": "auto"
       },
+      "pluginVersion": "10.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "alb_active_connection{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}",
-          "legendFormat": "{{resource_id}} - 活跃连接"
+          "expr": "alb_server_count{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
+          "refId": "A"
         }
       ],
-      "title": "活跃连接数",
-      "type": "timeseries"
+      "title": "后端实例数",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "id": 8,
+      "panels": [],
+      "title": "流量与带宽",
+      "type": "row"
     },
     {
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "每个实例的QPS趋势",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -830,13 +430,12 @@
               "legend": false
             },
             "lineInterpolation": "smooth",
-            "lineWidth": 1,
+            "lineWidth": 2,
             "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
             },
-            "showPoints": "never",
-            "spanNulls": true
+            "showPoints": "never"
           },
           "mappings": [],
           "thresholds": {
@@ -848,26 +447,25 @@
               }
             ]
           },
-          "unit": "reqps"
+          "unit": "Bps"
         }
       },
       "gridPos": {
-        "h": 8,
+        "h": 6,
         "w": 12,
-        "x": 12,
-        "y": 20
+        "x": 0,
+        "y": 5
       },
-      "id": 12,
+      "id": 9,
       "options": {
         "legend": {
-          "calcs": ["mean", "lastNotNull", "max"],
+          "calcs": ["lastNotNull", "max", "mean"],
           "displayMode": "table",
-          "placement": "bottom",
+          "placement": "right",
           "showLegend": true
         },
         "tooltip": {
-          "mode": "multi",
-          "sort": "none"
+          "mode": "multi"
         }
       },
       "targets": [
@@ -876,11 +474,12 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "alb_qps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}",
-          "legendFormat": "{{resource_id}} - QPS"
+          "expr": "alb_in_bandwidth{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
+          "legendFormat": "入方向带宽",
+          "refId": "A"
         }
       ],
-      "title": "QPS",
+      "title": "入方向带宽",
       "type": "timeseries"
     },
     {
@@ -888,7 +487,6 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "每个实例的响应时间趋势",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -909,13 +507,410 @@
               "legend": false
             },
             "lineInterpolation": "smooth",
-            "lineWidth": 1,
+            "lineWidth": 2,
             "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
             },
-            "showPoints": "never",
-            "spanNulls": true
+            "showPoints": "never"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "Bps"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 5
+      },
+      "id": 10,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max", "mean"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "alb_out_bandwidth{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
+          "legendFormat": "出方向带宽",
+          "refId": "A"
+        }
+      ],
+      "title": "出方向带宽",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "pps"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 11
+      },
+      "id": 11,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max", "mean"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "alb_in_packet_rate{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
+          "legendFormat": "入方向包速率",
+          "refId": "A"
+        }
+      ],
+      "title": "入方向包速率",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "pps"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 11
+      },
+      "id": 12,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max", "mean"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "alb_out_packet_rate{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
+          "legendFormat": "出方向包速率",
+          "refId": "A"
+        }
+      ],
+      "title": "出方向包速率",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 17
+      },
+      "id": 13,
+      "panels": [],
+      "title": "连接与性能",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 18
+      },
+      "id": 14,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max", "mean"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "alb_active_connection{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
+          "legendFormat": "活跃连接",
+          "refId": "A"
+        }
+      ],
+      "title": "活跃连接数趋势",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        }
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 12,
+        "y": 18
+      },
+      "id": 15,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max", "mean"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "alb_qps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
+          "legendFormat": "QPS",
+          "refId": "A"
+        }
+      ],
+      "title": "QPS 趋势",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "tooltip": false,
+              "viz": false,
+              "legend": false
+            },
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never"
           },
           "mappings": [],
           "thresholds": {
@@ -939,22 +934,21 @@
         }
       },
       "gridPos": {
-        "h": 8,
+        "h": 6,
         "w": 12,
         "x": 0,
-        "y": 28
+        "y": 24
       },
-      "id": 13,
+      "id": 16,
       "options": {
         "legend": {
-          "calcs": ["mean", "lastNotNull", "max"],
+          "calcs": ["lastNotNull", "max", "mean"],
           "displayMode": "table",
-          "placement": "bottom",
+          "placement": "right",
           "showLegend": true
         },
         "tooltip": {
-          "mode": "multi",
-          "sort": "none"
+          "mode": "multi"
         }
       },
       "targets": [
@@ -963,11 +957,12 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "alb_response_time{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}",
-          "legendFormat": "{{resource_id}} - 响应时间"
+          "expr": "alb_rt{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
+          "legendFormat": "响应时间",
+          "refId": "A"
         }
       ],
-      "title": "响应时间",
+      "title": "响应时间趋势",
       "type": "timeseries"
     },
     {
@@ -975,7 +970,6 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "每个实例的流量字节数",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -996,13 +990,12 @@
               "legend": false
             },
             "lineInterpolation": "smooth",
-            "lineWidth": 1,
+            "lineWidth": 2,
             "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
             },
-            "showPoints": "never",
-            "spanNulls": true
+            "showPoints": "never"
           },
           "mappings": [],
           "thresholds": {
@@ -1018,22 +1011,21 @@
         }
       },
       "gridPos": {
-        "h": 8,
+        "h": 6,
         "w": 12,
         "x": 12,
-        "y": 28
+        "y": 24
       },
-      "id": 14,
+      "id": 17,
       "options": {
         "legend": {
-          "calcs": ["mean", "lastNotNull", "max"],
+          "calcs": ["lastNotNull", "max", "mean"],
           "displayMode": "table",
-          "placement": "bottom",
+          "placement": "right",
           "showLegend": true
         },
         "tooltip": {
-          "mode": "multi",
-          "sort": "none"
+          "mode": "multi"
         }
       },
       "targets": [
@@ -1042,19 +1034,32 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "alb_request_count{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}",
-          "legendFormat": "{{resource_id}} - 流量字节"
+          "expr": "alb_traffic_bytes{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
+          "legendFormat": "流量字节数",
+          "refId": "A"
         }
       ],
-      "title": "流量字节数",
+      "title": "流量字节数趋势",
       "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 30
+      },
+      "id": 18,
+      "panels": [],
+      "title": "状态码与后端健康",
+      "type": "row"
     },
     {
       "datasource": {
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "每个实例的状态码分布（2xx/4xx/5xx）",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1075,13 +1080,12 @@
               "legend": false
             },
             "lineInterpolation": "smooth",
-            "lineWidth": 1,
+            "lineWidth": 2,
             "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
             },
-            "showPoints": "never",
-            "spanNulls": true
+            "showPoints": "never"
           },
           "mappings": [],
           "thresholds": {
@@ -1093,26 +1097,25 @@
               }
             ]
           },
-          "unit": "reqps"
+          "unit": "ops"
         }
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
+        "h": 6,
+        "w": 24,
         "x": 0,
-        "y": 36
+        "y": 31
       },
-      "id": 15,
+      "id": 19,
       "options": {
         "legend": {
-          "calcs": ["mean", "lastNotNull", "max"],
+          "calcs": ["lastNotNull", "max", "mean"],
           "displayMode": "table",
-          "placement": "bottom",
+          "placement": "right",
           "showLegend": true
         },
         "tooltip": {
-          "mode": "multi",
-          "sort": "none"
+          "mode": "multi"
         }
       },
       "targets": [
@@ -1121,24 +1124,27 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "alb_status_code_2xx{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}",
-          "legendFormat": "{{resource_id}} - 2xx"
+          "expr": "alb_status_code_2xx{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
+          "legendFormat": "2xx",
+          "refId": "A"
         },
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "alb_status_code_4xx{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}",
-          "legendFormat": "{{resource_id}} - 4xx"
+          "expr": "alb_status_code_4xx{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
+          "legendFormat": "4xx",
+          "refId": "B"
         },
         {
           "datasource": {
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "alb_status_code_5xx{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}",
-          "legendFormat": "{{resource_id}} - 5xx"
+          "expr": "alb_status_code_5xx{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
+          "legendFormat": "5xx",
+          "refId": "C"
         }
       ],
       "title": "状态码分布",
@@ -1149,7 +1155,6 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "每个实例的后端健康状态",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1170,13 +1175,12 @@
               "legend": false
             },
             "lineInterpolation": "smooth",
-            "lineWidth": 1,
+            "lineWidth": 2,
             "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
             },
-            "showPoints": "never",
-            "spanNulls": true
+            "showPoints": "never"
           },
           "mappings": [],
           "thresholds": {
@@ -1192,22 +1196,21 @@
         }
       },
       "gridPos": {
-        "h": 8,
+        "h": 6,
         "w": 12,
-        "x": 12,
-        "y": 36
+        "x": 0,
+        "y": 37
       },
-      "id": 16,
+      "id": 20,
       "options": {
         "legend": {
-          "calcs": ["mean", "lastNotNull", "max"],
+          "calcs": ["lastNotNull", "max", "mean"],
           "displayMode": "table",
-          "placement": "bottom",
+          "placement": "right",
           "showLegend": true
         },
         "tooltip": {
-          "mode": "multi",
-          "sort": "none"
+          "mode": "multi"
         }
       },
       "targets": [
@@ -1216,8 +1219,9 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "alb_unhealthy_server_count{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}",
-          "legendFormat": "{{resource_id}} - 异常后端"
+          "expr": "alb_unhealthy_server_count{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
+          "legendFormat": "异常后端",
+          "refId": "A"
         }
       ],
       "title": "异常后端实例数",
@@ -1228,7 +1232,6 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
-      "description": "每个实例的后端实例总数",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1249,13 +1252,12 @@
               "legend": false
             },
             "lineInterpolation": "smooth",
-            "lineWidth": 1,
+            "lineWidth": 2,
             "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
             },
-            "showPoints": "never",
-            "spanNulls": true
+            "showPoints": "never"
           },
           "mappings": [],
           "thresholds": {
@@ -1264,95 +1266,6 @@
               {
                 "color": "green",
                 "value": null
-              }
-            ]
-          },
-          "unit": "short"
-        }
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 44
-      },
-      "id": 17,
-      "options": {
-        "legend": {
-          "calcs": ["mean", "lastNotNull", "max"],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "expr": "alb_server_count{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}",
-          "legendFormat": "{{resource_id}} - 后端总数"
-        }
-      ],
-      "title": "后端实例总数",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "description": "每个实例的入带宽利用率",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "tooltip": false,
-              "viz": false,
-              "legend": false
-            },
-            "lineInterpolation": "smooth",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true
-          },
-          "mappings": [],
-          "max": 100,
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 70
-              },
-              {
-                "color": "red",
-                "value": 90
               }
             ]
           },
@@ -1360,22 +1273,21 @@
         }
       },
       "gridPos": {
-        "h": 8,
+        "h": 6,
         "w": 12,
         "x": 12,
-        "y": 44
+        "y": 37
       },
-      "id": 18,
+      "id": 21,
       "options": {
         "legend": {
-          "calcs": ["mean", "lastNotNull", "max"],
+          "calcs": ["lastNotNull", "max", "mean"],
           "displayMode": "table",
-          "placement": "bottom",
+          "placement": "right",
           "showLegend": true
         },
         "tooltip": {
-          "mode": "multi",
-          "sort": "none"
+          "mode": "multi"
         }
       },
       "targets": [
@@ -1384,41 +1296,43 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "alb_traffic_rx_utilization_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}",
-          "legendFormat": "{{resource_id}} - 入带宽利用率"
+          "expr": "alb_in_bandwidth_usage{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
+          "legendFormat": "入带宽利用率",
+          "refId": "A"
         }
       ],
-      "title": "入带宽利用率",
+      "title": "入带宽利用率趋势",
       "type": "timeseries"
     }
   ],
   "refresh": "30s",
-  "schemaVersion": 39,
-  "tags": ["multicloud", "alb", "lb"],
+  "schemaVersion": 38,
+  "tags": ["multicloud", "alb", "L4"],
   "templating": {
     "list": [
       {
-        "current": {},
-        "datasource": {
-          "type": "datasource",
-          "uid": "-- Mixed --"
+        "current": {
+          "selected": false,
+          "text": "Prometheus",
+          "value": "prometheus"
         },
-        "definition": "prometheus",
         "hide": 0,
         "includeAll": false,
-        "label": "数据源",
         "multi": false,
         "name": "datasource",
         "options": [],
         "query": "prometheus",
         "queryValue": "",
         "refresh": 1,
-        "regex": "",
-        "skipUrlSync": false,
         "type": "datasource"
       },
       {
-        "current": {},
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
         "datasource": {
           "type": "prometheus",
           "uid": "${datasource}"
@@ -1426,23 +1340,26 @@
         "definition": "label_values(alb_active_connection,cloud_provider)",
         "hide": 0,
         "includeAll": true,
-        "includeAllValue": ".*",
-        "label": "云厂商",
         "multi": true,
         "name": "cloud_provider",
         "options": [],
         "query": {
           "query": "label_values(alb_active_connection,cloud_provider)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          "refId": "StandardVariableQuery"
         },
-        "refresh": 2,
+        "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
         "sort": 1,
         "type": "query"
       },
       {
-        "current": {},
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
         "datasource": {
           "type": "prometheus",
           "uid": "${datasource}"
@@ -1450,23 +1367,26 @@
         "definition": "label_values(alb_active_connection{cloud_provider=~\"$cloud_provider\"},account_id)",
         "hide": 0,
         "includeAll": true,
-        "includeAllValue": ".*",
-        "label": "账号ID",
         "multi": true,
         "name": "account_id",
         "options": [],
         "query": {
           "query": "label_values(alb_active_connection{cloud_provider=~\"$cloud_provider\"},account_id)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          "refId": "StandardVariableQuery"
         },
-        "refresh": 2,
+        "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
         "sort": 1,
         "type": "query"
       },
       {
-        "current": {},
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
         "datasource": {
           "type": "prometheus",
           "uid": "${datasource}"
@@ -1474,23 +1394,26 @@
         "definition": "label_values(alb_active_connection{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\"},region)",
         "hide": 0,
         "includeAll": true,
-        "includeAllValue": ".*",
-        "label": "区域",
         "multi": true,
         "name": "region",
         "options": [],
         "query": {
           "query": "label_values(alb_active_connection{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\"},region)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          "refId": "StandardVariableQuery"
         },
-        "refresh": 2,
+        "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
         "sort": 1,
         "type": "query"
       },
       {
-        "current": {},
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
         "datasource": {
           "type": "prometheus",
           "uid": "${datasource}"
@@ -1498,40 +1421,41 @@
         "definition": "label_values(alb_active_connection{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"},resource_id)",
         "hide": 0,
         "includeAll": true,
-        "includeAllValue": ".*",
-        "label": "资源ID",
         "multi": true,
         "name": "resource_id",
         "options": [],
         "query": {
           "query": "label_values(alb_active_connection{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"},resource_id)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          "refId": "StandardVariableQuery"
         },
-        "refresh": 2,
+        "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
         "sort": 1,
         "type": "query"
       },
       {
-        "current": {},
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": "$__all"
+        },
         "datasource": {
           "type": "prometheus",
           "uid": "${datasource}"
         },
-        "definition": "label_values(alb_active_connection{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"},code_name)",
+        "definition": "label_values(alb_active_connection{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\"},code_name)",
         "hide": 0,
         "includeAll": true,
-        "includeAllValue": ".*",
-        "label": "资源名称",
         "multi": true,
         "name": "code_name",
         "options": [],
         "query": {
-          "query": "label_values(alb_active_connection{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"},code_name)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+          "query": "label_values(alb_active_connection{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\"},code_name)",
+          "refId": "StandardVariableQuery"
         },
-        "refresh": 2,
+        "refresh": 1,
         "regex": "",
         "skipUrlSync": false,
         "sort": 1,
@@ -1544,8 +1468,8 @@
     "to": "now"
   },
   "timepicker": {},
-  "timezone": "browser",
-  "title": "L3-应用负载均衡-v3",
-  "uid": "L3-ALB-v3",
+  "timezone": "",
+  "title": "L4-应用负载均衡-v3",
+  "uid": "L4-ALB-v3",
   "version": 1
 }

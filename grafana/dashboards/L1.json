@@ -5,7 +5,7 @@
         "builtIn": 1,
         "datasource": {
           "type": "grafana",
-          "uid": "grafana"
+          "uid": "-- Grafana --"
         },
         "enable": true,
         "hide": true,
@@ -16,9 +16,47 @@
     ]
   },
   "editable": true,
-  "fiscalYearStartMonth": 1,
+  "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "links": [],
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": false,
+      "tags": [],
+      "targetBlank": true,
+      "title": "L2-负载均衡-v3",
+      "tooltip": "",
+      "type": "link",
+      "url": "/d/L2-LB-v3"
+    },
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": false,
+      "tags": [],
+      "targetBlank": true,
+      "title": "L2-共享带宽-v3",
+      "tooltip": "",
+      "type": "link",
+      "url": "/d/L2-BWP-v3"
+    },
+    {
+      "asDropdown": false,
+      "icon": "external link",
+      "includeVars": true,
+      "keepTime": false,
+      "tags": [],
+      "targetBlank": true,
+      "title": "L2-对象存储-v3",
+      "tooltip": "",
+      "type": "link",
+      "url": "/d/L2-S3-v3"
+    }
+  ],
+  "liveNow": false,
   "panels": [
     {
       "collapsed": false,
@@ -28,9 +66,778 @@
         "x": 0,
         "y": 0
       },
-      "id": 6,
+      "id": 200,
       "panels": [],
-      "repeat": "cloud_provider",
+      "title": "产品概览",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 0,
+        "y": 1
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.6.1",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "count({__name__=~\"(alb|clb|nlb|gwlb)_active_connection\", cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"})",
+          "refId": "A"
+        }
+      ],
+      "title": "LB 实例总数",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 4,
+        "y": 1
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.6.1",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "count(bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"})",
+          "refId": "A"
+        }
+      ],
+      "title": "BWP 实例总数",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 8,
+        "y": 1
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.6.1",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "count(s3_storage_usage_bytes{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"})",
+          "refId": "A"
+        }
+      ],
+      "title": "S3 Bucket 总数",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 12,
+        "y": 1
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.6.1",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "count({__name__=~\"(alb|clb|nlb|gwlb)_unhealthy_server_count\", cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"} > 0)",
+          "refId": "A"
+        }
+      ],
+      "title": "LB 异常实例数",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 16,
+        "y": 1
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.6.1",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "count(s3_bucket_versioning_enabled{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"} == 0)",
+          "refId": "A"
+        }
+      ],
+      "title": "S3 未开启版本控制",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 20,
+        "y": 1
+      },
+      "id": 6,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.6.1",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "count({__name__=~\"(alb|clb|nlb|gwlb)_status_code_5xx\", cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"} > 0)",
+          "refId": "A"
+        }
+      ],
+      "title": "LB 5xx 错误实例数",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      },
+      "id": 201,
+      "panels": [],
+      "title": "负载均衡（LB）",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 7
+      },
+      "id": 10,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "pieType": "pie",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.1",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "count by (cloud_provider) ({__name__=~\"(alb|clb|nlb|gwlb)_active_connection\", cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"})",
+          "legendFormat": "{{cloud_provider}}",
+          "refId": "A"
+        }
+      ],
+      "title": "LB 按云厂商分布",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 6,
+        "y": 7
+      },
+      "id": 11,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "pluginVersion": "11.6.1",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "avg({__name__=~\"(alb|clb|nlb|gwlb)_traffic_rx_utilization_pct\", cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"})",
+          "legendFormat": "入向带宽使用率",
+          "refId": "A"
+        },
+        {
+          "editorMode": "code",
+          "expr": "avg({__name__=~\"(alb|clb|nlb|gwlb)_traffic_tx_utilization_pct\", cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"})",
+          "legendFormat": "出向带宽使用率",
+          "refId": "B"
+        }
+      ],
+      "title": "LB 平均带宽使用率",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 100
+              },
+              {
+                "color": "red",
+                "value": 500
+              }
+            ]
+          },
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 7
+      },
+      "id": 12,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "pluginVersion": "11.6.1",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "avg({__name__=~\"(alb|clb|nlb|gwlb)_rt\", cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"})",
+          "legendFormat": "平均 RT",
+          "refId": "A"
+        }
+      ],
+      "title": "LB 平均响应时间",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 5
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 7
+      },
+      "id": 13,
+      "options": {
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
+      },
+      "pluginVersion": "11.6.1",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum({__name__=~\"(alb|clb|nlb|gwlb)_status_code_5xx\", cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"}) / sum({__name__=~\"(alb|clb|nlb|gwlb)_status_code_2xx\", cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"}) * 100",
+          "legendFormat": "5xx 错误率",
+          "refId": "A"
+        }
+      ],
+      "title": "LB 5xx 错误率",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 15
+      },
+      "id": 14,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.1",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "topk(5, sum by (region) ({__name__=~\"(alb|clb|nlb|gwlb)_active_connection\", cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"}))",
+          "legendFormat": "{{region}}",
+          "refId": "A"
+        }
+      ],
+      "title": "LB 活跃连接数 Top 5 区域",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 15
+      },
+      "id": 15,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.1",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "topk(5, sum by (region) ({__name__=~\"(alb|clb|nlb|gwlb)_qps\", cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"}))",
+          "legendFormat": "{{region}}",
+          "refId": "A"
+        }
+      ],
+      "title": "LB QPS Top 5 区域",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 23
+      },
+      "id": 202,
+      "panels": [],
       "title": "共享带宽（BWP）",
       "type": "row"
     },
@@ -42,129 +849,33 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "thresholds"
+            "mode": "palette-classic"
           },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "blue"
-              }
-            ]
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
           },
-          "unit": "short"
+          "mappings": []
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "综合入向使用率"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "percent"
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "green"
-                    },
-                    {
-                      "color": "yellow",
-                      "value": 60
-                    },
-                    {
-                      "color": "red",
-                      "value": 80
-                    }
-                  ]
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "综合出向使用率"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "percent"
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "green"
-                    },
-                    {
-                      "color": "yellow",
-                      "value": 60
-                    },
-                    {
-                      "color": "red",
-                      "value": 80
-                    }
-                  ]
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "综合入向流量"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "Mbps"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "综合出向流量"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "Mbps"
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
-        "h": 3,
-        "w": 24,
+        "h": 8,
+        "w": 8,
         "x": 0,
-        "y": 1
+        "y": 24
       },
-      "id": 1,
-      "links": [
-        {
-          "targetBlank": true,
-          "title": "共享带宽",
-          "url": "/d/bwp/e585b1-e4baab-e5b8a6-e5aebd-bwp"
-        }
-      ],
-      "maxPerRow": 2,
+      "id": 20,
       "options": {
-        "colorMode": "background",
-        "graphMode": "area",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "percentChangeColorMode": "same_as_value",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "pieType": "pie",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -172,61 +883,22 @@
           "fields": "",
           "values": false
         },
-        "showPercentChange": false,
-        "textMode": "value_and_name",
-        "wideLayout": true
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
       },
       "pluginVersion": "11.6.1",
       "targets": [
         {
           "editorMode": "code",
-          "expr": "count(count by (account_id) (bwp_traffic_rx_bps))",
-          "instant": true,
-          "legendFormat": "账号总数",
-          "refId": "F"
-        },
-        {
-          "editorMode": "code",
-          "expr": "count(count by (resource_id) (bwp_traffic_rx_bps))",
-          "instant": true,
-          "legendFormat": "共享带宽总数",
+          "expr": "count by (cloud_provider) (bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"})",
+          "legendFormat": "{{cloud_provider}}",
           "refId": "A"
-        },
-        {
-          "editorMode": "code",
-          "expr": "avg(bwp_utilization_rx_pct{cloud_provider=~\"$bwp_cloud_provider\", account_id=~\"$bwp_account_id\", region=~\"$bwp_region\", resource_id=~\"$bwp_resource_id\", code_name=~\"$bwp_code_name\"})",
-          "hide": true,
-          "instant": true,
-          "legendFormat": "综合入向使用率",
-          "refId": "B"
-        },
-        {
-          "editorMode": "code",
-          "expr": "avg(bwp_utilization_tx_pct{cloud_provider=~\"$bwp_cloud_provider\", account_id=~\"$bwp_account_id\", region=~\"$bwp_region\", resource_id=~\"$bwp_resource_id\", code_name=~\"$bwp_code_name\"})",
-          "hide": true,
-          "instant": true,
-          "legendFormat": "综合出向使用率",
-          "refId": "C"
-        },
-        {
-          "editorMode": "code",
-          "expr": "sum(bwp_traffic_rx_bps{cloud_provider=~\"$bwp_cloud_provider\", account_id=~\"$bwp_account_id\", region=~\"$bwp_region\", resource_id=~\"$bwp_resource_id\", code_name=~\"$bwp_code_name\"}) / 1000000",
-          "hide": true,
-          "instant": true,
-          "legendFormat": "综合入向流量",
-          "refId": "D"
-        },
-        {
-          "editorMode": "code",
-          "expr": "sum(bwp_traffic_tx_bps{cloud_provider=~\"$bwp_cloud_provider\", account_id=~\"$bwp_account_id\", region=~\"$bwp_region\", resource_id=~\"$bwp_resource_id\", code_name=~\"$bwp_code_name\"}) / 1000000",
-          "hide": true,
-          "instant": true,
-          "legendFormat": "综合出向流量",
-          "refId": "E"
         }
       ],
-      "title": "📊 全局总览",
-      "type": "stat"
+      "title": "BWP 按云厂商分布",
+      "type": "piechart"
     },
     {
       "datasource": {
@@ -243,106 +915,32 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "blue"
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 60
+              },
+              {
+                "color": "red",
+                "value": 80
               }
             ]
           },
-          "unit": "short"
+          "unit": "percent"
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "B"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "percent"
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "green"
-                    },
-                    {
-                      "color": "red",
-                      "value": 80
-                    }
-                  ]
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "A"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "Mbps"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "C"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "pps"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "24小时最大使用率"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "percent"
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "green"
-                    },
-                    {
-                      "color": "red",
-                      "value": 80
-                    }
-                  ]
-                }
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
-        "h": 3,
-        "w": 24,
-        "x": 0,
-        "y": 4
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 24
       },
-      "id": 3,
+      "id": 21,
       "options": {
-        "colorMode": "background",
-        "graphMode": "area",
-        "justifyMode": "center",
         "orientation": "auto",
-        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -350,58 +948,26 @@
           "fields": "",
           "values": false
         },
-        "showPercentChange": false,
-        "text": {},
-        "textMode": "auto",
-        "wideLayout": true
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true
       },
       "pluginVersion": "11.6.1",
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
           "editorMode": "code",
-          "exemplar": false,
-          "expr": "max(max_over_time(bwp_utilization_rx_pct{cloud_provider=~\"$bwp_cloud_provider\", account_id=~\"$bwp_account_id\"}[24h]))",
-          "hide": false,
-          "instant": true,
-          "legendFormat": "24小时最大使用率",
-          "range": false,
-          "refId": "E"
-        },
-        {
-          "editorMode": "code",
-          "expr": "avg(bwp_utilization_rx_pct{cloud_provider=~\"$bwp_cloud_provider\", account_id=~\"$bwp_account_id\"})",
-          "instant": true,
-          "legendFormat": "平均流入使用率",
-          "refId": "B"
-        },
-        {
-          "editorMode": "code",
-          "expr": "sum(bwp_traffic_rx_bps{cloud_provider=~\"$bwp_cloud_provider\", account_id=~\"$bwp_account_id\"}) / 1000000",
-          "instant": true,
-          "legendFormat": "总流入带宽",
+          "expr": "avg(bwp_traffic_rx_utilization_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"})",
+          "legendFormat": "入向带宽使用率",
           "refId": "A"
         },
         {
           "editorMode": "code",
-          "expr": "sum(bwp_packet_rx{cloud_provider=~\"$bwp_cloud_provider\", account_id=~\"$bwp_account_id\"})",
-          "instant": true,
-          "legendFormat": "总流入包速率",
-          "refId": "C"
-        },
-        {
-          "editorMode": "code",
-          "expr": "sum(bwp_drop_rx_pps{cloud_provider=~\"$bwp_cloud_provider\", account_id=~\"$bwp_account_id\"})",
-          "instant": true,
-          "legendFormat": "入方向丢包",
-          "refId": "D"
+          "expr": "avg(bwp_traffic_tx_utilization_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"})",
+          "legendFormat": "出向带宽使用率",
+          "refId": "B"
         }
       ],
-      "title": "入方向关键指标",
-      "type": "stat"
+      "title": "BWP 平均带宽使用率",
+      "type": "gauge"
     },
     {
       "datasource": {
@@ -413,112 +979,32 @@
           "color": {
             "mode": "thresholds"
           },
-          "fieldMinMax": false,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "blue"
+                "color": "green",
+                "value": null
               }
             ]
           },
-          "unit": "short"
+          "unit": "bps"
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "A"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "Mbps"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "B"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "percent"
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "green"
-                    },
-                    {
-                      "color": "red",
-                      "value": 80
-                    }
-                  ]
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "C"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "pps"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "24小时最大流出使用率"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "percent"
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "green"
-                    },
-                    {
-                      "color": "red",
-                      "value": 80
-                    }
-                  ]
-                }
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
-        "h": 3,
-        "w": 24,
-        "x": 0,
-        "y": 7
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 24
       },
-      "id": 4,
+      "id": 22,
       "options": {
         "colorMode": "background",
         "graphMode": "area",
-        "justifyMode": "center",
+        "justifyMode": "auto",
         "orientation": "auto",
-        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -526,229 +1012,177 @@
           "fields": "",
           "values": false
         },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
+        "textMode": "auto"
       },
       "pluginVersion": "11.6.1",
       "targets": [
         {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "$datasource"
-          },
           "editorMode": "code",
-          "exemplar": false,
-          "expr": "max(max_over_time(bwp_utilization_tx_pct{cloud_provider=~\"$bwp_cloud_provider\", account_id=~\"$bwp_account_id\", region=~\"$bwp_region\"}[24h]))",
-          "hide": false,
-          "instant": true,
-          "legendFormat": "24小时最大流出使用率",
-          "range": false,
-          "refId": "E"
-        },
-        {
-          "editorMode": "code",
-          "expr": "avg(bwp_utilization_tx_pct{cloud_provider=~\"$bwp_cloud_provider\", account_id=~\"$bwp_account_id\"})",
-          "instant": true,
-          "legendFormat": "平均流出使用率",
-          "refId": "B"
-        },
-        {
-          "editorMode": "code",
-          "expr": "sum(bwp_traffic_tx_bps{cloud_provider=~\"$bwp_cloud_provider\", account_id=~\"$bwp_account_id\"}) / 1000000",
-          "instant": true,
-          "legendFormat": "总流出带宽",
+          "expr": "sum(bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"})",
+          "legendFormat": "总入向带宽",
           "refId": "A"
-        },
-        {
-          "editorMode": "code",
-          "expr": "sum(bwp_packet_tx{cloud_provider=~\"$bwp_cloud_provider\", account_id=~\"$bwp_account_id\"})",
-          "instant": true,
-          "legendFormat": "总流出包速率",
-          "refId": "C"
-        },
-        {
-          "editorMode": "code",
-          "expr": "sum(bwp_drop_tx_pps{cloud_provider=~\"$bwp_cloud_provider\", account_id=~\"$bwp_account_id\"})",
-          "instant": true,
-          "legendFormat": "出方向丢包",
-          "refId": "D"
         }
       ],
-      "title": "出方向关键指标",
+      "title": "BWP 总入向带宽",
       "type": "stat"
     },
     {
-      "collapsed": false,
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "bps"
+        },
+        "overrides": []
+      },
       "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 10
-      },
-      "id": 10,
-      "panels": [],
-      "title": "负载均衡（LB）",
-      "type": "row"
-    },
-    {
-      "gridPos": {
-        "h": 3,
-        "w": 24,
-        "x": 0,
-        "y": 11
-      },
-      "id": 11,
-      "links": [
-        {
-          "targetBlank": true,
-          "title": "负载均衡",
-          "url": "/d/l3-lb/l3-e8b49fe0-e8b49f-e59d87-e8a1a1-lb"
-        }
-      ],
-      "libraryPanel": {
-        "name": "📊 LB 全局账号总览",
-        "uid": "bf6kza8gzhji8f"
-      },
-      "title": "📊 全局总览",
-      "type": "library-panel-ref"
-    },
-    {
-      "gridPos": {
-        "h": 3,
-        "w": 24,
-        "x": 0,
-        "y": 14
-      },
-      "id": 12,
-      "libraryPanel": {
-        "name": "LB 7 层关键指标",
-        "uid": "cf6kzdpfb4sg0a"
-      },
-      "title": "LB 7 层关键指标",
-      "type": "library-panel-ref"
-    },
-    {
-      "gridPos": {
-        "h": 6,
+        "h": 8,
         "w": 12,
         "x": 0,
-        "y": 17
+        "y": 32
       },
-      "id": 13,
-      "libraryPanel": {
-        "name": "LB 入方向关键指标",
-        "uid": "ff6kzfgpd14w0c"
+      "id": 23,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
       },
-      "title": "入方向关键指标",
-      "type": "library-panel-ref"
+      "pluginVersion": "11.6.1",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "topk(5, sum by (region) (bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"}))",
+          "legendFormat": "{{region}}",
+          "refId": "A"
+        }
+      ],
+      "title": "BWP 入向带宽 Top 5 区域",
+      "type": "timeseries"
     },
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "bps"
+        },
+        "overrides": []
+      },
       "gridPos": {
-        "h": 6,
+        "h": 8,
         "w": 12,
         "x": 12,
-        "y": 17
+        "y": 32
       },
-      "id": 14,
-      "libraryPanel": {
-        "name": "LB 出方向关键指标",
-        "uid": "af6kzg00h9wxsb"
-      },
-      "title": "出方向关键指标",
-      "type": "library-panel-ref"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "$datasource"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "blue"
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "A"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "Mbps"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "B"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "Mbps"
-              }
-            ]
-          }
-        ]
-      },
-      "gridPos": {
-        "h": 3,
-        "w": 24,
-        "x": 0,
-        "y": 20
-      },
-      "id": 17,
+      "id": 24,
       "options": {
-        "colorMode": "background",
-        "graphMode": "area",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "percentChangeColorMode": "same_as_value",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
         },
-        "showPercentChange": false,
-        "textMode": "value_and_name",
-        "wideLayout": true
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
       },
       "pluginVersion": "11.6.1",
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(({__name__=~\"${lb_type:regex}_traffic_rx_bps\", cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\"})) / 1000000",
-          "instant": true,
-          "legendFormat": "LB 总入向带宽",
+          "expr": "topk(5, sum by (region) (bwp_traffic_tx_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"}))",
+          "legendFormat": "{{region}}",
           "refId": "A"
-        },
-        {
-          "editorMode": "code",
-          "expr": "sum(({__name__=~\"${lb_type:regex}_traffic_tx_bps\", cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\"})) / 1000000",
-          "instant": true,
-          "legendFormat": "LB 总出向带宽",
-          "refId": "B"
         }
       ],
-      "title": "LB 合并总带宽",
-      "type": "stat"
+      "title": "BWP 出向带宽 Top 5 区域",
+      "type": "timeseries"
     },
     {
       "collapsed": false,
@@ -756,9 +1190,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 23
+        "y": 40
       },
-      "id": 15,
+      "id": 203,
       "panels": [],
       "title": "对象存储（S3）",
       "type": "row"
@@ -771,103 +1205,33 @@
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "thresholds"
+            "mode": "palette-classic"
           },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "blue"
-              }
-            ]
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
           },
-          "unit": "short"
+          "mappings": []
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "平均可用性"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "percent"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "总公网入流量"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "MB"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "总公网出流量"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "MB"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "总内网入流量"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "MB"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "总内网出流量"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "MB"
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "gridPos": {
-        "h": 3,
-        "w": 24,
+        "h": 8,
+        "w": 8,
         "x": 0,
-        "y": 24
+        "y": 41
       },
-      "id": 16,
-      "links": [
-        {
-          "targetBlank": true,
-          "title": "对象存储",
-          "url": "/d/L2-S3/L2-S3"
-        }
-      ],
-      "maxPerRow": 2,
+      "id": 30,
       "options": {
-        "colorMode": "background",
-        "graphMode": "area",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "percentChangeColorMode": "same_as_value",
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "pieType": "pie",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -875,100 +1239,312 @@
           "fields": "",
           "values": false
         },
-        "showPercentChange": false,
-        "textMode": "value_and_name",
-        "wideLayout": true
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
       },
       "pluginVersion": "11.6.1",
       "targets": [
         {
           "editorMode": "code",
-          "expr": "count(count by (account_id) (s3_storage_usage_bytes))",
-          "instant": true,
-          "legendFormat": "账号总数",
+          "expr": "count by (cloud_provider) (s3_storage_usage_bytes{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"})",
+          "legendFormat": "{{cloud_provider}}",
           "refId": "A"
-        },
-        {
-          "editorMode": "code",
-          "expr": "count(count by (resource_id) (s3_storage_usage_bytes))",
-          "instant": true,
-          "legendFormat": "Bucket 总数",
-          "refId": "B"
-        },
-        {
-          "editorMode": "code",
-          "expr": "avg(s3_availability_pct{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"})",
-          "instant": true,
-          "legendFormat": "平均可用性",
-          "refId": "C"
-        },
-        {
-          "editorMode": "code",
-          "expr": "sum(s3_traffic_internet_rx_bytes{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"}) / 1048576",
-          "hide": true,
-          "instant": true,
-          "legendFormat": "总公网入流量",
-          "refId": "D"
-        },
-        {
-          "editorMode": "code",
-          "expr": "sum(s3_traffic_internet_tx_bytes{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"}) / 1048576",
-          "hide": true,
-          "instant": true,
-          "legendFormat": "总公网出流量",
-          "refId": "E"
-        },
-        {
-          "editorMode": "code",
-          "expr": "sum(s3_traffic_intranet_rx_bytes{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"}) / 1048576",
-          "hide": false,
-          "instant": true,
-          "legendFormat": "总内网入流量",
-          "refId": "F"
-        },
-        {
-          "editorMode": "code",
-          "expr": "sum(s3_traffic_intranet_tx_bytes{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"}) / 1048576",
-          "hide": false,
-          "instant": true,
-          "legendFormat": "总内网出流量",
-          "refId": "G"
-        },
-        {
-          "editorMode": "code",
-          "expr": "sum(s3_authorization_error_count{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"})",
-          "hide": false,
-          "instant": true,
-          "legendFormat": "授权错误总数",
-          "refId": "H"
-        },
-        {
-          "editorMode": "code",
-          "expr": "sum(s3_client_timeout_error_count{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"})",
-          "hide": false,
-          "instant": true,
-          "legendFormat": "客户端超时错误总数",
-          "refId": "I"
         }
       ],
-      "title": "📦 S3 全局总览",
+      "title": "S3 按云厂商分布",
+      "type": "piechart"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 41
+      },
+      "id": 31,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.6.1",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum(s3_storage_usage_bytes{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"})",
+          "legendFormat": "总存储量",
+          "refId": "A"
+        }
+      ],
+      "title": "S3 总存储量",
       "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 41
+      },
+      "id": 32,
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "auto"
+      },
+      "pluginVersion": "11.6.1",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "sum(s3_qps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"})",
+          "legendFormat": "总 QPS",
+          "refId": "A"
+        }
+      ],
+      "title": "S3 总 QPS",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 49
+      },
+      "id": 33,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.1",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "topk(5, sum by (region) (s3_storage_usage_bytes{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"}))",
+          "legendFormat": "{{region}}",
+          "refId": "A"
+        }
+      ],
+      "title": "S3 存储量 Top 5 区域",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineWidth": 1,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 49
+      },
+      "id": 34,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.1",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "topk(5, sum by (region) (s3_qps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"}))",
+          "legendFormat": "{{region}}",
+          "refId": "A"
+        }
+      ],
+      "title": "S3 QPS Top 5 区域",
+      "type": "timeseries"
     }
   ],
-  "preload": false,
   "refresh": "30s",
   "schemaVersion": 41,
   "tags": [
     "network",
-    "mce"
+    "storage",
+    "mce",
+    "overview"
   ],
   "templating": {
     "list": [
       {
         "current": {
-          "text": "vm-cluster",
-          "value": "PBF65911BEAADD538"
+          "text": "Prometheus",
+          "value": "Prometheus"
         },
+        "hide": 0,
         "label": "数据源",
         "name": "datasource",
         "options": [],
@@ -982,55 +1558,20 @@
           "text": "All",
           "value": "$__all"
         },
-        "hide": 0,
-        "includeAll": true,
-        "label": "LB 类型",
-        "multi": true,
-        "name": "lb_type",
-        "options": [
-          {
-            "selected": false,
-            "text": "alb",
-            "value": "alb"
-          },
-          {
-            "selected": false,
-            "text": "clb",
-            "value": "clb"
-          },
-          {
-            "selected": false,
-            "text": "nlb",
-            "value": "nlb"
-          },
-          {
-            "selected": false,
-            "text": "gwlb",
-            "value": "gwlb"
-          }
-        ],
-        "query": "alb,clb,nlb,gwlb",
-        "refresh": 1,
-        "type": "custom"
-      },
-      {
-        "allValue": ".*",
-        "current": {
-          "text": "All",
-          "value": "$__all"
-        },
         "datasource": {
           "type": "prometheus",
           "uid": "$datasource"
         },
-        "definition": "label_values({__name__=~\"${lb_type:regex}.*\"},cloud_provider)",
+        "definition": "label_values(clb_rt,cloud_provider)",
+        "hide": 0,
         "includeAll": true,
         "label": "云厂商",
+        "multi": true,
         "name": "cloud_provider",
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values({__name__=~\"${lb_type:regex}.*\"},cloud_provider)",
+          "query": "label_values(clb_rt,cloud_provider)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,
@@ -1046,14 +1587,16 @@
           "type": "prometheus",
           "uid": "$datasource"
         },
-        "definition": "label_values(bwp_traffic_rx_bps,cloud_provider)",
+        "definition": "label_values(clb_rt{cloud_provider=~\"$cloud_provider\"},account_id)",
+        "hide": 0,
         "includeAll": true,
-        "label": "BWP 云厂商",
-        "name": "bwp_cloud_provider",
+        "label": "账号",
+        "multi": true,
+        "name": "account_id",
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values(bwp_traffic_rx_bps,cloud_provider)",
+          "query": "label_values(clb_rt{cloud_provider=~\"$cloud_provider\"},account_id)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,
@@ -1069,171 +1612,16 @@
           "type": "prometheus",
           "uid": "$datasource"
         },
-        "includeAll": true,
-        "label": "账号",
-        "name": "account_id",
-        "options": [],
-        "query": "label_values({__name__=~\"${lb_type:regex}.*\", cloud_provider=~\"$cloud_provider\"}, account_id)",
-        "refresh": 1,
-        "type": "query"
-      },
-      {
-        "allValue": ".*",
-        "current": {
-          "text": "All",
-          "value": "$__all"
-        },
-        "datasource": {
-          "type": "prometheus",
-          "uid": "$datasource"
-        },
-        "includeAll": true,
-        "label": "BWP 账号",
-        "name": "bwp_account_id",
-        "options": [],
-        "query": "label_values(bwp_traffic_rx_bps{cloud_provider=~\"$bwp_cloud_provider\"}, account_id)",
-        "refresh": 1,
-        "type": "query"
-      },
-      {
-        "allValue": ".*",
-        "current": {
-          "text": "All",
-          "value": "$__all"
-        },
-        "datasource": {
-          "type": "prometheus",
-          "uid": "$datasource"
-        },
-        "definition": "label_values({__name__=~\"${lb_type:regex}.*\", cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\"},region)",
-        "hide": 2,
+        "definition": "label_values(clb_rt{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\"},region)",
+        "hide": 0,
         "includeAll": true,
         "label": "区域",
+        "multi": true,
         "name": "region",
         "options": [],
         "query": {
           "qryType": 1,
-          "query": "label_values({__name__=~\"${lb_type:regex}.*\", cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\"},region)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
-        },
-        "refresh": 1,
-        "type": "query"
-      },
-      {
-        "allValue": ".*",
-        "current": {
-          "text": "All",
-          "value": "$__all"
-        },
-        "datasource": {
-          "type": "prometheus",
-          "uid": "$datasource"
-        },
-        "definition": "label_values(bwp_traffic_rx_bps{cloud_provider=~\"$bwp_cloud_provider\", account_id=~\"$bwp_account_id\"},region)",
-        "hide": 2,
-        "includeAll": true,
-        "label": "BWP 区域",
-        "name": "bwp_region",
-        "options": [],
-        "query": {
-          "qryType": 1,
-          "query": "label_values(bwp_traffic_rx_bps{cloud_provider=~\"$bwp_cloud_provider\", account_id=~\"$bwp_account_id\"},region)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
-        },
-        "refresh": 1,
-        "type": "query"
-      },
-      {
-        "allValue": ".*",
-        "current": {
-          "text": "All",
-          "value": "$__all"
-        },
-        "datasource": {
-          "type": "prometheus",
-          "uid": "$datasource"
-        },
-        "definition": "label_values({__name__=~\"${lb_type:regex}.*\", cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"},resource_id)",
-        "hide": 2,
-        "includeAll": true,
-        "label": "资源 ID",
-        "name": "resource_id",
-        "options": [],
-        "query": {
-          "qryType": 1,
-          "query": "label_values({__name__=~\"${lb_type:regex}.*\", cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"},resource_id)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
-        },
-        "refresh": 1,
-        "type": "query"
-      },
-      {
-        "allValue": ".*",
-        "current": {
-          "text": "All",
-          "value": "$__all"
-        },
-        "datasource": {
-          "type": "prometheus",
-          "uid": "$datasource"
-        },
-        "definition": "label_values(bwp_traffic_rx_bps{cloud_provider=~\"$bwp_cloud_provider\", account_id=~\"$bwp_account_id\", region=~\"$bwp_region\"},resource_id)",
-        "hide": 2,
-        "includeAll": true,
-        "label": "BWP 资源 ID",
-        "name": "bwp_resource_id",
-        "options": [],
-        "query": {
-          "qryType": 1,
-          "query": "label_values(bwp_traffic_rx_bps{cloud_provider=~\"$bwp_cloud_provider\", account_id=~\"$bwp_account_id\", region=~\"$bwp_region\"},resource_id)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
-        },
-        "refresh": 1,
-        "type": "query"
-      },
-      {
-        "allValue": ".*",
-        "current": {
-          "text": "All",
-          "value": "$__all"
-        },
-        "datasource": {
-          "type": "prometheus",
-          "uid": "$datasource"
-        },
-        "definition": "label_values(bwp_traffic_rx_bps{cloud_provider=~\"$bwp_cloud_provider\", account_id=~\"$bwp_account_id\", region=~\"$bwp_region\", resource_id=~\"$bwp_resource_id\"},code_name)",
-        "hide": 2,
-        "includeAll": true,
-        "label": "BWP 业务名",
-        "name": "bwp_code_name",
-        "options": [],
-        "query": {
-          "qryType": 1,
-          "query": "label_values(bwp_traffic_rx_bps{cloud_provider=~\"$bwp_cloud_provider\", account_id=~\"$bwp_account_id\", region=~\"$bwp_region\", resource_id=~\"$bwp_resource_id\"},code_name)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
-        },
-        "refresh": 1,
-        "type": "query"
-      },
-      {
-        "allValue": ".*",
-        "current": {
-          "text": "All",
-          "value": "$__all"
-        },
-        "datasource": {
-          "type": "prometheus",
-          "uid": "$datasource"
-        },
-        "definition": "label_values({__name__=~\"${lb_type:regex}.*\", cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"},code_name)",
-        "hide": 2,
-        "includeAll": true,
-        "label": "账号",
-        "name": "code_name",
-        "options": [],
-        "query": {
-          "qryType": 1,
-          "query": "label_values({__name__=~\"${lb_type:regex}.*\", cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"},code_name)",
+          "query": "label_values(clb_rt{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\"},region)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 1,
@@ -1242,12 +1630,12 @@
     ]
   },
   "time": {
-    "from": "now-24h",
+    "from": "now-1h",
     "to": "now"
   },
   "timepicker": {},
-  "timezone": "",
-  "title": "L1-全局总览",
-  "uid": "L1",
-  "version": 2
+  "timezone": "browser",
+  "title": "L1-全局总览-v3",
+  "uid": "L1-v3",
+  "version": 1
 }
