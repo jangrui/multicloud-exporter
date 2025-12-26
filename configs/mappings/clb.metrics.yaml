@@ -52,12 +52,6 @@ canonical:
         - port
         - vip
       unit: count
-    tencent:
-      metric: ma_normal_servers
-      dimensions:
-        - lbaas_instance_id
-      unit: count
-      scale: 1
     aws:
       metric: HealthyHostCount
       dimensions:
@@ -80,12 +74,6 @@ canonical:
         - port
         - vip
       unit: count
-    tencent:
-      metric: m9_abnormal_servers
-      dimensions:
-        - lbaas_instance_id
-      unit: count
-      scale: 1
     aws:
       metric: UnHealthyHostCount
       dimensions:
@@ -112,12 +100,6 @@ canonical:
         - instanceId
         - port
         - protocol
-      unit: count/s
-      scale: 1
-    aws:
-      metric: m1f_lvs_conn_drop
-      dimensions:
-        - lbaas_instance_id
       unit: count/s
       scale: 1
     huawei:
@@ -376,11 +358,6 @@ canonical:
         - instanceId
       unit: bit/s
       scale: 1
-    tencent:
-      metric: Vipindroppkts
-      dimensions: []
-      unit: pps
-      scale: 1
 
   drop_traffic_tx_bps:
     description: "出网丢弃流量 (实例级)"
@@ -390,11 +367,6 @@ canonical:
         - userId
         - instanceId
       unit: bit/s
-      scale: 1
-    tencent:
-      metric: Vipoutdroppkts
-      dimensions: []
-      unit: pps
       scale: 1
 
   new_connection:

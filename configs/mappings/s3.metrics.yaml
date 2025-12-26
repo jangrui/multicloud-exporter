@@ -676,14 +676,7 @@ canonical:
         - bucket
       unit: Bytes
       scale: 1048576
-  traffic_cdn_tx_bytes:
-    description: "CDN 回源出流量"
-    tencent:
-      metric: CdnOriginTraffic
-      dimensions:
-        - bucket
-      unit: Bytes
-      scale: 1
+
   traffic_replication_bytes:
     description: "跨区域复制流量 (Bytes)"
     tencent:

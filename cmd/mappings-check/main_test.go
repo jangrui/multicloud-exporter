@@ -39,7 +39,7 @@ func TestCheckMappingAgainstProducts_AWS_S3(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadProductMap error: %v", err)
 	}
-	if e := checkMappingAgainstProducts(mapping, productsRoot, "aws", pm); e != nil {
+	if e := checkMappingAgainstProducts(mapping, productsRoot, "aws", pm, false); e != nil {
 		t.Fatalf("checkMappingAgainstProducts failed: %v", e)
 	}
 }

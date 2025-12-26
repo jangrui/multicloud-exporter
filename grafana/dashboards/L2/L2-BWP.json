@@ -86,6 +86,7 @@
         },
         "textMode": "auto"
       },
+      "description": "总入向带宽（阿里云、华为云支持，腾讯云不支持）",
       "pluginVersion": "10.0.0",
       "targets": [
         {
@@ -262,6 +263,7 @@
         },
         "textMode": "auto"
       },
+      "description": "总出向带宽（阿里云、华为云支持，腾讯云不支持）",
       "pluginVersion": "10.0.0",
       "targets": [
         {
@@ -522,6 +524,7 @@
           "mode": "multi"
         }
       },
+      "description": "入向利用率（阿里云、华为云支持，腾讯云不支持）",
       "targets": [
         {
           "datasource": {
@@ -597,6 +600,7 @@
           "mode": "multi"
         }
       },
+      "description": "出向利用率（阿里云、华为云支持，腾讯云不支持）",
       "targets": [
         {
           "datasource": {

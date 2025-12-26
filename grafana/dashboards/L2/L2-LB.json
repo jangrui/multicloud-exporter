@@ -300,7 +300,7 @@
       "id": 4,
       "options": {
         "colorMode": "background",
-        "graphMode": "none",
+        "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
         "reduceOptions": {
@@ -312,6 +312,7 @@
         },
         "textMode": "auto"
       },
+      "description": "异常后端服务器数量（阿里云、AWS、华为云支持，腾讯云不支持）",
       "pluginVersion": "11.6.1",
       "targets": [
         {
@@ -1212,6 +1213,7 @@
           "sort": "none"
         }
       },
+      "description": "异常后端服务器数量（阿里云、AWS、华为云支持，腾讯云不支持）",
       "pluginVersion": "11.6.1",
       "targets": [
         {

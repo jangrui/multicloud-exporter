@@ -327,6 +327,7 @@
           "sort": "none"
         }
       },
+      "description": "入方向带宽（阿里云、华为云支持，腾讯云不支持）",
       "targets": [
         {
           "datasource": {
@@ -406,6 +407,7 @@
           "sort": "none"
         }
       },
+      "description": "出方向带宽（阿里云、华为云支持，腾讯云不支持）",
       "targets": [
         {
           "datasource": {

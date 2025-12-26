@@ -67,10 +67,11 @@ type productMap struct {
 
 func main() {
 	var (
-		mappingsDir = flag.String("mappings-dir", "configs/mappings", "mappings directory")
-		productsDir = flag.String("products-dir", ".local/configs/products", "products directory")
-		productMapF = flag.String("product-map", "configs/product-map.yaml", "prefix->provider product mapping")
-		providers   = flag.String("providers", "aws", "comma separated providers to validate")
+		mappingsDir        = flag.String("mappings-dir", "configs/mappings", "mappings directory")
+		productsDir        = flag.String("products-dir", ".local/configs/products", "products directory")
+		productMapF        = flag.String("product-map", "configs/product-map.yaml", "prefix->provider product mapping")
+		providers          = flag.String("providers", "aws", "comma separated providers to validate")
+		skipMissingMetrics = flag.Bool("skip-missing-metrics", false, "skip metrics not found in products (warn only)")
 	)
 	flag.Parse()
 
@@ -89,7 +90,7 @@ func main() {
 	var errs []string
 	for _, f := range files {
 		for _, p := range wantProviders {
-			if e := checkMappingAgainstProducts(f, *productsDir, p, pm); e != nil {
+			if e := checkMappingAgainstProducts(f, *productsDir, p, pm, *skipMissingMetrics); e != nil {
 				errs = append(errs, e.Error())
 			}
 		}
@@ -123,7 +124,7 @@ func splitCSV(s string) []string {
 	return out
 }
 
-func checkMappingAgainstProducts(mappingPath, productsRoot, provider string, pm *productMap) error {
+func checkMappingAgainstProducts(mappingPath, productsRoot, provider string, pm *productMap, skipMissingMetrics bool) error {
 	data, err := os.ReadFile(mappingPath)
 	if err != nil {
 		return fmt.Errorf("read mapping %s: %w", mappingPath, err)
@@ -210,6 +211,11 @@ func checkMappingAgainstProducts(mappingPath, productsRoot, provider string, pm 
 		metricName := strings.TrimSpace(def.Metric)
 		sets := observed[metricName]
 		if len(sets) == 0 {
+			if skipMissingMetrics {
+				fmt.Fprintf(os.Stderr, "WARNING: %s: %s metric not found in products: canonical=%q metric=%q namespace=%q products=%s\n",
+					mappingPath, provider, canonical, metricName, ns, productFile)
+				continue
+			}
 			errs = append(errs, fmt.Sprintf("%s: %s metric not found in products: canonical=%q metric=%q namespace=%q products=%s",
 				mappingPath, provider, canonical, metricName, ns, productFile))
 			continue
