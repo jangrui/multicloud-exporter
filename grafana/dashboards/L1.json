@@ -1334,7 +1334,7 @@
               }
             ]
           },
-          "unit": "ops"
+          "unit": "short"
         },
         "overrides": []
       },
@@ -1363,12 +1363,12 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(s3_qps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"})",
-          "legendFormat": "总 QPS",
+          "expr": "sum(s3_number_of_objects{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"}) or vector(0)",
+          "legendFormat": "总对象数",
           "refId": "A"
         }
       ],
-      "title": "S3 总 QPS",
+      "title": "S3 总对象数",
       "type": "stat"
     },
     {
@@ -1494,7 +1494,7 @@
               }
             ]
           },
-          "unit": "ops"
+          "unit": "short"
         },
         "overrides": []
       },
@@ -1521,12 +1521,12 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "topk(5, sum by (region) (s3_qps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"}))",
+          "expr": "topk(5, sum by (region) (s3_number_of_objects{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"})) or vector(0)",
           "legendFormat": "{{region}}",
           "refId": "A"
         }
       ],
-      "title": "S3 QPS Top 5 区域",
+      "title": "S3 对象数量 Top 5 区域",
       "type": "timeseries"
     }
   ],

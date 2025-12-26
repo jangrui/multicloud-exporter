@@ -209,7 +209,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(s3_get_requests{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",bucket_name=~\"$bucket_name\"})",
+          "expr": "sum(s3_get_requests{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",bucket_name=~\"$bucket_name\"}) or vector(0)",
           "refId": "A"
         }
       ],
@@ -265,7 +265,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(s3_put_requests{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",bucket_name=~\"$bucket_name\"})",
+          "expr": "sum(s3_put_requests{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",bucket_name=~\"$bucket_name\"}) or vector(0)",
           "refId": "A"
         }
       ],
@@ -649,7 +649,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "s3_get_requests{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",bucket_name=~\"$bucket_name\"}",
+          "expr": "s3_get_requests{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",bucket_name=~\"$bucket_name\"} or vector(0)",
           "legendFormat": "{{bucket_name}} - GET QPS",
           "refId": "A"
         }
@@ -726,7 +726,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "s3_put_requests{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",bucket_name=~\"$bucket_name\"}",
+          "expr": "s3_put_requests{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",bucket_name=~\"$bucket_name\"} or vector(0)",
           "legendFormat": "{{bucket_name}} - PUT QPS",
           "refId": "A"
         }

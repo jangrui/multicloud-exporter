@@ -534,12 +534,12 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "s3_get_request_rate{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",bucket_name=~\"$bucket_name\"}",
+          "expr": "s3_get_request_rate{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",bucket_name=~\"$bucket_name\"} or vector(0)",
           "legendFormat": "GET请求",
           "refId": "A"
         },
         {
-          "expr": "s3_put_request_rate{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",bucket_name=~\"$bucket_name\"}",
+          "expr": "s3_put_request_rate{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",bucket_name=~\"$bucket_name\"} or vector(0)",
           "legendFormat": "PUT请求",
           "refId": "B"
         }
@@ -622,12 +622,12 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "s3_delete_request_rate{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",bucket_name=~\"$bucket_name\"}",
+          "expr": "s3_delete_request_rate{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",bucket_name=~\"$bucket_name\"} or vector(0)",
           "legendFormat": "DELETE请求",
           "refId": "A"
         },
         {
-          "expr": "s3_list_request_rate{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",bucket_name=~\"$bucket_name\"}",
+          "expr": "s3_list_request_rate{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",bucket_name=~\"$bucket_name\"} or vector(0)",
           "legendFormat": "LIST请求",
           "refId": "B"
         }
