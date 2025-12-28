@@ -26,7 +26,7 @@
       "keepTime": false,
       "tags": [],
       "targetBlank": true,
-      "title": "L1-全局总览-v3",
+      "title": "L1-全局总览",
       "tooltip": "",
       "type": "link",
       "url": "/d/L1-v3"
@@ -38,7 +38,7 @@
       "keepTime": false,
       "tags": [],
       "targetBlank": true,
-      "title": "L3-CLB-v3",
+      "title": "L3-传统负载均衡",
       "tooltip": "",
       "type": "link",
       "url": "/d/L3-CLB-v3"
@@ -50,7 +50,7 @@
       "keepTime": false,
       "tags": [],
       "targetBlank": true,
-      "title": "L3-ALB-v3",
+      "title": "L3-应用负载均衡",
       "tooltip": "",
       "type": "link",
       "url": "/d/L3-ALB-v3"
@@ -62,7 +62,7 @@
       "keepTime": false,
       "tags": [],
       "targetBlank": true,
-      "title": "L3-NLB-v3",
+      "title": "L3-网络负载均衡",
       "tooltip": "",
       "type": "link",
       "url": "/d/L3-NLB-v3"
@@ -74,7 +74,7 @@
       "keepTime": false,
       "tags": [],
       "targetBlank": true,
-      "title": "L3-GWLB-v3",
+      "title": "L3-网关负载均衡",
       "tooltip": "",
       "type": "link",
       "url": "/d/L3-GWLB-v3"

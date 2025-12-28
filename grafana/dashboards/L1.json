@@ -286,6 +286,68 @@
         "textMode": "auto"
       },
       "pluginVersion": "11.6.1",
+      "links": [
+        {
+          "asDropdown": false,
+          "icon": "external link",
+          "includeVars": true,
+          "keepTime": false,
+          "tags": [],
+          "targetBlank": true,
+          "title": "L2-负载均衡-v3",
+          "tooltip": "查看 LB 异常总体情况",
+          "type": "link",
+          "url": "/d/L2-LB-v3?viewPanel=4"
+        },
+        {
+          "asDropdown": false,
+          "icon": "external link",
+          "includeVars": true,
+          "keepTime": false,
+          "tags": [],
+          "targetBlank": true,
+          "title": "L3-传统负载均衡",
+          "tooltip": "查看 CLB 异常详情",
+          "type": "link",
+          "url": "/d/L3-CLB-v3?viewPanel=20"
+        },
+        {
+          "asDropdown": false,
+          "icon": "external link",
+          "includeVars": true,
+          "keepTime": false,
+          "tags": [],
+          "targetBlank": true,
+          "title": "L3-应用负载均衡",
+          "tooltip": "查看 ALB 异常详情",
+          "type": "link",
+          "url": "/d/L3-ALB-v3?viewPanel=16"
+        },
+        {
+          "asDropdown": false,
+          "icon": "external link",
+          "includeVars": true,
+          "keepTime": false,
+          "tags": [],
+          "targetBlank": true,
+          "title": "L3-网络负载均衡",
+          "tooltip": "查看 NLB 异常详情",
+          "type": "link",
+          "url": "/d/L3-NLB-v3?viewPanel=16"
+        },
+        {
+          "asDropdown": false,
+          "icon": "external link",
+          "includeVars": true,
+          "keepTime": false,
+          "tags": [],
+          "targetBlank": true,
+          "title": "L3-网关负载均衡",
+          "tooltip": "查看 GWLB 异常详情",
+          "type": "link",
+          "url": "/d/L3-GWLB-v3?viewPanel=11"
+        }
+      ],
       "targets": [
         {
           "editorMode": "code",
@@ -301,6 +363,7 @@
         "type": "prometheus",
         "uid": "$datasource"
       },
+      "description": "有服务端错误（5xx）的 Bucket 数量",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -313,6 +376,14 @@
               {
                 "color": "green",
                 "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1
+              },
+              {
+                "color": "red",
+                "value": 5
               }
             ]
           },
@@ -345,11 +416,11 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "count(s3_bucket_versioning_enabled{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"} == 0)",
+          "expr": "count({__name__=~\"s3_response_server_error_count|authorization_error_count\", cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"} > 0)",
           "refId": "A"
         }
       ],
-      "title": "S3 未开启版本控制",
+      "title": "S3 服务端错误 Bucket 数",
       "type": "stat"
     },
     {

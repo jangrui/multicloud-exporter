@@ -8,15 +8,15 @@
   "id": null,
   "links": [
     {
-      "title": "L1-全局总览-v3",
+      "title": "L1-全局总览",
       "url": "/d/L1-v3"
     },
     {
-      "title": "L2-负载均衡-v3",
+      "title": "L2-负载均衡",
       "url": "/d/L2-LB-v3"
     },
     {
-      "title": "L4-网关负载均衡-v3",
+      "title": "L4-网关负载均衡",
       "url": "/d/L4-GWLB-v3"
     }
   ],
@@ -731,6 +731,90 @@
         }
       ],
       "title": "新连接速率",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${datasource}"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": true
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      },
+      "id": 11,
+      "options": {
+        "legend": {
+          "calcs": ["lastNotNull", "max", "mean"],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "expr": "gwlb_unhealthy_server_count{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}",
+          "legendFormat": "{{resource_id}} - 异常后端",
+          "refId": "A"
+        }
+      ],
+      "title": "异常后端实例数",
       "type": "timeseries"
     }
   ],

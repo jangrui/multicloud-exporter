@@ -21,11 +21,11 @@
   "id": null,
   "links": [
     {
-      "title": "L1-全局总览-v3",
+      "title": "L1-全局总览",
       "url": "/d/L1-v3"
     },
     {
-      "title": "L3-对象存储-v3",
+      "title": "L3-对象存储",
       "url": "/d/L3-S3-v3"
     }
   ],
@@ -273,6 +273,7 @@
         "type": "prometheus",
         "uid": "${datasource}"
       },
+      "description": "有服务端错误（5xx）的 Bucket 数量",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -288,11 +289,11 @@
               },
               {
                 "color": "yellow",
-                "value": 70
+                "value": 1
               },
               {
                 "color": "red",
-                "value": 90
+                "value": 5
               }
             ]
           },
@@ -325,11 +326,11 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "count(s3_bucket_versioning_enabled{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"} == 0)",
+          "expr": "count({__name__=~\"s3_response_server_error_count|authorization_error_count\", cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"} > 0)",
           "refId": "A"
         }
       ],
-      "title": "未开启版本控制",
+      "title": "服务端错误 Bucket 数",
       "type": "stat"
     },
     {

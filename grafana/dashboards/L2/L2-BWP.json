@@ -25,7 +25,7 @@
       "url": "/d/L1-v3"
     },
     {
-      "title": "L3-BWP-v3",
+      "title": "L3-共享带宽",
       "url": "/d/L3-BWP-v3"
     }
   ],
@@ -94,7 +94,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "count(bwp_bandwidth_limit_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"})",
+          "expr": "count(bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"})",
           "refId": "A"
         }
       ],
@@ -158,7 +158,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "avg(bwp_usage_percent{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"})",
+          "expr": "avg(bwp_utilization_rx_pct{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"})",
           "refId": "A"
         }
       ],
@@ -335,7 +335,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "count(bwp_usage_percent{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"} > 80)",
+          "expr": "count(bwp_utilization_rx_pct{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"} > 80)",
           "refId": "A"
         }
       ],
@@ -391,7 +391,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(bwp_packet_rx_rate{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"} + bwp_packet_tx_rate{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"})",
+          "expr": "sum(bwp_packet_rx{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"} + bwp_packet_tx{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"})",
           "refId": "A"
         }
       ],
@@ -455,7 +455,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "count by (cloud_provider) (bwp_bandwidth_limit_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"})",
+          "expr": "count by (cloud_provider) (bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"})",
           "refId": "A"
         }
       ],
@@ -531,7 +531,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "topk(10, count by (region) (bwp_bandwidth_limit_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"}))",
+          "expr": "topk(10, count by (region) (bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"}))",
           "refId": "A"
         }
       ],
@@ -607,7 +607,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "topk(10, count by (account_id) (bwp_bandwidth_limit_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"}))",
+          "expr": "topk(10, count by (account_id) (bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"}))",
           "refId": "A"
         }
       ],
@@ -1033,7 +1033,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "topk(10, bwp_packet_rx_rate{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"})",
+          "expr": "topk(10, bwp_packet_rx{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"})",
           "refId": "A"
         }
       ],
@@ -1109,7 +1109,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "topk(10, bwp_packet_tx_rate{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"})",
+          "expr": "topk(10, bwp_packet_tx{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"})",
           "refId": "A"
         }
       ],
@@ -1118,7 +1118,7 @@
     }
   ],
   "refresh": "30s",
-  "schemaVersion": 38,
+  "schemaVersion": 41,
   "tags": ["multicloud", "bwp", "L2"],
   "templating": {
     "list": [
@@ -1149,14 +1149,14 @@
           "type": "prometheus",
           "uid": "${datasource}"
         },
-        "definition": "label_values(bwp_bandwidth_limit_bps,cloud_provider)",
+        "definition": "label_values(bwp_traffic_rx_bps,cloud_provider)",
         "hide": 0,
         "includeAll": true,
         "multi": true,
         "name": "cloud_provider",
         "options": [],
         "query": {
-          "query": "label_values(bwp_bandwidth_limit_bps,cloud_provider)",
+          "query": "label_values(bwp_traffic_rx_bps,cloud_provider)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 1,
@@ -1176,14 +1176,14 @@
           "type": "prometheus",
           "uid": "${datasource}"
         },
-        "definition": "label_values(bwp_bandwidth_limit_bps{cloud_provider=~\"$cloud_provider\"},account_id)",
+        "definition": "label_values(bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\"},account_id)",
         "hide": 0,
         "includeAll": true,
         "multi": true,
         "name": "account_id",
         "options": [],
         "query": {
-          "query": "label_values(bwp_bandwidth_limit_bps{cloud_provider=~\"$cloud_provider\"},account_id)",
+          "query": "label_values(bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\"},account_id)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 1,
@@ -1203,14 +1203,14 @@
           "type": "prometheus",
           "uid": "${datasource}"
         },
-        "definition": "label_values(bwp_bandwidth_limit_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\"},region)",
+        "definition": "label_values(bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\"},region)",
         "hide": 0,
         "includeAll": true,
         "multi": true,
         "name": "region",
         "options": [],
         "query": {
-          "query": "label_values(bwp_bandwidth_limit_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\"},region)",
+          "query": "label_values(bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\"},region)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 1,
@@ -1230,14 +1230,14 @@
           "type": "prometheus",
           "uid": "${datasource}"
         },
-        "definition": "label_values(bwp_bandwidth_limit_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"},resource_id)",
+        "definition": "label_values(bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"},resource_id)",
         "hide": 0,
         "includeAll": true,
         "multi": true,
         "name": "resource_id",
         "options": [],
         "query": {
-          "query": "label_values(bwp_bandwidth_limit_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"},resource_id)",
+          "query": "label_values(bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"},resource_id)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 1,

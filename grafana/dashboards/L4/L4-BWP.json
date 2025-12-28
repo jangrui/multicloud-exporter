@@ -122,7 +122,7 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "bwp_bandwidth_limit_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
+          "expr": "bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
           "refId": "A"
         }
       ],
@@ -180,7 +180,7 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "bwp_bandwidth_usage_percent{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
+          "expr": "bwp_utilization_rx_pct{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
           "refId": "A"
         }
       ],
@@ -275,12 +275,12 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "bwp_bandwidth_in_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
+          "expr": "bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
           "legendFormat": "入带宽",
           "refId": "A"
         },
         {
-          "expr": "bwp_bandwidth_out_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
+          "expr": "bwp_traffic_tx_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
           "legendFormat": "出带宽",
           "refId": "B"
         }
@@ -376,12 +376,12 @@
       "pluginVersion": "10.0.0",
       "targets": [
         {
-          "expr": "bwp_packet_in_pps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
+          "expr": "bwp_packet_rx{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
           "legendFormat": "入包速率",
           "refId": "A"
         },
         {
-          "expr": "bwp_packet_out_pps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
+          "expr": "bwp_packet_tx{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\",code_name=~\"$code_name\"}",
           "legendFormat": "出包速率",
           "refId": "B"
         }
@@ -390,8 +390,8 @@
       "type": "timeseries"
     }
   ],
-  "refresh": "1m",
-  "schemaVersion": 38,
+  "refresh": "30s",
+  "schemaVersion": 41,
   "style": "dark",
   "tags": [
     "L4",
@@ -427,7 +427,7 @@
           "type": "prometheus",
           "uid": "${datasource}"
         },
-        "definition": "label_values(bwp_bandwidth_limit_bps, cloud_provider)",
+        "definition": "label_values(bwp_traffic_rx_bps, cloud_provider)",
         "hide": 0,
         "includeAll": true,
         "label": "云厂商",
@@ -435,7 +435,7 @@
         "name": "cloud_provider",
         "options": [],
         "query": {
-          "query": "label_values(bwp_bandwidth_limit_bps, cloud_provider)",
+          "query": "label_values(bwp_traffic_rx_bps, cloud_provider)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 1,
@@ -451,7 +451,7 @@
           "type": "prometheus",
           "uid": "${datasource}"
         },
-        "definition": "label_values(bwp_bandwidth_limit_bps{cloud_provider=~\"$cloud_provider\"}, account_id)",
+        "definition": "label_values(bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\"}, account_id)",
         "hide": 0,
         "includeAll": true,
         "label": "账号ID",
@@ -459,7 +459,7 @@
         "name": "account_id",
         "options": [],
         "query": {
-          "query": "label_values(bwp_bandwidth_limit_bps{cloud_provider=~\"$cloud_provider\"}, account_id)",
+          "query": "label_values(bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\"}, account_id)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 1,
@@ -475,7 +475,7 @@
           "type": "prometheus",
           "uid": "${datasource}"
         },
-        "definition": "label_values(bwp_bandwidth_limit_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\"}, region)",
+        "definition": "label_values(bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\"}, region)",
         "hide": 0,
         "includeAll": true,
         "label": "区域",
@@ -483,7 +483,7 @@
         "name": "region",
         "options": [],
         "query": {
-          "query": "label_values(bwp_bandwidth_limit_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\"}, region)",
+          "query": "label_values(bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\"}, region)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 1,
@@ -499,7 +499,7 @@
           "type": "prometheus",
           "uid": "${datasource}"
         },
-        "definition": "label_values(bwp_bandwidth_limit_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"}, resource_id)",
+        "definition": "label_values(bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"}, resource_id)",
         "hide": 0,
         "includeAll": true,
         "label": "资源ID",
@@ -507,7 +507,7 @@
         "name": "resource_id",
         "options": [],
         "query": {
-          "query": "label_values(bwp_bandwidth_limit_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"}, resource_id)",
+          "query": "label_values(bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"}, resource_id)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 1,
@@ -523,7 +523,7 @@
           "type": "prometheus",
           "uid": "${datasource}"
         },
-        "definition": "label_values(bwp_bandwidth_limit_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\"}, code_name)",
+        "definition": "label_values(bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\"}, code_name)",
         "hide": 0,
         "includeAll": true,
         "label": "带宽包名称",
@@ -531,7 +531,7 @@
         "name": "code_name",
         "options": [],
         "query": {
-          "query": "label_values(bwp_bandwidth_limit_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\"}, code_name)",
+          "query": "label_values(bwp_traffic_rx_bps{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id=~\"$resource_id\"}, code_name)",
           "refId": "StandardVariableQuery"
         },
         "refresh": 1,

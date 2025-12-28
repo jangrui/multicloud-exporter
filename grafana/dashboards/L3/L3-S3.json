@@ -21,15 +21,15 @@
   "id": null,
   "links": [
     {
-      "title": "L1-全局总览-v3",
+      "title": "L1-全局总览",
       "url": "/d/L1-v3"
     },
     {
-      "title": "L2-对象存储-v3",
+      "title": "L2-对象存储",
       "url": "/d/L2-S3-v3"
     },
     {
-      "title": "L4-对象存储-v3",
+      "title": "L4-对象存储",
       "url": "/d/L4-S3-v3"
     }
   ],

@@ -21,15 +21,15 @@
   "id": null,
   "links": [
     {
-      "title": "L1-全局总览-v3",
+      "title": "L1-全局总览",
       "url": "/d/L1-v3"
     },
     {
-      "title": "L2-负载均衡-v3",
+      "title": "L2-负载均衡",
       "url": "/d/L2-LB-v3"
     },
     {
-      "title": "L4-传统负载均衡-v3",
+      "title": "L4-传统负载均衡",
       "url": "/d/L4-CLB-v3"
     }
   ],
