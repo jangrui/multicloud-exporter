@@ -858,7 +858,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "topk(10, bwp_traffic_rx_utilization_pct{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"})",
+          "expr": "topk(10, bwp_utilization_rx_pct{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"})",
           "refId": "A"
         }
       ],
@@ -944,7 +944,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "topk(10, bwp_traffic_tx_utilization_pct{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"})",
+          "expr": "topk(10, bwp_utilization_tx_pct{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"})",
           "refId": "A"
         }
       ],
