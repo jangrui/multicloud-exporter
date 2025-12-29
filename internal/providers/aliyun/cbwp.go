@@ -153,24 +153,35 @@ func (a *Collector) fetchCBWPTags(account config.CloudAccount, region string, id
 	if len(ids) == 0 {
 		return map[string]string{}
 	}
+	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", "cbwp")
+	ctxLog.Debugf("开始获取 BWP CodeName 标签 total_ids=%d", len(ids))
 	client, err := a.clientFactory.NewVPCClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
+		ctxLog.Warnf("创建 VPC 客户端失败，无法获取 CodeName 标签: %v", err)
 		return map[string]string{}
 	}
 	out := make(map[string]string, len(ids))
+	// 预先初始化所有 ID 为空字符串，确保所有 ID 都有记录
+	for _, id := range ids {
+		out[id] = ""
+	}
 	const batchSize = 20
+	batchCount := 0
 	for start := 0; start < len(ids); start += batchSize {
+		batchCount++
 		end := start + batchSize
 		if end > len(ids) {
 			end = len(ids)
 		}
 		batch := ids[start:end]
+		ctxLog.Debugf("处理 CodeName 标签批次 %d/%d batch_size=%d ids=%v", batchCount, (len(ids)+batchSize-1)/batchSize, len(batch), batch)
 		req := vpc.CreateListTagResourcesRequest()
 		req.RegionId = region
 		req.ResourceType = "COMMONBANDWIDTHPACKAGE"
 		req.MaxResults = requests.NewInteger(50)
 		req.ResourceId = &batch
 		nextToken := ""
+		batchSuccess := false
 		for {
 			if nextToken != "" {
 				req.NextToken = nextToken
@@ -208,11 +219,14 @@ func (a *Collector) fetchCBWPTags(account config.CloudAccount, region string, id
 				time.Sleep(sleep)
 			}
 			if callErr != nil {
+				ctxLog.Warnf("批次 %d 获取 CodeName 标签失败 error=%v batch=%v", batchCount, callErr, batch)
 				break
 			}
 			if len(resp.TagResources.TagResource) == 0 {
+				ctxLog.Debugf("批次 %d 无标签资源返回，可能资源未配置 CodeName 标签", batchCount)
 				break
 			}
+			batchSuccess = true
 			// 遍历标签资源，仅保留 TagKey=="CodeName" 的键值
 			for _, tr := range resp.TagResources.TagResource {
 				rid := tr.ResourceId
@@ -221,6 +235,7 @@ func (a *Collector) fetchCBWPTags(account config.CloudAccount, region string, id
 				}
 				if tr.TagKey == "CodeName" {
 					out[rid] = tr.TagValue
+					ctxLog.Debugf("找到 CodeName 标签 resource_id=%s code_name=%s", rid, tr.TagValue)
 				}
 			}
 			if resp.NextToken == "" {
@@ -229,7 +244,25 @@ func (a *Collector) fetchCBWPTags(account config.CloudAccount, region string, id
 			nextToken = resp.NextToken
 			time.Sleep(25 * time.Millisecond)
 		}
+		if !batchSuccess {
+			ctxLog.Warnf("批次 %d 完全失败，这些 ID 的 code_name 将为空: %v", batchCount, batch)
+		}
 		time.Sleep(25 * time.Millisecond)
+	}
+	withCodeName := 0
+	withoutCodeName := 0
+	emptyIDs := []string{}
+	for _, id := range ids {
+		if val, ok := out[id]; ok && val != "" {
+			withCodeName++
+		} else {
+			withoutCodeName++
+			emptyIDs = append(emptyIDs, id)
+		}
+	}
+	ctxLog.Infof("BWP CodeName 标签获取完成 total=%d with_code_name=%d without_code_name=%d", len(ids), withCodeName, withoutCodeName)
+	if len(emptyIDs) > 0 && len(emptyIDs) <= 10 {
+		ctxLog.Debugf("无 CodeName 的 BWP ID: %v", emptyIDs)
 	}
 	return out
 }

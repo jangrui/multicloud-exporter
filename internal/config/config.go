@@ -67,7 +67,7 @@ func DefaultResourceDimMapping() map[string][]string {
 		// Aliyun
 		"aliyun.acs_ecs_dashboard":     {"InstanceId", "instanceId", "instance_id"},
 		"aliyun.acs_slb_dashboard":     {"InstanceId", "instanceId", "instance_id", "groupId", "group_id"},
-		"aliyun.acs_bandwidth_package": {"BandwidthPackageId", "bandwidthPackageId", "sharebandwidthpackages"},
+		"aliyun.acs_bandwidth_package": {"BandwidthPackageId", "bandwidthPackageId", "sharebandwidthpackages", "userId", "instanceId"},
 		"aliyun.acs_oss_dashboard":     {"BucketName", "bucketName", "bucket_name"},
 		"aliyun.acs_alb":               {"loadBalancerId", "LoadBalancerId", "serverGroupId", "listenerId", "vip"},
 		"aliyun.acs_nlb":               {"InstanceId", "instanceId", "instance_id", "listenerId", "vip"},

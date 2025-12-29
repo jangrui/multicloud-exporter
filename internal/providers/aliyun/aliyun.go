@@ -1674,8 +1674,6 @@ func (a *Collector) fetchAndRecordMetrics(
 }
 
 func (a *Collector) processMetricBatch(client CMSClient, req *cms.DescribeMetricLastRequest, dims []map[string]string, account config.CloudAccount, region, ns, m, dkey, rtype string, dynamicDims []string, tags map[string]string, stats []string, ctxLog *logger.ContextLogger) {
-	// dims 参数已在调用前序列化为 req.Dimensions，此处保留用于函数签名一致性
-	_ = dims
 	nextToken := ""
 	for {
 		if nextToken != "" {
@@ -1726,11 +1724,44 @@ func (a *Collector) processMetricBatch(client CMSClient, req *cms.DescribeMetric
 			ctxLog.Errorf("指标数据解析失败 content=%s error=%v", dp, err)
 		}
 
-		// 如果没有数据点，不暴露指标（而不是设置 0 值）
-		// 根据 Prometheus 最佳实践：不存在资源或无数据时，不应该暴露指标
 		if len(points) == 0 {
-			ctxLog.Debugf("Metric %s has 0 points, skipping metric exposure (not setting 0)", m)
-			// 不设置 0 值，直接跳过
+			ctxLog.Infof("Metric %s has 0 points, setting 0 for all resources, account=%s region=%s resource_count=%d", m, account.AccountID, region, len(dims))
+			for _, dim := range dims {
+				rid := dim[dkey]
+				if rid == "" {
+					continue
+				}
+				var codeNameVal string
+				if tags != nil {
+					if cn, exists := tags[rid]; exists {
+						codeNameVal = cn
+					}
+				}
+
+				var dynamicLabelValues []string
+				for _, dimKey := range dynamicDims {
+					valStr := ""
+					if v, ok := dim[dimKey]; ok {
+						valStr = v
+					}
+					dynamicLabelValues = append(dynamicLabelValues, valStr)
+				}
+
+				labels := []string{"aliyun", account.AccountID, region, rtype, rid, ns, m, codeNameVal}
+				labels = append(labels, dynamicLabelValues...)
+				vec, count := metrics.NamespaceGauge(ns, m, dynamicDims...)
+				if len(labels) > count {
+					labels = labels[:count]
+				} else {
+					for len(labels) < count {
+						labels = append(labels, "")
+					}
+				}
+				vec.WithLabelValues(labels...).Set(0)
+				metrics.IncSampleCount(ns, 1)
+				ctxLog.Debugf("Set 0 value for metric=%s resource_id=%s labels=%v", m, rid, labels)
+			}
+			continue
 		}
 
 		for _, pnt := range points {
@@ -1742,7 +1773,16 @@ func (a *Collector) processMetricBatch(client CMSClient, req *cms.DescribeMetric
 			val := pickStatisticValue(pnt, stats)
 			var codeNameVal string
 			if tags != nil {
-				codeNameVal = tags[rid]
+				if cn, exists := tags[rid]; exists {
+					codeNameVal = cn
+				} else {
+					ctxLog.Debugf("resource_id=%s 未在 tags map 中找到 code_name，将使用空字符串", rid)
+				}
+			} else {
+				ctxLog.Debugf("tags map 为 nil，resource_id=%s 的 code_name 将为空字符串", rid)
+			}
+			if codeNameVal == "" {
+				ctxLog.Debugf("记录指标 resource_id=%s metric=%s code_name=\"\" (空值)", rid, m)
 			}
 
 			var dynamicLabelValues []string

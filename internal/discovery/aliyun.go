@@ -268,9 +268,13 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 					}
 				}
 				if !has {
+					logger.Log.Debugf("Aliyun 发现服务过滤指标，命名空间=%s 指标=%s 原因=维度不匹配 必需维度=%v 指标维度=%v", ns, name, required, dims)
 					continue
 				}
 				metrics = append(metrics, name)
+			}
+			if ns == "acs_bandwidth_package" {
+				logger.Log.Debugf("Aliyun 发现服务解析完成，命名空间=%s 原始指标=%d 过滤后指标=%d", ns, len(resp.Resources.Resource), len(metrics))
 			}
 		}
 
@@ -288,7 +292,15 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 				}
 			}
 			if added > 0 {
-				logger.Log.Infof("Aliyun 发现服务已追加备用指标，命名空间=%s 新增数量=%d", ns, added)
+				logger.Log.Infof("Aliyun 发现服务已追加备用指标，命名空间=%s 新增数量=%d 追加指标=%v", ns, added, func() []string {
+					missing := []string{}
+					for _, m := range list {
+						if _, ok := cur[m]; !ok {
+							missing = append(missing, m)
+						}
+					}
+					return missing
+				}())
 			}
 		}
 

@@ -116,7 +116,8 @@ func TestFetchCBWPTags(t *testing.T) {
 		return nil, fmt.Errorf("error")
 	}
 	tags = c.fetchCBWPTags(config.CloudAccount{}, "cn-hangzhou", []string{"cbwp-1"})
-	assert.Empty(t, tags)
+	// 修复后行为：即使 API 失败，也会返回包含空字符串的 map，确保所有 ID 都有记录
+	assert.Equal(t, "", tags["cbwp-1"])
 }
 
 func TestListSLBIDs(t *testing.T) {
