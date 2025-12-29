@@ -260,7 +260,6 @@ func (a *Collector) fetchCBWPTags(account config.CloudAccount, region string, id
 			emptyIDs = append(emptyIDs, id)
 		}
 	}
-	ctxLog.Infof("BWP CodeName 标签获取完成 total=%d with_code_name=%d without_code_name=%d", len(ids), withCodeName, withoutCodeName)
 	if len(emptyIDs) > 0 && len(emptyIDs) <= 10 {
 		ctxLog.Debugf("无 CodeName 的 BWP ID: %v", emptyIDs)
 	}

@@ -1725,7 +1725,6 @@ func (a *Collector) processMetricBatch(client CMSClient, req *cms.DescribeMetric
 		}
 
 		if len(points) == 0 {
-			ctxLog.Infof("Metric %s has 0 points, setting 0 for all resources, account=%s region=%s resource_count=%d", m, account.AccountID, region, len(dims))
 			for _, dim := range dims {
 				rid := dim[dkey]
 				if rid == "" {
@@ -1759,7 +1758,6 @@ func (a *Collector) processMetricBatch(client CMSClient, req *cms.DescribeMetric
 				}
 				vec.WithLabelValues(labels...).Set(0)
 				metrics.IncSampleCount(ns, 1)
-				ctxLog.Debugf("Set 0 value for metric=%s resource_id=%s labels=%v", m, rid, labels)
 			}
 			continue
 		}
