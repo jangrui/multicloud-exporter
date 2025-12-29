@@ -66,12 +66,12 @@ func DefaultResourceDimMapping() map[string][]string {
 	return map[string][]string{
 		// Aliyun
 		"aliyun.acs_ecs_dashboard":     {"InstanceId", "instanceId", "instance_id"},
-		"aliyun.acs_slb_dashboard":     {"InstanceId", "instanceId", "instance_id", "groupId", "group_id"},
+		"aliyun.acs_slb_dashboard":     {"InstanceId", "instanceId", "instance_id", "groupId", "group_id", "userId", "vip", "port", "protocol"},
 		"aliyun.acs_bandwidth_package": {"BandwidthPackageId", "bandwidthPackageId", "sharebandwidthpackages", "userId", "instanceId"},
-		"aliyun.acs_oss_dashboard":     {"BucketName", "bucketName", "bucket_name"},
-		"aliyun.acs_alb":               {"loadBalancerId", "LoadBalancerId", "serverGroupId", "listenerId", "vip"},
-		"aliyun.acs_nlb":               {"InstanceId", "instanceId", "instance_id", "listenerId", "vip"},
-		"aliyun.acs_gwlb":              {"instanceId", "InstanceId", "instance_id"},
+		"aliyun.acs_oss_dashboard":     {"BucketName", "bucketName", "bucket_name", "userId", "instanceId"},
+		"aliyun.acs_alb":               {"loadBalancerId", "LoadBalancerId", "serverGroupId", "listenerId", "vip", "userId", "listenerProtocol", "listenerPort", "ruleId"},
+		"aliyun.acs_nlb":               {"InstanceId", "instanceId", "instance_id", "listenerId", "vip", "userId", "listenerPort", "listenerProtocol"},
+		"aliyun.acs_gwlb":              {"instanceId", "InstanceId", "instance_id", "userId", "regionId", "availableZone", "addressIpVersion", "serverGroupId"},
 		// Tencent
 		"tencent.QCE/CVM":  {"InstanceId"},
 		"tencent.QCE/LB":   {"LoadBalancerId", "vip"},

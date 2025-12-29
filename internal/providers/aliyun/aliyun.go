@@ -352,7 +352,7 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 				}
 				// 对每个指标使用指标级并发进行批次拉取。每批最多 50 个维度（实例）。
 				for _, metricName := range group.MetricList {
-					meta := a.getMetricMeta(client, prod.Namespace, metricName)
+					meta := a.getMetricMeta(client, account.AccountID, prod.Namespace, metricName)
 					localPeriod := period
 					if localPeriod == "" && meta.MinPeriod != "" {
 						localPeriod = meta.MinPeriod
@@ -472,8 +472,8 @@ type metricMeta struct {
 	MinPeriod  string
 }
 
-func (a *Collector) getMetricMeta(client CMSClient, namespace, metric string) metricMeta {
-	key := namespace + "|" + metric
+func (a *Collector) getMetricMeta(client CMSClient, accountID, namespace, metric string) metricMeta {
+	key := accountID + "|" + namespace + "|" + metric
 	a.metaMu.RLock()
 	m, ok := a.metaCache[key]
 	a.metaMu.RUnlock()
@@ -499,7 +499,7 @@ func (a *Collector) getMetricMeta(client CMSClient, namespace, metric string) me
 			if sleep > 5*time.Second {
 				sleep = 5 * time.Second
 			}
-			logger.Log.Debugf("Aliyun getMetricMeta 限流重试，命名空间=%s 指标=%s 重试次数=%d/%d 延迟=%v", namespace, metric, attempt+1, 5, sleep)
+			logger.Log.Debugf("Aliyun getMetricMeta 限流重试，账号ID=%s 命名空间=%s 指标=%s 重试次数=%d/%d 延迟=%v", accountID, namespace, metric, attempt+1, 5, sleep)
 			time.Sleep(sleep)
 			continue
 		}
@@ -509,9 +509,9 @@ func (a *Collector) getMetricMeta(client CMSClient, namespace, metric string) me
 	if err != nil {
 		st := common.ClassifyAliyunError(err)
 		if st == "limit_error" {
-			logger.Log.Warnf("Aliyun getMetricMeta 错误（重试5次后仍失败），命名空间=%s 指标=%s 错误=%v", namespace, metric, err)
+			logger.Log.Warnf("Aliyun getMetricMeta 错误（重试5次后仍失败），账号ID=%s 命名空间=%s 指标=%s 错误=%v", accountID, namespace, metric, err)
 		} else {
-			logger.Log.Warnf("Aliyun getMetricMeta 错误，命名空间=%s 指标=%s 错误=%v", namespace, metric, err)
+			logger.Log.Warnf("Aliyun getMetricMeta 错误，账号ID=%s 命名空间=%s 指标=%s 错误=%v", accountID, namespace, metric, err)
 		}
 		metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricMetaList", st).Inc()
 		metrics.RecordRequest("aliyun", "DescribeMetricMetaList", st)
