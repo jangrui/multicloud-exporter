@@ -425,18 +425,17 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 						logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", rtype).Debugf("FetchTags empty or failed")
 					}
 
-					// 并发执行该指标的各批次查询：由 msem 控制并发槽，避免超过云监控 API 限流。
 					mwg.Add(1)
 					msem <- struct{}{}
-					go func(ns, m string, dkey string, rtype string, ids []string, tags map[string]string, p string, stats []string, meta map[string]interface{}, metricDims []string) {
+					go func(ns, m string, dkey string, rtype string, ids []string, tags map[string]string, p string, stats []string, meta map[string]interface{}, metricDims []string, accountID string) {
 						defer mwg.Done()
 						defer func() { <-msem }()
 
-						ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "namespace", ns, "metric", m)
+						ctxLog := logger.NewContextLogger("Aliyun", "account_id", accountID, "region", region, "namespace", ns, "metric", m)
 
-						allDims, dynamicDims := a.buildMetricDimensions(ids, dkey, metricDims, meta)
+						allDims, dynamicDims := a.buildMetricDimensions(accountID, ns, ids, dkey, metricDims, meta)
 						a.fetchAndRecordMetrics(client, account, region, ns, m, dkey, rtype, p, allDims, dynamicDims, tags, stats, ctxLog)
-					}(prod.Namespace, metricName, dimKey, rtype, resIDs, tagLabels, localPeriod, meta.Statistics, metaInfo, meta.Dimensions)
+					}(prod.Namespace, metricName, dimKey, rtype, resIDs, tagLabels, localPeriod, meta.Statistics, metaInfo, meta.Dimensions, account.AccountID)
 				}
 			}
 		}(prod)
@@ -474,123 +473,164 @@ type metricMeta struct {
 
 func (a *Collector) getMetricMeta(client CMSClient, accountID, namespace, metric string) metricMeta {
 	key := accountID + "|" + namespace + "|" + metric
+
+	// 首次检查缓存（读锁）
 	a.metaMu.RLock()
 	m, ok := a.metaCache[key]
 	a.metaMu.RUnlock()
 	if ok {
 		return m
 	}
-	req := cms.CreateDescribeMetricMetaListRequest()
-	req.Namespace = namespace
-	req.MetricName = metric
-	start := time.Now()
-	var resp *cms.DescribeMetricMetaListResponse
-	var err error
-	for attempt := 0; attempt < 5; attempt++ {
-		resp, err = client.DescribeMetricMetaList(req)
-		if err == nil {
+
+	// 使用 singleflight 防止并发调用 API
+	// 多账号采集时，同一指标可能被多个 goroutine 同时请求元数据
+	// singleflight 确保只发出一个 API 请求，其他等待共享结果
+	val, err, _ := a.sf.Do(key, func() (interface{}, error) {
+		// Double-check cache inside singleflight (防止在等待期间其他 goroutine 已经更新了缓存)
+		a.metaMu.RLock()
+		if cached, ok := a.metaCache[key]; ok {
+			a.metaMu.RUnlock()
+			return cached, nil
+		}
+		a.metaMu.RUnlock()
+
+		// 执行 API 调用
+		var out metricMeta
+		req := cms.CreateDescribeMetricMetaListRequest()
+		req.Namespace = namespace
+		req.MetricName = metric
+		start := time.Now()
+		var resp *cms.DescribeMetricMetaListResponse
+		var apiErr error
+
+		// 重试机制：最多重试 5 次
+		for attempt := 0; attempt < 5; attempt++ {
+			resp, apiErr = client.DescribeMetricMetaList(req)
+			if apiErr == nil {
+				break
+			}
+			status := common.ClassifyAliyunError(apiErr)
+			if status == "limit_error" {
+				// 记录限流指标
+				metrics.RateLimitTotal.WithLabelValues("aliyun", "DescribeMetricMetaList").Inc()
+				sleep := time.Duration(200*(1<<attempt)) * time.Millisecond
+				if sleep > 5*time.Second {
+					sleep = 5 * time.Second
+				}
+				logger.Log.Debugf("Aliyun getMetricMeta 限流重试，账号ID=%s 命名空间=%s 指标=%s 重试次数=%d/%d 延迟=%v", accountID, namespace, metric, attempt+1, 5, sleep)
+				time.Sleep(sleep)
+				continue
+			}
 			break
 		}
-		status := common.ClassifyAliyunError(err)
-		if status == "limit_error" {
-			// 记录限流指标
-			metrics.RateLimitTotal.WithLabelValues("aliyun", "DescribeMetricMetaList").Inc()
-			sleep := time.Duration(200*(1<<attempt)) * time.Millisecond
-			if sleep > 5*time.Second {
-				sleep = 5 * time.Second
+
+		if apiErr != nil {
+			st := common.ClassifyAliyunError(apiErr)
+			if st == "limit_error" {
+				logger.Log.Warnf("Aliyun getMetricMeta 错误（重试5次后仍失败），账号ID=%s 命名空间=%s 指标=%s 错误=%v", accountID, namespace, metric, apiErr)
+			} else {
+				logger.Log.Warnf("Aliyun getMetricMeta 错误，账号ID=%s 命名空间=%s 指标=%s 错误=%v", accountID, namespace, metric, apiErr)
 			}
-			logger.Log.Debugf("Aliyun getMetricMeta 限流重试，账号ID=%s 命名空间=%s 指标=%s 重试次数=%d/%d 延迟=%v", accountID, namespace, metric, attempt+1, 5, sleep)
-			time.Sleep(sleep)
-			continue
-		}
-		break
-	}
-	var out metricMeta
-	if err != nil {
-		st := common.ClassifyAliyunError(err)
-		if st == "limit_error" {
-			logger.Log.Warnf("Aliyun getMetricMeta 错误（重试5次后仍失败），账号ID=%s 命名空间=%s 指标=%s 错误=%v", accountID, namespace, metric, err)
+			metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricMetaList", st).Inc()
+			metrics.RecordRequest("aliyun", "DescribeMetricMetaList", st)
+			// 错误时仍尝试使用默认维度，不返回空维度
 		} else {
-			logger.Log.Warnf("Aliyun getMetricMeta 错误，账号ID=%s 命名空间=%s 指标=%s 错误=%v", accountID, namespace, metric, err)
-		}
-		metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricMetaList", st).Inc()
-		metrics.RecordRequest("aliyun", "DescribeMetricMetaList", st)
-		// Don't return empty meta on error, fall through to use default dimensions
-	} else {
-		metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricMetaList", "success").Inc()
-		metrics.RequestDuration.WithLabelValues("aliyun", "DescribeMetricMetaList").Observe(time.Since(start).Seconds())
-		metrics.RecordRequest("aliyun", "DescribeMetricMetaList", "success")
-		if len(resp.Resources.Resource) > 0 {
-			r := resp.Resources.Resource[0]
-			dims := strings.Split(r.Dimensions, ",")
-			var ds []string
-			for _, d := range dims {
-				d = strings.TrimSpace(d)
-				if d != "" && d != "userId" {
-					ds = append(ds, d)
-				}
-			}
-			out.Dimensions = ds
-			if len(out.Dimensions) == 0 {
-				key := "aliyun." + namespace
-				if server := a.cfg.GetServer(); server != nil {
-					if req, ok := server.ResourceDimMapping[key]; ok && len(req) > 0 {
-						out.Dimensions = append(out.Dimensions, req...)
+			metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricMetaList", "success").Inc()
+			metrics.RequestDuration.WithLabelValues("aliyun", "DescribeMetricMetaList").Observe(time.Since(start).Seconds())
+			metrics.RecordRequest("aliyun", "DescribeMetricMetaList", "success")
+			if len(resp.Resources.Resource) > 0 {
+				r := resp.Resources.Resource[0]
+				dims := strings.Split(r.Dimensions, ",")
+				var ds []string
+				for _, d := range dims {
+					d = strings.TrimSpace(d)
+					if d != "" && d != "userId" {
+						ds = append(ds, d)
 					}
 				}
+				out.Dimensions = ds
 				if len(out.Dimensions) == 0 {
-					defaults := config.DefaultResourceDimMapping()
-					if req, ok := defaults[key]; ok && len(req) > 0 {
-						out.Dimensions = append(out.Dimensions, req...)
+					key := "aliyun." + namespace
+					if server := a.cfg.GetServer(); server != nil {
+						if req, ok := server.ResourceDimMapping[key]; ok && len(req) > 0 {
+							out.Dimensions = append(out.Dimensions, req...)
+						}
 					}
-				}
-			}
-			if r.Statistics != "" {
-				parts := strings.Split(r.Statistics, ",")
-				for i := range parts {
-					parts[i] = strings.TrimSpace(parts[i])
-				}
-				out.Statistics = parts
-			}
-			if r.Periods != "" {
-				// 解析 Periods (如 "60,300") 取最小值，避免直接透传导致 API 报错
-				parts := strings.Split(r.Periods, ",")
-				minP := 0
-				for _, p := range parts {
-					p = strings.TrimSpace(p)
-					if val, err := strconv.Atoi(p); err == nil && val > 0 {
-						if minP == 0 || val < minP {
-							minP = val
+					if len(out.Dimensions) == 0 {
+						defaults := config.DefaultResourceDimMapping()
+						if req, ok := defaults[key]; ok && len(req) > 0 {
+							out.Dimensions = append(out.Dimensions, req...)
 						}
 					}
 				}
-				if minP > 0 {
-					out.MinPeriod = strconv.Itoa(minP)
-				} else {
-					// fallback
-					out.MinPeriod = strings.TrimSpace(r.Periods)
+				if r.Statistics != "" {
+					parts := strings.Split(r.Statistics, ",")
+					for i := range parts {
+						parts[i] = strings.TrimSpace(parts[i])
+					}
+					out.Statistics = parts
+				}
+				if r.Periods != "" {
+					// 解析 Periods (如 "60,300") 取最小值，避免直接透传导致 API 报错
+					parts := strings.Split(r.Periods, ",")
+					minP := 0
+					for _, p := range parts {
+						p = strings.TrimSpace(p)
+						if val, err := strconv.Atoi(p); err == nil && val > 0 {
+							if minP == 0 || val < minP {
+								minP = val
+							}
+						}
+					}
+					if minP > 0 {
+						out.MinPeriod = strconv.Itoa(minP)
+					} else {
+						// fallback
+						out.MinPeriod = strings.TrimSpace(r.Periods)
+					}
 				}
 			}
 		}
-	}
-	if len(out.Dimensions) == 0 {
-		key := "aliyun." + namespace
-		if server := a.cfg.GetServer(); server != nil {
-			if req, ok := server.ResourceDimMapping[key]; ok && len(req) > 0 {
-				out.Dimensions = append(out.Dimensions, req...)
-			}
-		}
+
+		// 如果 API 失败或返回空维度，使用默认维度兜底
+		// 这确保即使元数据 API 失败，指标仍可以被采集
 		if len(out.Dimensions) == 0 {
-			defaults := config.DefaultResourceDimMapping()
-			if req, ok := defaults[key]; ok && len(req) > 0 {
-				out.Dimensions = append(out.Dimensions, req...)
+			key := "aliyun." + namespace
+			if server := a.cfg.GetServer(); server != nil {
+				if req, ok := server.ResourceDimMapping[key]; ok && len(req) > 0 {
+					out.Dimensions = append(out.Dimensions, req...)
+				}
+			}
+			if len(out.Dimensions) == 0 {
+				defaults := config.DefaultResourceDimMapping()
+				if req, ok := defaults[key]; ok && len(req) > 0 {
+					out.Dimensions = append(out.Dimensions, req...)
+				}
 			}
 		}
+
+		// 只缓存有维度的元数据，避免缓存空维度导致指标永久丢失
+		// 如果维度为空，下次采集会重新调用 API 获取
+		if len(out.Dimensions) > 0 {
+			a.metaMu.Lock()
+			a.metaCache[key] = out
+			a.metaMu.Unlock()
+		} else {
+			logger.Log.Warnf("Aliyun getMetricMeta 跳过缓存（维度为空），账号ID=%s 命名空间=%s 指标=%s，将使用默认维度", accountID, namespace, metric)
+		}
+
+		return out, nil
+	})
+
+	// singleflight 返回的结果
+	if err == nil && val != nil {
+		if meta, ok := val.(metricMeta); ok {
+			return meta
+		}
 	}
-	a.metaMu.Lock()
-	a.metaCache[key] = out
-	a.metaMu.Unlock()
-	return out
+
+	// 如果 singleflight 出现错误，返回空 metricMeta（使用默认维度兜底）
+	return metricMeta{}
 }
 
 //
@@ -1572,11 +1612,10 @@ func parseContentCodeName(content []byte) map[string]string {
 	}
 	return out
 }
-func (a *Collector) buildMetricDimensions(ids []string, dkey string, metricDims []string, meta map[string]interface{}) ([]map[string]string, []string) {
+func (a *Collector) buildMetricDimensions(accountID, namespace string, ids []string, dkey string, metricDims []string, meta map[string]interface{}) ([]map[string]string, []string) {
 	var dynamicDims []string
 	reserved := map[string]struct{}{
 		"region":         {},
-		"userid":         {},
 		"cloud_provider": {},
 		"account_id":     {},
 		"resource_type":  {},
@@ -1585,9 +1624,24 @@ func (a *Collector) buildMetricDimensions(ids []string, dkey string, metricDims 
 		"metric_name":    {},
 		"code_name":      {},
 	}
+
+	var userIdRequired bool
+	if namespace == "acs_bandwidth_package" {
+		for _, d := range metricDims {
+			if strings.EqualFold(d, "userId") {
+				userIdRequired = true
+				break
+			}
+		}
+	}
+
 	for _, d := range metricDims {
 		lower := strings.ToLower(d)
 		if strings.EqualFold(d, dkey) {
+			continue
+		}
+		if strings.EqualFold(d, "userId") && userIdRequired {
+			dynamicDims = append(dynamicDims, d)
 			continue
 		}
 		if _, ok := reserved[lower]; ok {
@@ -1610,6 +1664,11 @@ func (a *Collector) buildMetricDimensions(ids []string, dkey string, metricDims 
 						d[dkey] = id
 						matchCount := 0
 						for _, dimKey := range dynamicDims {
+							if strings.EqualFold(dimKey, "userId") && userIdRequired {
+								d[dimKey] = accountID
+								matchCount++
+								continue
+							}
 							for k, v := range item {
 								if strings.EqualFold(k, dimKey) {
 									d[dimKey] = v
@@ -1627,7 +1686,16 @@ func (a *Collector) buildMetricDimensions(ids []string, dkey string, metricDims 
 			}
 		}
 		if !added {
-			allDims = append(allDims, map[string]string{dkey: id})
+			d := map[string]string{dkey: id}
+			if userIdRequired && hasDynamicDims {
+				for _, dimKey := range dynamicDims {
+					if strings.EqualFold(dimKey, "userId") {
+						d[dimKey] = accountID
+						break
+					}
+				}
+			}
+			allDims = append(allDims, d)
 		}
 	}
 	return allDims, dynamicDims
