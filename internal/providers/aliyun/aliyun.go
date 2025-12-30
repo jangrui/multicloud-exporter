@@ -40,6 +40,8 @@ type Collector struct {
 	uidMu         sync.RWMutex
 	ossCache      map[string]ossCacheEntry
 	ossMu         sync.Mutex
+	tagCache      map[string]map[string]string // 标签缓存：key -> resourceID -> codeName
+	tagMu         sync.RWMutex                  // 标签缓存锁
 	clientFactory ClientFactory
 	sf            singleflight.Group
 	regionManager common.RegionManager
@@ -72,6 +74,7 @@ func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
 		resCache:      make(map[string]resCacheEntry),
 		uidCache:      make(map[string]string),
 		ossCache:      make(map[string]ossCacheEntry),
+		tagCache:      make(map[string]map[string]string), // 初始化标签缓存
 		clientFactory: &defaultClientFactory{},
 	}
 
@@ -173,6 +176,54 @@ func (a *Collector) getAccountUID(account config.CloudAccount, region string) st
 	}
 
 	return account.AccountID
+}
+
+// getOrFetchTags 获取或缓存标签（资源枚举后调用一次，所有指标复用）
+func (a *Collector) getOrFetchTags(account config.CloudAccount, region string, rtype string, ids []string) map[string]string {
+	if len(ids) == 0 {
+		return map[string]string{}
+	}
+
+	// 生成缓存键：accountID:region:rtype
+	cacheKey := account.AccountID + ":" + region + ":" + rtype
+
+	// 尝试从缓存读取
+	a.tagMu.RLock()
+	if tags, ok := a.tagCache[cacheKey]; ok {
+		a.tagMu.RUnlock()
+		logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", rtype).Debugf("标签缓存命中 数量=%d", len(tags))
+		return tags
+	}
+	a.tagMu.RUnlock()
+
+	// 缓存未命中，获取标签
+	logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", rtype).Debugf("标签缓存未命中，开始获取 数量=%d", len(ids))
+
+	var tags map[string]string
+	switch rtype {
+	case "cbwp", "bwp":
+		tags = a.fetchCBWPTags(account, region, ids)
+	case "lb", "slb", "clb":
+		tags = a.fetchSLBTags(account, region, "", "", ids)
+	case "alb":
+		tags = a.fetchALBTags(account, region, ids)
+	case "nlb":
+		tags = a.fetchNLBTags(account, region, ids)
+	case "oss":
+		tags = a.fetchOSSBucketTags(account, region, ids)
+	default:
+		tags = map[string]string{}
+	}
+
+	// 存入缓存
+	if len(tags) > 0 {
+		a.tagMu.Lock()
+		a.tagCache[cacheKey] = tags
+		a.tagMu.Unlock()
+		logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", rtype).Debugf("标签已缓存 数量=%d", len(tags))
+	}
+
+	return tags
 }
 
 // Collect 根据账号配置遍历区域与资源类型并采集
@@ -351,7 +402,10 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 					period = ""
 				}
 				// 对每个指标使用指标级并发进行批次拉取。每批最多 50 个维度（实例）。
+				idx := 0
 				for _, metricName := range group.MetricList {
+					metricIdx := idx
+					idx++
 					meta := a.getMetricMeta(client, account.AccountID, prod.Namespace, metricName)
 					localPeriod := period
 					if localPeriod == "" && meta.MinPeriod != "" {
@@ -374,13 +428,27 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 						}
 					}
 					if len(meta.Dimensions) == 0 {
-						baseLog.With("namespace", prod.Namespace, "metric", metricName).Warn("metric skipped (no dimensions)")
+						// 【诊断日志】详细记录维度为空的情况
+						if prod.Namespace == "acs_bandwidth_package" {
+							baseLog.With("namespace", prod.Namespace, "metric", metricName).Warnf(
+								"BWP 指标维度为空，将跳过采集 账号ID=%s 区域=%s 指标=%s",
+								account.AccountID, region, metricName)
+						} else {
+							baseLog.With("namespace", prod.Namespace, "metric", metricName).Warn("metric skipped (no dimensions)")
+						}
 						continue
 					}
 					// 针对不同产品，检查是否包含必要的维度
 					// 使用统一的维度检查函数，不再硬编码产品名称
 					if !a.checkRequiredDimensions(prod.Namespace, meta.Dimensions) {
-						baseLog.With("namespace", prod.Namespace, "metric", metricName).Warnf("metric skipped (dimension mismatch): dims=%v", meta.Dimensions)
+						// 【诊断日志】详细记录维度检查失败的情况
+						if prod.Namespace == "acs_bandwidth_package" {
+							baseLog.With("namespace", prod.Namespace, "metric", metricName).Warnf(
+								"BWP 指标维度不匹配，跳过采集 账号ID=%s 区域=%s 指标=%s 返回维度=%v",
+								account.AccountID, region, metricName, meta.Dimensions)
+						} else {
+							baseLog.With("namespace", prod.Namespace, "metric", metricName).Warnf("metric skipped (dimension mismatch): dims=%v", meta.Dimensions)
+						}
 						continue
 					}
 					dimKey := chooseDimKeyForNamespace(prod.Namespace, meta.Dimensions)
@@ -401,41 +469,26 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 							continue
 						}
 					}
-					var tagLabels map[string]string
-					// code_name 标签来源：
-					// - ECS：使用 ListTagResources 过滤 TagKey=="CodeName"，得到实例的业务名称
-					// - CBWP：使用 ListTagResources 过滤 TagKey=="CodeName"，得到带宽包的业务名称
-					// 其他命名空间当前不提供 code_name，保持为空字符串
-					switch rtype {
-					case "cbwp", "bwp":
-						tagLabels = a.fetchCBWPTags(account, region, resIDs)
-					case "lb", "slb", "clb":
-						tagLabels = a.fetchSLBTags(account, region, prod.Namespace, metricName, resIDs)
-					case "alb":
-						tagLabels = a.fetchALBTags(account, region, resIDs)
-					case "nlb":
-						tagLabels = a.fetchNLBTags(account, region, resIDs)
-					case "oss":
-						tagLabels = a.fetchOSSBucketTags(account, region, resIDs)
-					}
 
-					if len(tagLabels) > 0 {
-						logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", rtype).Debugf("FetchTags success count=%d", len(tagLabels))
-					} else {
-						logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", rtype).Debugf("FetchTags empty or failed")
-					}
-
+					// 修复：将标签获取移到 goroutine 内部，避免阻塞主循环
+					// 这样主循环不会被 getOrFetchTags 或 msem 阻塞，可以快速启动所有指标的 goroutine
 					mwg.Add(1)
-					msem <- struct{}{}
-					go func(ns, m string, dkey string, rtype string, ids []string, tags map[string]string, p string, stats []string, meta map[string]interface{}, metricDims []string, accountID string) {
+					go func(ns, m string, dkey string, rtype string, ids []string, p string, stats []string, meta map[string]interface{}, metricDims []string, accountID string, metricIdx int) {
 						defer mwg.Done()
-						defer func() { <-msem }()
 
 						ctxLog := logger.NewContextLogger("Aliyun", "account_id", accountID, "region", region, "namespace", ns, "metric", m)
 
+						msem <- struct{}{}
+						defer func() { <-msem }()
+
+						// 在 goroutine 内部获取标签（第一次会调用API并缓存，后续使用缓存）
+						tagLabels := a.getOrFetchTags(account, region, rtype, ids)
+
+						ctxLog.Debugf("开始构建维度 metric_idx=%d", metricIdx)
 						allDims, dynamicDims := a.buildMetricDimensions(accountID, ns, ids, dkey, metricDims, meta)
-						a.fetchAndRecordMetrics(client, account, region, ns, m, dkey, rtype, p, allDims, dynamicDims, tags, stats, ctxLog)
-					}(prod.Namespace, metricName, dimKey, rtype, resIDs, tagLabels, localPeriod, meta.Statistics, metaInfo, meta.Dimensions, account.AccountID)
+
+						a.fetchAndRecordMetrics(client, account, region, ns, m, dkey, rtype, p, allDims, dynamicDims, tagLabels, stats, ctxLog)
+					}(prod.Namespace, metricName, dimKey, rtype, resIDs, localPeriod, meta.Statistics, metaInfo, meta.Dimensions, account.AccountID, metricIdx)
 				}
 			}
 		}(prod)
@@ -538,6 +591,17 @@ func (a *Collector) getMetricMeta(client CMSClient, accountID, namespace, metric
 			metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricMetaList", "success").Inc()
 			metrics.RequestDuration.WithLabelValues("aliyun", "DescribeMetricMetaList").Observe(time.Since(start).Seconds())
 			metrics.RecordRequest("aliyun", "DescribeMetricMetaList", "success")
+
+			// 【诊断日志】API 返回结果的详细信息
+			if len(resp.Resources.Resource) == 0 {
+				logger.Log.Debugf("Aliyun getMetricMeta API 返回空结果，账号ID=%s 命名空间=%s 指标=%s 将使用默认维度",
+					accountID, namespace, metric)
+			} else {
+				r := resp.Resources.Resource[0]
+				logger.Log.Debugf("Aliyun getMetricMeta API 成功，账号ID=%s 命名空间=%s 指标=%s 原始维度=[%s] 原始统计=[%s]",
+					accountID, namespace, metric, r.Dimensions, r.Statistics)
+			}
+
 			if len(resp.Resources.Resource) > 0 {
 				r := resp.Resources.Resource[0]
 				dims := strings.Split(r.Dimensions, ",")
@@ -549,6 +613,10 @@ func (a *Collector) getMetricMeta(client CMSClient, accountID, namespace, metric
 					}
 				}
 				out.Dimensions = ds
+
+				// 【诊断日志】记录维度处理结果
+				logger.Log.Debugf("Aliyun getMetricMeta 维度处理，账号ID=%s 命名空间=%s 指标=%s 原始数量=%d 过滤userId后=%d",
+					accountID, namespace, metric, len(dims), len(ds))
 				if len(out.Dimensions) == 0 {
 					key := "aliyun." + namespace
 					if server := a.cfg.GetServer(); server != nil {
@@ -596,16 +664,28 @@ func (a *Collector) getMetricMeta(client CMSClient, accountID, namespace, metric
 		// 这确保即使元数据 API 失败，指标仍可以被采集
 		if len(out.Dimensions) == 0 {
 			key := "aliyun." + namespace
+			// 【诊断日志】记录默认维度使用
+			logger.Log.Debugf("Aliyun getMetricMeta API 返回空维度或失败，尝试使用默认维度，账号ID=%s 命名空间=%s 指标=%s",
+				accountID, namespace, metric)
+
 			if server := a.cfg.GetServer(); server != nil {
 				if req, ok := server.ResourceDimMapping[key]; ok && len(req) > 0 {
 					out.Dimensions = append(out.Dimensions, req...)
+					logger.Log.Infof("Aliyun getMetricMeta 使用配置文件默认维度，账号ID=%s 命名空间=%s 指标=%s 维度=%v",
+						accountID, namespace, metric, out.Dimensions)
 				}
 			}
 			if len(out.Dimensions) == 0 {
 				defaults := config.DefaultResourceDimMapping()
 				if req, ok := defaults[key]; ok && len(req) > 0 {
 					out.Dimensions = append(out.Dimensions, req...)
+					logger.Log.Infof("Aliyun getMetricMeta 使用内置默认维度，账号ID=%s 命名空间=%s 指标=%s 维度=%v",
+						accountID, namespace, metric, out.Dimensions)
 				}
+			}
+			if len(out.Dimensions) == 0 {
+				logger.Log.Warnf("Aliyun getMetricMeta 无法获取任何维度（API返回空且无默认维度），账号ID=%s 命名空间=%s 指标=%s",
+					accountID, namespace, metric)
 			}
 		}
 
@@ -864,11 +944,27 @@ func (a *Collector) listALBIDs(account config.CloudAccount, region string) []str
 			}
 		}
 		nextToken := ""
+		loopCount := 0
+		maxLoops := 100 // 防止无限分页的安全上限
+		seenNextTokens := make(map[string]bool) // 检测重复的NextToken
+		emptyDataCount := 0                     // 连续空数据计数
 		for {
+			loopCount++
+			if loopCount > maxLoops {
+				logger.Log.Errorf("ALB资源枚举达到最大循环次数限制(%d)，强制退出 region=%s", maxLoops, region)
+				break
+			}
+
 			req := &alb20200616.ListLoadBalancersRequest{
 				MaxResults: tea.Int32(int32(pageSize)),
 			}
 			if nextToken != "" {
+				// 检测重复的NextToken（防止API返回相同token导致的无限循环）
+				if seenNextTokens[nextToken] {
+					logger.Log.Warnf("ALB资源枚举检测到重复的NextToken，退出分页 loop=%d region=%s", loopCount, region)
+					break
+				}
+				seenNextTokens[nextToken] = true
 				req.NextToken = tea.String(nextToken)
 			}
 			var resp *alb20200616.ListLoadBalancersResponse
@@ -908,16 +1004,32 @@ func (a *Collector) listALBIDs(account config.CloudAccount, region string) []str
 				out = []string{}
 				break
 			}
+
+			// 处理返回的数据
+			pageDataCount := 0
 			if resp.Body.LoadBalancers != nil {
 				for _, lb := range resp.Body.LoadBalancers {
 					if lb != nil && lb.LoadBalancerId != nil {
 						id := tea.StringValue(lb.LoadBalancerId)
 						if id != "" {
 							out = append(out, id)
+							pageDataCount++
 						}
 					}
 				}
 			}
+
+			// 检测连续空数据：如果API返回空数据但NextToken不为空，可能是API bug
+			if pageDataCount == 0 {
+				emptyDataCount++
+				if emptyDataCount >= 3 {
+					logger.Log.Warnf("资源枚举连续%d次返回空数据，退出分页 loop=%d region=%s", emptyDataCount, loopCount, region)
+					break
+				}
+			} else {
+				emptyDataCount = 0 // 重置空数据计数
+			}
+
 			// NextToken 分页：如果 NextToken 为空（nil 或空字符串），说明已经是最后一页
 			// 即使当前页返回的数据量小于 MaxResults，只要 NextToken 不为空，就应该继续
 			if resp.Body.NextToken == nil || tea.StringValue(resp.Body.NextToken) == "" {
@@ -979,11 +1091,27 @@ func (a *Collector) listNLBIDs(account config.CloudAccount, region string) []str
 			}
 		}
 		nextToken := ""
+		loopCount := 0
+		maxLoops := 100 // 防止无限分页的安全上限
+		seenNextTokens := make(map[string]bool) // 检测重复的NextToken
+		emptyDataCount := 0                     // 连续空数据计数
 		for {
+			loopCount++
+			if loopCount > maxLoops {
+				logger.Log.Errorf("NLB资源枚举达到最大循环次数限制(%d)，强制退出 region=%s", maxLoops, region)
+				break
+			}
+
 			req := &nlb20220430.ListLoadBalancersRequest{
 				MaxResults: tea.Int32(int32(pageSize)),
 			}
 			if nextToken != "" {
+				// 检测重复的NextToken（防止API返回相同token导致的无限循环）
+				if seenNextTokens[nextToken] {
+					logger.Log.Warnf("NLB资源枚举检测到重复的NextToken，退出分页 loop=%d region=%s", loopCount, region)
+					break
+				}
+				seenNextTokens[nextToken] = true
 				req.NextToken = tea.String(nextToken)
 			}
 			var resp *nlb20220430.ListLoadBalancersResponse
@@ -1023,16 +1151,32 @@ func (a *Collector) listNLBIDs(account config.CloudAccount, region string) []str
 				out = []string{}
 				break
 			}
+
+			// 处理返回的数据
+			pageDataCount := 0
 			if resp.Body.LoadBalancers != nil {
 				for _, lb := range resp.Body.LoadBalancers {
 					if lb != nil && lb.LoadBalancerId != nil {
 						id := tea.StringValue(lb.LoadBalancerId)
 						if id != "" {
 							out = append(out, id)
+							pageDataCount++
 						}
 					}
 				}
 			}
+
+			// 检测连续空数据：如果API返回空数据但NextToken不为空，可能是API bug
+			if pageDataCount == 0 {
+				emptyDataCount++
+				if emptyDataCount >= 3 {
+					logger.Log.Warnf("资源枚举连续%d次返回空数据，退出分页 loop=%d region=%s", emptyDataCount, loopCount, region)
+					break
+				}
+			} else {
+				emptyDataCount = 0 // 重置空数据计数
+			}
+
 			// NextToken 分页：如果 NextToken 为空（nil 或空字符串），说明已经是最后一页
 			// 即使当前页返回的数据量小于 MaxResults，只要 NextToken 不为空，就应该继续
 			if resp.Body.NextToken == nil || tea.StringValue(resp.Body.NextToken) == "" {
@@ -1738,13 +1882,27 @@ func (a *Collector) fetchAndRecordMetrics(
 
 		a.processMetricBatch(client, req, dims, account, region, ns, m, dkey, rtype, dynamicDims, tags, stats, ctxLog)
 	}
-	ctxLog.Debugf("拉取指标完成")
 }
 
 func (a *Collector) processMetricBatch(client CMSClient, req *cms.DescribeMetricLastRequest, dims []map[string]string, account config.CloudAccount, region, ns, m, dkey, rtype string, dynamicDims []string, tags map[string]string, stats []string, ctxLog *logger.ContextLogger) {
 	nextToken := ""
+	loopCount := 0
+	maxLoops := 100 // 防止无限分页的安全上限
+	seenNextTokens := make(map[string]bool) // 检测重复的NextToken
+	emptyDataCount := 0                     // 连续空数据计数
 	for {
+		loopCount++
+		if loopCount > maxLoops {
+			ctxLog.Errorf("processMetricBatch 达到最大循环次数限制(%d)，强制退出 metric=%s region=%s", maxLoops, m, region)
+			break
+		}
 		if nextToken != "" {
+			// 检测重复的NextToken（防止API返回相同token导致的无限循环）
+			if seenNextTokens[nextToken] {
+				ctxLog.Warnf("processMetricBatch 检测到重复的NextToken，退出分页 loop=%d metric=%s region=%s", loopCount, m, region)
+				break
+			}
+			seenNextTokens[nextToken] = true
 			req.NextToken = nextToken
 		}
 		var resp *cms.DescribeMetricLastResponse
@@ -1790,6 +1948,17 @@ func (a *Collector) processMetricBatch(client CMSClient, req *cms.DescribeMetric
 		} else if err := json.Unmarshal([]byte(dp), &points); err != nil {
 			points = []map[string]interface{}{}
 			ctxLog.Errorf("指标数据解析失败 content=%s error=%v", dp, err)
+		}
+
+		// 检测连续空数据：如果API返回空数据但NextToken不为空，可能是API bug
+		if len(points) == 0 {
+			emptyDataCount++
+			if emptyDataCount >= 3 {
+				ctxLog.Warnf("processMetricBatch 连续%d次返回空数据，退出分页 loop=%d metric=%s region=%s", emptyDataCount, loopCount, m, region)
+				break
+			}
+		} else {
+			emptyDataCount = 0 // 重置空数据计数
 		}
 
 		if len(points) == 0 {
@@ -1936,10 +2105,14 @@ func (a *Collector) processMetricBatch(client CMSClient, req *cms.DescribeMetric
 			}
 		nextPoint:
 		}
+		// 检查是否需要继续分页
 		if resp.NextToken == "" {
+			ctxLog.Debugf("processMetricBatch 分页结束 nextToken为空 loop=%d metric=%s", loopCount, m)
 			break
 		}
 		nextToken = resp.NextToken
+		ctxLog.Debugf("processMetricBatch 继续下一页 nextToken=%s loop=%d metric=%s", nextToken, loopCount, m)
 		time.Sleep(25 * time.Millisecond)
 	}
+	ctxLog.Debugf("processMetricBatch 完成 总循环次数=%d metric=%s", loopCount, m)
 }

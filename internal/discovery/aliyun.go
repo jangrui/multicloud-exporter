@@ -299,6 +299,10 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 			}
 			if ns == "acs_bandwidth_package" {
 				logger.Log.Infof("Aliyun BWP 发现服务解析完成，原始指标=%d 过滤后指标=%d", len(resp.Resources.Resource), len(metrics))
+				// 【诊断日志】列出所有保留的指标
+				if len(metrics) > 0 {
+					logger.Log.Debugf("Aliyun BWP 保留的指标列表=%v", metrics)
+				}
 			}
 		}
 

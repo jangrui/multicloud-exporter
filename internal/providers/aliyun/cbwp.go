@@ -153,8 +153,13 @@ func (a *Collector) fetchCBWPTags(account config.CloudAccount, region string, id
 	if len(ids) == 0 {
 		return map[string]string{}
 	}
+
+	// 添加超时保护：整个标签获取操作最多 30 秒
+	const timeout = 30 * time.Second
+	deadline := time.Now().Add(timeout)
+
 	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", "cbwp")
-	ctxLog.Debugf("开始获取 BWP CodeName 标签 total_ids=%d", len(ids))
+	ctxLog.Debugf("开始获取 BWP CodeName 标签 total_ids=%d timeout=%v", len(ids), timeout)
 	client, err := a.clientFactory.NewVPCClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
 		ctxLog.Warnf("创建 VPC 客户端失败，无法获取 CodeName 标签: %v", err)
@@ -168,6 +173,11 @@ func (a *Collector) fetchCBWPTags(account config.CloudAccount, region string, id
 	const batchSize = 20
 	batchCount := 0
 	for start := 0; start < len(ids); start += batchSize {
+		// 检查是否超时
+		if time.Now().After(deadline) {
+			ctxLog.Warnf("获取 CodeName 标签超时，已处理 %d/%d 批次，返回部分结果", batchCount, (len(ids)+batchSize-1)/batchSize)
+			break
+		}
 		batchCount++
 		end := start + batchSize
 		if end > len(ids) {
@@ -183,12 +193,23 @@ func (a *Collector) fetchCBWPTags(account config.CloudAccount, region string, id
 		nextToken := ""
 		batchSuccess := false
 		for {
+			// 检查是否超时
+			if time.Now().After(deadline) {
+				ctxLog.Warnf("批次 %d 获取标签时超时，跳过后续处理", batchCount)
+				break
+			}
+
 			if nextToken != "" {
 				req.NextToken = nextToken
 			}
 			var resp *vpc.ListTagResourcesResponse
 			var callErr error
 			for attempt := 0; attempt < 3; attempt++ {
+				// 每次重试前检查超时
+				if time.Now().After(deadline) {
+					ctxLog.Warnf("批次 %d 重试第 %d 次时超时，放弃", batchCount, attempt+1)
+					break
+				}
 				startReq := time.Now()
 				resp, callErr = client.ListTagResources(req)
 				if callErr == nil {
@@ -211,10 +232,17 @@ func (a *Collector) fetchCBWPTags(account config.CloudAccount, region string, id
 				if status == "auth_error" {
 					break
 				}
-				// 指数退避重试
+				// 指数退避重试，但考虑剩余时间
 				sleep := time.Duration(200*(1<<attempt)) * time.Millisecond
 				if sleep > 5*time.Second {
 					sleep = 5 * time.Second
+				}
+				// 如果 sleep 会超过 deadline，缩短 sleep 时间
+				if time.Now().Add(sleep).After(deadline) {
+					sleep = deadline.Sub(time.Now())
+					if sleep < 0 {
+						sleep = 0
+					}
 				}
 				time.Sleep(sleep)
 			}

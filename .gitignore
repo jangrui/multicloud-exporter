@@ -34,4 +34,5 @@ configs/products/
 # Local Resources
 .local/
 .cursor/
+.claude/
 data/
