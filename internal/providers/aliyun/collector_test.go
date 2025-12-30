@@ -303,7 +303,7 @@ func TestCollector_Collect(t *testing.T) {
 func TestCollector_ALIYUN_CLB_Utilization_Estimate(t *testing.T) {
 	// Reset metrics to avoid interference from previous tests
 	metrics.Reset()
-	
+
 	// Prepare minimal mocks reusing previous setup
 	mockECS := &mockECSClient{
 		DescribeRegionsFunc: func(request *ecs.DescribeRegionsRequest) (*ecs.DescribeRegionsResponse, error) {

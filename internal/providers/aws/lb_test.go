@@ -447,6 +447,7 @@ func TestProcessRegionLB_HostCount_Average_ALB(t *testing.T) {
 		t.Fatalf("host count average not applied correctly: got=%v ok=%v", val, ok)
 	}
 }
+
 type cwEmpty struct{}
 
 func (cwEmpty) GetMetricData(ctx context.Context, params *cloudwatch.GetMetricDataInput, optFns ...func(*cloudwatch.Options)) (*cloudwatch.GetMetricDataOutput, error) {

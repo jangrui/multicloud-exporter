@@ -56,11 +56,11 @@ func TestExpandEnv(t *testing.T) {
 			for k, v := range tt.env {
 				t.Setenv(k, v)
 			}
-            if tt.env == nil {
-                if err := os.Unsetenv("VAR"); err != nil {
-                    t.Fatal(err)
-                }
-            }
+			if tt.env == nil {
+				if err := os.Unsetenv("VAR"); err != nil {
+					t.Fatal(err)
+				}
+			}
 
 			got := expandEnv(tt.input)
 			if got != tt.expected {
@@ -76,7 +76,7 @@ func TestLoadConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-    defer func() { _ = os.RemoveAll(tmpDir) }()
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// 1. Create server.yaml
 	serverYaml := `
@@ -128,7 +128,6 @@ accounts:
 		t.Errorf("AccountID = %s, want 123456", aliyunAccounts[0].AccountID)
 	}
 }
-
 
 func TestLoadConfig_Error(t *testing.T) {
 	t.Setenv("ACCOUNTS_PATH", "/non/existent/path.yaml")

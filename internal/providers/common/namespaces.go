@@ -7,8 +7,8 @@ const (
 	NamespaceAliyunSLBDashboard     = "acs_slb_dashboard"
 	NamespaceAliyunOSSDashboard     = "acs_oss_dashboard"
 	NamespaceAliyunALB              = "acs_alb"
-	NamespaceAliyunNLB               = "acs_nlb"
-	NamespaceAliyunGWLB              = "acs_gwlb"
+	NamespaceAliyunNLB              = "acs_nlb"
+	NamespaceAliyunGWLB             = "acs_gwlb"
 )
 
 // 腾讯云命名空间常量
@@ -26,4 +26,3 @@ const (
 	NamespaceAWSEC2 = "AWS/EC2"
 	NamespaceAWSELB = "AWS/ELB"
 )
-

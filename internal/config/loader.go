@@ -19,11 +19,12 @@ import (
 //   - error: 错误信息，如果加载成功则为 nil
 //
 // 示例：
-//   // 从指定路径加载
-//   data, actualPath, err := LoadConfigFile("/path/to/config.yaml", []string{})
 //
-//   // 从默认路径加载
-//   data, actualPath, err := LoadConfigFile("", []string{"/app/configs/server.yaml", "./configs/server.yaml"})
+//	// 从指定路径加载
+//	data, actualPath, err := LoadConfigFile("/path/to/config.yaml", []string{})
+//
+//	// 从默认路径加载
+//	data, actualPath, err := LoadConfigFile("", []string{"/app/configs/server.yaml", "./configs/server.yaml"})
 func LoadConfigFile(path string, defaultPaths []string) ([]byte, string, error) {
 	// 如果指定了路径，直接使用
 	if path != "" {
@@ -47,4 +48,3 @@ func LoadConfigFile(path string, defaultPaths []string) ([]byte, string, error) 
 
 	return nil, "", fmt.Errorf("config file not found in default paths: %v", defaultPaths)
 }
-

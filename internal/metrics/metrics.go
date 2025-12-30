@@ -79,8 +79,8 @@ var (
 	// RegionDiscoveryDuration 区域发现耗时
 	RegionDiscoveryDuration = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name: "multicloud_region_discovery_duration_seconds",
-			Help: " - 区域发现耗时（秒）",
+			Name:    "multicloud_region_discovery_duration_seconds",
+			Help:    " - 区域发现耗时（秒）",
 			Buckets: prometheus.DefBuckets,
 		},
 		[]string{"cloud_provider"},
@@ -189,8 +189,6 @@ func sanitizeName(name string) string {
 }
 
 func NamespaceGauge(namespace, metric string, extraLabels ...string) (*prometheus.GaugeVec, int) {
-	nsGaugesMu.Lock()
-	defer nsGaugesMu.Unlock()
 	alias := aliasPrefixForNamespace(namespace)
 	metricAlias := aliasMetricForNamespace(namespace, metric)
 
@@ -205,9 +203,16 @@ func NamespaceGauge(namespace, metric string, extraLabels ...string) (*prometheu
 		name = sanitizeName(namespace + "_" + useMetric)
 	}
 	key := name
+
+	// 第一次检查：是否已在缓存中（持锁）
+	nsGaugesMu.Lock()
 	if info, ok := nsGauges[key]; ok {
+		nsGaugesMu.Unlock()
 		return info.vec, info.count
 	}
+	nsGaugesMu.Unlock()
+
+	// 构建指标（不持锁）
 	help := metricHelpForNamespace(namespace, useMetric)
 	// 统一命名空间指标的标签集合：
 	// cloud_provider, account_id, region, resource_type, resource_id, namespace, metric_name, code_name
@@ -236,24 +241,40 @@ func NamespaceGauge(namespace, metric string, extraLabels ...string) (*prometheu
 		},
 		labels,
 	)
-	if err := prometheus.Register(g); err != nil {
-		if are, ok := err.(prometheus.AlreadyRegisteredError); ok {
-			// If already registered, use the existing one
+
+	// 注册到 Prometheus（不持锁，避免死锁）
+	registerErr := prometheus.Register(g)
+	if registerErr != nil {
+		if are, ok := registerErr.(prometheus.AlreadyRegisteredError); ok {
+			// 已注册，使用已存在的 collector
 			if existingVec, ok := are.ExistingCollector.(*prometheus.GaugeVec); ok {
+				// 缓存已存在的 collector
+				nsGaugesMu.Lock()
+				// 再次检查，避免被其他 goroutine 抢先注册
+				if info, exists := nsGauges[key]; exists {
+					nsGaugesMu.Unlock()
+					return info.vec, info.count
+				}
 				nsGauges[key] = gaugeInfo{vec: existingVec, count: len(labels)}
+				nsGaugesMu.Unlock()
 				return existingVec, len(labels)
 			}
 		}
-		// Log error and return the unregistered gauge (it won't be scraped but won't crash)
+		// 其他错误：记录并返回未注册的 gauge
 		// 注意：不能使用 logger，因为会导致循环导入（logger -> config -> metrics）
 		// 使用 fmt.Printf 作为 fallback，这些错误通常只在初始化阶段出现
-		fmt.Printf("Failed to register metric: name=%q labels=%v err=%v. Returning unregistered gauge.\n", name, labels, err)
-		// We still return g, but it's not registered.
-		// We also cache it so we don't try to register again and log error every time.
-		nsGauges[key] = gaugeInfo{vec: g, count: len(labels)}
-		return g, len(labels)
+		fmt.Printf("Failed to register metric: name=%q labels=%v err=%v. Returning unregistered gauge.\n", name, labels, registerErr)
+	}
+
+	// 注册成功或失败，都缓存 gauge（避免重复尝试注册）
+	nsGaugesMu.Lock()
+	// 最后一次检查，避免重复写入
+	if info, exists := nsGauges[key]; exists {
+		nsGaugesMu.Unlock()
+		return info.vec, info.count
 	}
 	nsGauges[key] = gaugeInfo{vec: g, count: len(labels)}
+	nsGaugesMu.Unlock()
 	return g, len(labels)
 }
 

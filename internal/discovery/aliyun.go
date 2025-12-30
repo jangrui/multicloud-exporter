@@ -237,12 +237,12 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 			mapping := config.DefaultResourceDimMapping()
 			key := "aliyun." + ns
 			required := mapping[key]
-			
+
 			// 特别记录 BWP 命名空间的调试信息
 			if ns == "acs_bandwidth_package" {
 				logger.Log.Infof("Aliyun BWP 发现服务，必需维度=%v", required)
 			}
-			
+
 			for _, r := range resp.Resources.Resource {
 				name := strings.TrimSpace(r.MetricName)
 				if name == "" {
@@ -273,7 +273,7 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 						}
 					}
 				}
-				
+
 				// 对于 BWP 命名空间，记录每个指标的维度匹配情况
 				if ns == "acs_bandwidth_package" {
 					if has {
@@ -282,7 +282,7 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 						logger.Log.Warnf("Aliyun BWP 过滤指标=%s 维度=%v 必需维度=%v", name, dims, required)
 					}
 				}
-				
+
 				if !has {
 					// 改进：对于 BWP 命名空间，即使维度不完全匹配，也保留指标
 					// 原因：某些指标（如 net_tx.rate）可能在某些账号/区域返回的维度与配置不完全一致

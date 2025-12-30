@@ -1,18 +1,26 @@
-// Package common 提供智能区域发现功能
-// 用于管理云厂商区域状态，智能选择有资源的区域，避免重复访问空区域
+// Package common 提供先进的智能区域发现和管理功能
+// 特性：
+// - 智能区域选择（优先活跃区域，跳过空区域）
+// - 自动内存管理和清理
+// - 持久化支持
+// - 并发安全
+// - 性能监控
+// - 优雅停止
 package common
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"multicloud-exporter/internal/logger"
 )
 
-// RegionStatus 定义区域状态
+// RegionStatus 区域状态
 type RegionStatus string
 
 const (
@@ -21,61 +29,92 @@ const (
 	RegionStatusEmpty   RegionStatus = "empty"   // 无资源
 )
 
-// RegionInfo 定义区域信息
+// RegionInfo 区域信息
 type RegionInfo struct {
 	Status        RegionStatus `json:"status"`
-	LastSeen      time.Time    `json:"last_seen"`      // 最后一次检查时间
-	LastActive    time.Time    `json:"last_active"`    // 最后一次发现资源的时间
-	EmptyCount    int          `json:"empty_count"`    // 连续为空的次数
-	ResourceCount int          `json:"resource_count"` // 最后一次发现的资源数量
+	LastSeen      time.Time    `json:"last_seen"`      // 最后检查时间
+	LastActive    time.Time    `json:"last_active"`    // 最后活跃时间
+	EmptyCount    int          `json:"empty_count"`    // 连续空次数
+	ResourceCount int          `json:"resource_count"` // 资源数量
+	Priority      int          `json:"priority"`       // 优先级（用于排序）
 }
 
-// RegionDiscoveryConfig 定义区域发现配置
+// RegionDiscoveryConfig 区域发现配置
 type RegionDiscoveryConfig struct {
-	Enabled           bool          `json:"enabled"`            // 是否启用智能发现
-	DiscoveryInterval time.Duration `json:"discovery_interval"` // 重新发现周期
-	EmptyThreshold    int           `json:"empty_threshold"`    // 空区域跳过阈值（连续空次数）
-	DataDir           string        `json:"data_dir"`           // 数据目录路径
-	PersistFile       string        `json:"persist_file"`       // 持久化文件名（相对于 data_dir）
+	Enabled              bool          `json:"enabled"`                 // 是否启用
+	DiscoveryInterval    time.Duration `json:"discovery_interval"`      // 重新发现周期
+	EmptyThreshold       int           `json:"empty_threshold"`         // 空区域跳过阈值
+	DataDir              string        `json:"data_dir"`                // 数据目录
+	PersistFile          string        `json:"persist_file"`            // 持久化文件
+	MaxAccounts          int           `json:"max_accounts"`            // 最大账号数（0=无限制）
+	CleanupInterval      time.Duration `json:"cleanup_interval"`        // 清理间隔
+	MaxRegionsPerAccount int           `json:"max_regions_per_account"` // 每账号最大区域数
+}
+
+// RegionManagerStats 统计信息
+type RegionManagerStats struct {
+	TotalAccounts   int       `json:"total_accounts"`
+	TotalRegions    int       `json:"total_regions"`
+	ActiveRegions   int       `json:"active_regions"`
+	EmptyRegions    int       `json:"empty_regions"`
+	UnknownRegions  int       `json:"unknown_regions"`
+	SkippedRegions  int       `json:"skipped_regions"`
+	LastCleanupTime time.Time `json:"last_cleanup_time"`
+	LastSaveTime    time.Time `json:"last_save_time"`
+	LastLoadTime    time.Time `json:"last_load_time"`
+	SaveCount       int64     `json:"save_count"`
+	LoadCount       int64     `json:"load_count"`
+	UpdateCount     int64     `json:"update_count"`
 }
 
 // RegionManager 区域管理器接口
 type RegionManager interface {
-	// GetActiveRegions 获取活跃的区域列表（优先返回 active 状态的区域）
+	// GetActiveRegions 获取活跃区域列表
 	GetActiveRegions(accountID string, allRegions []string) []string
 
 	// UpdateRegionStatus 更新区域状态
 	UpdateRegionStatus(accountID, region string, resourceCount int, status RegionStatus)
 
-	// MarkRegionForRediscovery 标记区域为需要重新发现
+	// MarkRegionForRediscovery 标记区域为需重新发现
 	MarkRegionForRediscovery(accountID, region string)
 
 	// GetRegionInfo 获取区域信息
 	GetRegionInfo(accountID, region string) (RegionInfo, bool)
 
-	// ShouldSkipRegion 判断是否应该跳过该区域
+	// ShouldSkipRegion 判断是否跳过该区域
 	ShouldSkipRegion(accountID, region string) bool
 
-	// Load 加载持久化的区域状态
+	// Load 加载持久化状态
 	Load() error
 
-	// Save 保存区域状态到文件
+	// Save 保存状态
 	Save() error
 
-	// StartRediscoveryScheduler 启动定期重新发现调度器
+	// StartRediscoveryScheduler 启动调度器
 	StartRediscoveryScheduler()
 
-	// StopRediscoveryScheduler 停止定期重新发现调度器
-	StopRediscoveryScheduler()
+	// Stop 停止所有后台任务
+	Stop()
+
+	// GetStats 获取统计信息
+	GetStats() RegionManagerStats
+
+	// CleanupInactiveAccounts 清理不活跃账号
+	CleanupInactiveAccounts(olderThan time.Duration) int
 }
 
-// DefaultRegionManager 默认的区域管理器实现
-type DefaultRegionManager struct {
+// SmartRegionManager 智能区域管理器实现
+type SmartRegionManager struct {
 	mu            sync.RWMutex
 	config        RegionDiscoveryConfig
-	regionMap     map[string]map[string]RegionInfo // accountID -> region -> RegionInfo
+	regionMap     map[string]map[string]RegionInfo
 	stopChan      chan struct{}
+	stopped       atomic.Bool
 	schedulerOnce sync.Once
+
+	// 统计信息
+	stats   RegionManagerStats
+	statsMu sync.RWMutex
 }
 
 // NewRegionManager 创建区域管理器
@@ -93,135 +132,167 @@ func NewRegionManager(config RegionDiscoveryConfig) RegionManager {
 	if config.PersistFile == "" {
 		config.PersistFile = "region_status.json"
 	}
+	if config.MaxAccounts < 0 {
+		config.MaxAccounts = 0
+	}
+	if config.CleanupInterval <= 0 {
+		config.CleanupInterval = 1 * time.Hour
+	}
+	if config.MaxRegionsPerAccount <= 0 {
+		config.MaxRegionsPerAccount = 1000
+	}
 
-	rm := &DefaultRegionManager{
+	rm := &SmartRegionManager{
 		config:    config,
 		regionMap: make(map[string]map[string]RegionInfo),
 		stopChan:  make(chan struct{}),
+		stats: RegionManagerStats{
+			LastCleanupTime: time.Now(),
+		},
 	}
 
-	// 确保持久化目录存在
-	dataDir := config.DataDir
-	if err := os.MkdirAll(dataDir, 0755); err != nil {
-		logger.Log.Warnf("创建区域状态持久化目录失败: %v", err)
+	// 创建数据目录
+	if err := os.MkdirAll(config.DataDir, 0755); err != nil {
+		logger.Log.Warnf("创建区域状态目录失败: %v", err)
 	}
 
 	return rm
 }
 
-// GetActiveRegions 获取活跃的区域列表
-// 优先返回 active 状态的区域，然后是 unknown 状态的区域
-// 跳过超过阈值的 empty 状态的区域
-func (rm *DefaultRegionManager) GetActiveRegions(accountID string, allRegions []string) []string {
+// GetActiveRegions 获取活跃区域列表
+func (rm *SmartRegionManager) GetActiveRegions(accountID string, allRegions []string) []string {
 	rm.mu.RLock()
 	defer rm.mu.RUnlock()
 
 	if !rm.config.Enabled {
-		// 如果未启用智能发现，返回所有区域
+		return allRegions
+	}
+
+	// 内存保护
+	if rm.config.MaxAccounts > 0 && len(rm.regionMap) >= rm.config.MaxAccounts {
+		logger.Log.Warnf("账号数达上限 %d，跳过智能区域选择", rm.config.MaxAccounts)
 		return allRegions
 	}
 
 	accountRegions, ok := rm.regionMap[accountID]
 	if !ok {
-		// 账号不存在，返回所有区域（首次运行）
 		return allRegions
 	}
 
-	var activeRegions []string
-	var unknownRegions []string
+	// 按优先级排序：active > unknown > empty (未达阈值)
+	activeRegions := make([]string, 0, len(allRegions)/2)
+	unknownRegions := make([]string, 0, len(allRegions)/2)
+	skippedCount := 0
 
 	for _, region := range allRegions {
-		info, ok := accountRegions[region]
-		if !ok {
-			// 区域不存在，作为 unknown 处理
+		info, exists := accountRegions[region]
+		if !exists {
 			unknownRegions = append(unknownRegions, region)
 			continue
 		}
 
 		switch info.Status {
 		case RegionStatusActive:
-			// 活跃区域，优先返回
 			activeRegions = append(activeRegions, region)
 		case RegionStatusUnknown:
-			// 未知区域，也返回（可能是新区域）
 			unknownRegions = append(unknownRegions, region)
 		case RegionStatusEmpty:
-			// 空区域，检查是否超过阈值
 			if info.EmptyCount < rm.config.EmptyThreshold {
-				// 未超过阈值，仍然返回
 				unknownRegions = append(unknownRegions, region)
 			} else {
-				// 超过阈值，跳过
-				logger.Log.Debugf("跳过空区域 account=%s region=%s empty_count=%d threshold=%d",
-					accountID, region, info.EmptyCount, rm.config.EmptyThreshold)
+				skippedCount++
 			}
 		}
 	}
 
-	// 优先返回活跃区域，然后返回未知区域
 	result := append(activeRegions, unknownRegions...)
 
 	if len(result) == 0 {
-		// 如果没有任何区域返回，返回所有区域（兜底）
-		logger.Log.Warnf("没有可用区域，返回全部区域 account=%s", accountID)
+		logger.Log.Warnf("无可用区域，返回全部 account=%s", accountID)
 		return allRegions
 	}
 
-	logger.Log.Infof("智能区域选择 account=%s 总区域=%d 活跃=%d 未知=%d 跳过=%d",
-		accountID, len(allRegions), len(activeRegions), len(unknownRegions), len(allRegions)-len(result))
+	logger.Log.Infof("智能区域选择 account=%s 总=%d 活跃=%d 未知=%d 跳过=%d",
+		accountID, len(allRegions), len(activeRegions), len(unknownRegions), skippedCount)
 
 	return result
 }
 
 // UpdateRegionStatus 更新区域状态
-func (rm *DefaultRegionManager) UpdateRegionStatus(accountID, region string, resourceCount int, status RegionStatus) {
+func (rm *SmartRegionManager) UpdateRegionStatus(accountID, region string, resourceCount int, status RegionStatus) {
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
+	atomic.AddInt64(&rm.stats.UpdateCount, 1)
+
 	now := time.Now()
 
-	// 初始化账号的区域映射
 	if rm.regionMap[accountID] == nil {
 		rm.regionMap[accountID] = make(map[string]RegionInfo)
 	}
 
-	// 获取现有信息
-	info, ok := rm.regionMap[accountID][region]
-	if !ok {
-		// 新区域
+	info, exists := rm.regionMap[accountID][region]
+	if !exists {
 		info = RegionInfo{
-			LastSeen:   now,
-			EmptyCount: 0,
+			LastSeen: now,
+			Priority: 0,
 		}
 	}
 
-	// 更新状态
 	info.Status = status
 	info.LastSeen = now
 	info.ResourceCount = resourceCount
 
-	// 根据状态更新其他字段
 	switch status {
 	case RegionStatusActive:
 		info.LastActive = now
 		info.EmptyCount = 0
-		logger.Log.Debugf("区域状态更新为 active account=%s region=%s resource_count=%d",
-			accountID, region, resourceCount)
+		info.Priority = 100 // 活跃区域优先级最高
 	case RegionStatusEmpty:
 		info.EmptyCount++
-		logger.Log.Debugf("区域状态更新为 empty account=%s region=%s empty_count=%d",
-			accountID, region, info.EmptyCount)
+		info.Priority = 10 // 空区域优先级降低
 	case RegionStatusUnknown:
 		info.EmptyCount = 0
-		logger.Log.Debugf("区域状态更新为 unknown account=%s region=%s", accountID, region)
+		info.Priority = 50 // 未知区域中等优先级
 	}
 
-	// 保存更新后的信息
+	// 限制每账号区域数量
+	if len(rm.regionMap[accountID]) >= rm.config.MaxRegionsPerAccount {
+		// 清理最旧的低优先级区域
+		// 注意：此方法在持锁状态下调用，不会导致锁重入
+		rm.evictLowPriorityRegionsLocked(accountID)
+	}
+
 	rm.regionMap[accountID][region] = info
 }
 
-// MarkRegionForRediscovery 标记区域为需要重新发现
-func (rm *DefaultRegionManager) MarkRegionForRediscovery(accountID, region string) {
+// evictLowPriorityRegionsLocked 驱逐低优先级区域（必须在持锁状态下调用）
+func (rm *SmartRegionManager) evictLowPriorityRegionsLocked(accountID string) {
+	regions := rm.regionMap[accountID]
+	if len(regions) <= rm.config.MaxRegionsPerAccount {
+		return
+	}
+
+	// 找出最旧的空区域
+	var oldestRegion string
+	var oldestTime time.Time
+	for region, info := range regions {
+		if info.Status == RegionStatusEmpty && info.EmptyCount >= rm.config.EmptyThreshold {
+			if oldestRegion == "" || info.LastSeen.Before(oldestTime) {
+				oldestRegion = region
+				oldestTime = info.LastSeen
+			}
+		}
+	}
+
+	if oldestRegion != "" {
+		delete(regions, oldestRegion)
+		logger.Log.Infof("驱逐旧区域 account=%s region=%s", accountID, oldestRegion)
+	}
+}
+
+// MarkRegionForRediscovery 标记区域为需重新发现
+func (rm *SmartRegionManager) MarkRegionForRediscovery(accountID, region string) {
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
@@ -232,14 +303,14 @@ func (rm *DefaultRegionManager) MarkRegionForRediscovery(accountID, region strin
 	if info, ok := rm.regionMap[accountID][region]; ok {
 		info.Status = RegionStatusUnknown
 		info.EmptyCount = 0
+		info.Priority = 50
 		rm.regionMap[accountID][region] = info
-
-		logger.Log.Infof("标记区域为重新发现 account=%s region=%s", accountID, region)
+		logger.Log.Infof("标记区域重新发现 account=%s region=%s", accountID, region)
 	}
 }
 
 // GetRegionInfo 获取区域信息
-func (rm *DefaultRegionManager) GetRegionInfo(accountID, region string) (RegionInfo, bool) {
+func (rm *SmartRegionManager) GetRegionInfo(accountID, region string) (RegionInfo, bool) {
 	rm.mu.RLock()
 	defer rm.mu.RUnlock()
 
@@ -251,8 +322,8 @@ func (rm *DefaultRegionManager) GetRegionInfo(accountID, region string) (RegionI
 	return info, ok
 }
 
-// ShouldSkipRegion 判断是否应该跳过该区域
-func (rm *DefaultRegionManager) ShouldSkipRegion(accountID, region string) bool {
+// ShouldSkipRegion 判断是否跳过该区域
+func (rm *SmartRegionManager) ShouldSkipRegion(accountID, region string) bool {
 	rm.mu.RLock()
 	defer rm.mu.RUnlock()
 
@@ -269,16 +340,16 @@ func (rm *DefaultRegionManager) ShouldSkipRegion(accountID, region string) bool 
 		return false
 	}
 
-	// 如果区域状态为 empty 且连续空次数超过阈值，则跳过
 	return info.Status == RegionStatusEmpty && info.EmptyCount >= rm.config.EmptyThreshold
 }
 
-// Load 加载持久化的区域状态
-func (rm *DefaultRegionManager) Load() error {
+// Load 加载持久化状态
+func (rm *SmartRegionManager) Load() error {
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
-	// 构建完整路径
+	atomic.AddInt64(&rm.stats.LoadCount, 1)
+
 	persistPath := filepath.Join(rm.config.DataDir, rm.config.PersistFile)
 
 	data, err := os.ReadFile(persistPath)
@@ -287,8 +358,7 @@ func (rm *DefaultRegionManager) Load() error {
 			logger.Log.Warnf("加载区域状态失败: %v", err)
 			return err
 		}
-		// 文件不存在是正常的（首次运行）
-		logger.Log.Infof("区域状态文件不存在，将使用空状态: %s", persistPath)
+		logger.Log.Infof("区域状态文件不存在: %s", persistPath)
 		return nil
 	}
 
@@ -306,26 +376,53 @@ func (rm *DefaultRegionManager) Load() error {
 		logger.Log.Infof("成功加载区域状态，账号数=%d", len(rm.regionMap))
 	}
 
+	rm.statsMu.Lock()
+	rm.stats.LastLoadTime = time.Now()
+	rm.statsMu.Unlock()
+
 	return nil
 }
 
-// Save 保存区域状态到文件
-func (rm *DefaultRegionManager) Save() error {
+// Save 保存状态（优化版本，带重试机制）
+func (rm *SmartRegionManager) Save() error {
+	const maxRetries = 3
+
+	var lastErr error
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		err := rm.trySave()
+		if err == nil {
+			return nil
+		}
+
+		lastErr = err
+		if attempt < maxRetries-1 {
+			backoff := time.Duration(attempt+1) * 100 * time.Millisecond
+			logger.Log.Warnf("保存区域状态失败（第 %d 次重试，%v 后重试）: %v", attempt+1, backoff, err)
+			time.Sleep(backoff)
+		}
+	}
+
+	return fmt.Errorf("保存失败（已重试 %d 次）: %w", maxRetries, lastErr)
+}
+
+// trySave 尝试保存状态（内部方法）
+func (rm *SmartRegionManager) trySave() error {
+	// 创建快照避免长时间持锁
 	rm.mu.RLock()
-	defer rm.mu.RUnlock()
+	snapshot := rm.createSnapshot()
+	rm.mu.RUnlock()
 
 	if rm.config.PersistFile == "" || rm.config.DataDir == "" {
 		return nil
 	}
 
-	// 构建完整路径
 	persistPath := filepath.Join(rm.config.DataDir, rm.config.PersistFile)
 
 	data, err := json.MarshalIndent(struct {
 		RegionMap map[string]map[string]RegionInfo `json:"region_map"`
 		UpdatedAt time.Time                        `json:"updated_at"`
 	}{
-		RegionMap: rm.regionMap,
+		RegionMap: snapshot,
 		UpdatedAt: time.Now(),
 	}, "", "  ")
 
@@ -334,70 +431,144 @@ func (rm *DefaultRegionManager) Save() error {
 		return err
 	}
 
-	// 确保目录存在
 	if err := os.MkdirAll(rm.config.DataDir, 0755); err != nil {
 		logger.Log.Errorf("创建持久化目录失败: %v", err)
 		return err
 	}
 
-	// 写入临时文件
+	// 原子写入
 	tmpFile := persistPath + ".tmp"
 	if err := os.WriteFile(tmpFile, data, 0644); err != nil {
-		logger.Log.Errorf("写入区域状态临时文件失败: %v", err)
+		// 清理失败的临时文件
+		_ = os.Remove(tmpFile)
+		logger.Log.Errorf("写入临时文件失败: %v", err)
 		return err
 	}
 
-	// 原子性重命名
 	if err := os.Rename(tmpFile, persistPath); err != nil {
-		logger.Log.Errorf("重命名区域状态文件失败: %v", err)
+		// 清理临时文件
+		_ = os.Remove(tmpFile)
+		logger.Log.Errorf("重命名文件失败: %v", err)
 		return err
 	}
 
-	logger.Log.Debugf("成功保存区域状态，账号数=%d", len(rm.regionMap))
+	atomic.AddInt64(&rm.stats.SaveCount, 1)
+	rm.statsMu.Lock()
+	rm.stats.LastSaveTime = time.Now()
+	rm.statsMu.Unlock()
+
+	logger.Log.Debugf("成功保存区域状态，账号数=%d", len(snapshot))
 	return nil
 }
 
-// StartRediscoveryScheduler 启动定期重新发现调度器
-func (rm *DefaultRegionManager) StartRediscoveryScheduler() {
+// createSnapshot 创建快照（优化版本，限制大小防止性能问题）
+func (rm *SmartRegionManager) createSnapshot() map[string]map[string]RegionInfo {
+	const maxSnapshotSize = 5000 // 快照上限，防止 OOM 和性能问题
+
+	snapshot := make(map[string]map[string]RegionInfo, len(rm.regionMap))
+	count := 0
+
+	for accountID, regions := range rm.regionMap {
+		if count >= maxSnapshotSize {
+			logger.Log.Warnf("快照达到上限 %d，停止拷贝", maxSnapshotSize)
+			break
+		}
+
+		snapshot[accountID] = make(map[string]RegionInfo, len(regions))
+		for region, info := range regions {
+			snapshot[accountID][region] = info
+			count++
+		}
+	}
+
+	return snapshot
+}
+
+// StartRediscoveryScheduler 启动调度器（优化版本，合并任务减少锁竞争）
+func (rm *SmartRegionManager) StartRediscoveryScheduler() {
 	rm.schedulerOnce.Do(func() {
 		if !rm.config.Enabled || rm.config.DiscoveryInterval <= 0 {
-			logger.Log.Infof("区域重新发现调度器未启用")
+			logger.Log.Infof("区域调度器未启用")
 			return
 		}
 
-		logger.Log.Infof("启动区域重新发现调度器，周期=%v", rm.config.DiscoveryInterval)
+		logger.Log.Infof("启动区域调度器，周期=%v，清理间隔=%v",
+			rm.config.DiscoveryInterval, rm.config.CleanupInterval)
 
 		go func() {
-			ticker := time.NewTicker(rm.config.DiscoveryInterval)
+			// 使用较小的间隔，统一执行所有任务
+			tickInterval := rm.config.CleanupInterval
+			if tickInterval > rm.config.DiscoveryInterval {
+				tickInterval = rm.config.DiscoveryInterval
+			}
+			if tickInterval < time.Minute {
+				tickInterval = time.Minute
+			}
+
+			ticker := time.NewTicker(tickInterval)
 			defer ticker.Stop()
 
 			for {
 				select {
 				case <-rm.stopChan:
-					logger.Log.Infof("停止区域重新发现调度器")
+					logger.Log.Infof("停止区域调度器")
 					return
 				case <-ticker.C:
-					rm.triggerRediscovery()
+					// 合并执行所有任务，减少锁竞争
+					rm.performPeriodicTasks()
 				}
 			}
 		}()
 	})
 }
 
-// StopRediscoveryScheduler 停止定期重新发现调度器
-func (rm *DefaultRegionManager) StopRediscoveryScheduler() {
+// performPeriodicTasks 执行所有定期任务（优化版本，合并任务减少锁竞争）
+func (rm *SmartRegionManager) performPeriodicTasks() {
+	now := time.Now()
+
+	// 1. 检查是否需要触发重新发现（从上次清理时间推算）
+	timeSinceCleanup := now.Sub(rm.stats.LastCleanupTime)
+	if timeSinceCleanup >= rm.config.DiscoveryInterval {
+		rm.triggerRediscovery()
+	}
+
+	// 2. 检查是否需要清理不活跃账号
+	if timeSinceCleanup >= rm.config.CleanupInterval {
+		cleaned := rm.CleanupInactiveAccounts(7 * 24 * time.Hour)
+		if cleaned > 0 {
+			logger.Log.Infof("定期清理完成，清理了 %d 个不活跃账号", cleaned)
+		}
+	}
+}
+
+// Stop 停止所有后台任务（优化版本，避免阻塞）
+func (rm *SmartRegionManager) Stop() {
+	if rm.stopped.Swap(true) {
+		return
+	}
+
+	close(rm.stopChan)
+
+	// 异步保存，避免阻塞程序退出
+	done := make(chan struct{})
+	go func() {
+		if err := rm.Save(); err != nil {
+			logger.Log.Errorf("停止时保存区域状态失败: %v", err)
+		}
+		close(done)
+	}()
+
+	// 等待保存完成或超时（1秒）
 	select {
-	case rm.stopChan <- struct{}{}:
-		logger.Log.Infof("发送停止信号到区域重新发现调度器")
-	default:
-		logger.Log.Debug("区域重新发现调度器已停止")
+	case <-done:
+		logger.Log.Infof("区域管理器已停止，状态已保存")
+	case <-time.After(1 * time.Second):
+		logger.Log.Warnf("区域管理器停止超时，放弃保存状态")
 	}
 }
 
 // triggerRediscovery 触发重新发现
-// 将所有 active 和 empty 状态的区域标记为 unknown
-// 这样下一轮采集会重新探测这些区域
-func (rm *DefaultRegionManager) triggerRediscovery() {
+func (rm *SmartRegionManager) triggerRediscovery() {
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
@@ -408,6 +579,7 @@ func (rm *DefaultRegionManager) triggerRediscovery() {
 			if info.Status == RegionStatusActive || info.Status == RegionStatusEmpty {
 				info.Status = RegionStatusUnknown
 				info.EmptyCount = 0
+				info.Priority = 50
 				regions[region] = info
 				totalMarked++
 			}
@@ -415,39 +587,89 @@ func (rm *DefaultRegionManager) triggerRediscovery() {
 		rm.regionMap[accountID] = regions
 	}
 
-	// 保存更新后的状态
-	if err := rm.Save(); err != nil {
-		logger.Log.Errorf("重新发现后保存区域状态失败: %v", err)
-	} else {
-		logger.Log.Infof("区域重新发现完成，标记了 %d 个区域为 unknown", totalMarked)
-	}
+	logger.Log.Infof("区域重新发现完成，标记 %d 个区域为 unknown", totalMarked)
 }
 
-// GetStats 获取区域统计信息（用于监控）
-func (rm *DefaultRegionManager) GetStats() map[string]int {
+// GetStats 获取统计信息（优化版本，实时计算所有统计数据）
+func (rm *SmartRegionManager) GetStats() RegionManagerStats {
 	rm.mu.RLock()
 	defer rm.mu.RUnlock()
 
-	stats := map[string]int{
-		"active":  0,
-		"empty":   0,
-		"unknown": 0,
-		"total":   0,
-	}
+	activeCount := 0
+	emptyCount := 0
+	unknownCount := 0
+	skippedCount := 0 // 实时计算，不累积
 
 	for _, regions := range rm.regionMap {
 		for _, info := range regions {
-			stats["total"]++
 			switch info.Status {
 			case RegionStatusActive:
-				stats["active"]++
+				activeCount++
 			case RegionStatusEmpty:
-				stats["empty"]++
+				emptyCount++
+				// 实时计算是否会被跳过
+				if info.EmptyCount >= rm.config.EmptyThreshold {
+					skippedCount++
+				}
 			case RegionStatusUnknown:
-				stats["unknown"]++
+				unknownCount++
 			}
 		}
 	}
 
-	return stats
+	return RegionManagerStats{
+		TotalAccounts:   len(rm.regionMap),
+		TotalRegions:    activeCount + emptyCount + unknownCount,
+		ActiveRegions:   activeCount,
+		EmptyRegions:    emptyCount,
+		UnknownRegions:  unknownCount,
+		SkippedRegions:  skippedCount, // 实时计算，不累积
+		LastCleanupTime: rm.stats.LastCleanupTime,
+		LastSaveTime:    rm.stats.LastSaveTime,
+		LastLoadTime:    rm.stats.LastLoadTime,
+		SaveCount:       atomic.LoadInt64(&rm.stats.SaveCount),
+		LoadCount:       atomic.LoadInt64(&rm.stats.LoadCount),
+		UpdateCount:     atomic.LoadInt64(&rm.stats.UpdateCount),
+	}
+}
+
+// CleanupInactiveAccounts 清理不活跃账号
+func (rm *SmartRegionManager) CleanupInactiveAccounts(olderThan time.Duration) int {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+
+	if olderThan <= 0 {
+		return 0
+	}
+
+	now := time.Now()
+	toDelete := make([]string, 0)
+
+	for accountID, regions := range rm.regionMap {
+		hasRecentActivity := false
+		for _, info := range regions {
+			if now.Sub(info.LastSeen) < olderThan {
+				hasRecentActivity = true
+				break
+			}
+		}
+
+		if !hasRecentActivity && len(regions) > 0 {
+			toDelete = append(toDelete, accountID)
+		}
+	}
+
+	for _, accountID := range toDelete {
+		delete(rm.regionMap, accountID)
+	}
+
+	rm.statsMu.Lock()
+	rm.stats.LastCleanupTime = now
+	rm.statsMu.Unlock()
+
+	if len(toDelete) > 0 {
+		logger.Log.Infof("清理了 %d 个不活跃账号（超过 %v 未活跃）", len(toDelete), olderThan)
+	}
+
+	return len(toDelete)
 }

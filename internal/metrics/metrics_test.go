@@ -16,7 +16,7 @@ func TestSanitizeName(t *testing.T) {
 func TestNamespaceGauge(t *testing.T) {
 	ns := "test_ns_gauge"
 	RegisterNamespacePrefix(ns, "test_prefix")
-	
+
 	g, c := NamespaceGauge(ns, "met", "extra")
 	if g == nil {
 		t.Fatalf("gauge")
@@ -28,7 +28,7 @@ func TestNamespaceGauge(t *testing.T) {
 	if g == nil {
 		t.Fatalf("reuse")
 	}
-	
+
 	// Test with no prefix
 	g2, _ := NamespaceGauge("no_prefix_ns", "met")
 	if g2 == nil {
@@ -39,7 +39,7 @@ func TestNamespaceGauge(t *testing.T) {
 func TestRegistrationAndRetrieval(t *testing.T) {
 	ns := "test_ns"
 	prefix := "test_prefix"
-	
+
 	RegisterNamespacePrefix(ns, prefix)
 	if p := aliasPrefixForNamespace(ns); p != prefix {
 		t.Errorf("expected prefix %s, got %s", prefix, p)
@@ -47,7 +47,7 @@ func TestRegistrationAndRetrieval(t *testing.T) {
 	if p := aliasPrefixForNamespace("unknown"); p != "" {
 		t.Errorf("expected empty prefix, got %s", p)
 	}
-	
+
 	// Test Alias
 	aliases := map[string]string{"orig": "alias"}
 	RegisterNamespaceMetricAlias(ns, aliases)
@@ -58,7 +58,7 @@ func TestRegistrationAndRetrieval(t *testing.T) {
 	if got := GetMetricAlias(ns, "other"); got != "" {
 		t.Errorf("expected empty, got %s", got)
 	}
-	
+
 	// Test Scale
 	scales := map[string]float64{"met": 10.0}
 	RegisterNamespaceMetricScale(ns, scales)
@@ -68,7 +68,7 @@ func TestRegistrationAndRetrieval(t *testing.T) {
 	if got := GetMetricScale(ns, "other"); got != 1.0 {
 		t.Errorf("expected 1.0, got %f", got)
 	}
-	
+
 	// Test Help
 	RegisterNamespaceHelp(ns, func(m string) string { return "Help for " + m })
 	if got := metricHelpForNamespace(ns, "met"); got != "Help for met" {
@@ -77,7 +77,7 @@ func TestRegistrationAndRetrieval(t *testing.T) {
 	if got := metricHelpForNamespace("unknown", "met"); got != " - 云产品指标" {
 		t.Errorf("expected default help, got %s", got)
 	}
-	
+
 	// Test Alias Func
 	RegisterNamespaceAliasFunc(ns, func(s string) string {
 		return "func_" + s

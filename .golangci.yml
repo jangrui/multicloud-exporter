@@ -1,0 +1,247 @@
+# golangci-lint 配置文件
+version: 2
+
+run:
+  # 代码超时时间
+  timeout: 5m
+  # 并发数
+  concurrency: 4
+  # 跳过测试文件（可选，根据项目需要）
+  tests: false
+  # 跳过目录
+  skip-dirs:
+    - bin
+    - scripts
+    - charts
+    - docs
+    - .local
+  # Go 版本
+  go: "1.25"
+
+output:
+  # 输出格式：colored-line-number|line-number|json|tab|checkstyle|code-climate
+  format: colored-line-number
+  # 打印检查的 linter 数量
+  print-linter-name: true
+  # 排序结果
+  sort-results: true
+
+linters:
+  # 启用的 linters
+  enable:
+    - errcheck        # 检查错误处理
+    - govet           # go vet 检查
+    - ineffassign     # 检查无效赋值
+    - staticcheck     # 静态分析
+    - unused          # 检查未使用的代码
+    - misspell        # 拼写检查
+    - unconvert       # 检查不必要的类型转换
+
+  # 禁用的 linters（如果与项目冲突）
+  disable:
+    - exhaustive      # 不检查枚举完整性（云服务 API 变化大）
+    - funlen          # 不检查函数长度（适度即可）
+    - prealloc        # 不检查预分配切片（优化优先级低）
+    - nilerr          # 不检查 nil error（某些场景合理）
+    - gocritic        # 代码风格检查（过于严格）
+    - gosec           # 安全检查（大量误报）
+
+linters-settings:
+  # 错误检查配置
+  errcheck:
+    # 检查类型断言
+    check-type-assertions: true
+    # 检查空白标识符
+    check-blank: false
+    # 忽略的函数（如 fmt.Println, fmt.Printf 等）
+    exclude-functions:
+      - (io.Closer).Close
+      - (*github.com/aliyun/alibaba-cloud-sdk-go/sdk.Client).IsSetAccessKey
+      - (*github.com/aliyun/alibaba-cloud-sdk-go/sdk/errors.ServerError).HttpStatus
+
+  # 代码格式化
+  gofmt:
+    # 简化代码
+    simplify: true
+
+  # import 格式化
+  goimports:
+    # 本地包前缀
+    local-prefixes: github.com/jangrui/multicloud-exporter
+
+  # 拼写检查
+  misspell:
+    # locale: US
+    ignore-words:
+      - someword
+
+  # 代码风格检查
+  revive:
+    # 默认严重级别
+    severity: warning
+    # 启用的规则
+    rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: dot-imports
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: exported
+      - name: if-return
+      - name: increment-decrement
+      - name: var-naming
+      - name: var-declaration
+      - name: package-comments
+      - name: range
+      - name: receiver-naming
+      - name: time-naming
+      - name: unexported-return
+      - name: indent-error-flow
+      - name: errorf
+      - name: empty-block
+      - name: superfluous-else
+      - name: unused-parameter
+      - name: unreachable-code
+      - name: redefines-builtin-id
+
+  # 安全检查
+  gosec:
+    # 包含的规则
+    includes:
+      - G101  # Look for hard coded credentials
+      - G102  # Bind to all interfaces
+      - G103  # Audit the use of unsafe block
+      - G104  # Audit errors not checked
+      - G106  # Audit the use of ssh.InsecureIgnoreHostKey
+      - G107  # Url provided to HTTP request as taint input
+      - G201  # SQL query construction using format string
+      - G202  # SQL query construction using string concatenation
+      - G203  # Use of unescaped data in HTML templates
+      - G204  # Audit use of command execution
+      - G301  # Poor file permissions used when creating a directory
+      - G302  # Poor file permissions used with chmod
+      - G303  # Creating tempfile using a predictable path
+      - G304  # File path provided as taint input
+      - G305  # File traversal when extracting zip archive
+      - G306  # Poor file permissions used when writing to a new file
+      - G307  # Deferring a method which returns an error
+    # 排除的文件
+    exclude-dirs:
+      - bin
+      - scripts
+
+  # 代码质量检查
+  gocritic:
+    # 启用的检查器
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+      - experimental
+    # 禁用的检查器
+    disabled-checks:
+      - whyNoLint      # 允许手动添加 nolint
+      - unnamedResult  # 允许匿名返回值
+      - hugeParam      # 云服务 API 可能有大量参数
+      - elseif         # 允许 else if 写法
+      - ifElseChain    # 允许 if-else 链
+      - assignOp       # 允许显式赋值操作
+      - dupBranchBody  # 允许分支体相同
+      - singleCaseSwitch # 允许单 case switch
+      - appendAssign   # 允许 append 结果赋值给不同变量
+
+  # 预分配切片检查
+  prealloc:
+    # 简单报告
+    simple: true
+    # 范围循环
+    range-loops: true
+    # for 循环
+    for-loops: false
+
+  # go vet 配置
+  govet:
+    # 启用的检查器
+    enable:
+      - atomicalign
+      - nilfunc
+    # 禁用的检查器
+    disable:
+      - shadow
+      - fieldalignment
+
+  # 静态检查
+  staticcheck:
+    # Go 版本
+    go: "1.25"
+
+issues:
+  # 显示所有问题
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+  # 排除规则
+  exclude-rules:
+    # 测试文件中允许循环变量引用（Go 1.22+ 已修复）
+    - path: _test\.go
+      linters:
+        - exportloopref
+
+    # 测试文件中允许较长的代码行
+    - path: _test\.go
+      linters:
+        - lll
+
+    # 测试文件中忽略未使用的参数
+    - path: _test\.go
+      linters:
+        - unused
+
+    # 生成的代码（如 protobuf、mock）忽略检查
+    - path: internal/objects/mocks/
+      linters:
+        - gosec
+        - govet
+
+    # 云厂商 SDK 相关代码放松某些检查
+    - path: internal/providers/
+      linters:
+        - goerr113
+        - contextcheck
+
+    # 排除 gosec 中误报或低风险的警告
+    - linters:
+        - gosec
+      text: "G104" # errcheck 会处理
+    - linters:
+        - gosec
+      text: "G114" # HTTP 超时在当前场景可接受
+    - linters:
+        - gosec
+      text: "G304" # 文件读取路径来自配置，是受控的
+    - linters:
+        - gosec
+      text: "G306" # 配置文件权限 0644 可接受
+    - linters:
+        - gosec
+      text: "G301" # 目录权限 0755 可接受
+    - linters:
+        - gosec
+      text: "G115" # 整数转换在已知范围内是安全的
+
+    # 排除 staticcheck 中的 S1022 (time.Until vs t.Sub)
+    - linters:
+        - staticcheck
+      text: "S1024"
+
+  # 排除默认的排除列表
+  exclude-use-default: false
+
+  # 独立的配置
+  exclude:
+    # 排除某些常见误报
+    - "G104: Errors unhandled"  # errcheck 会处理
+    - "G204: Subprocess launching should be audited"  # 本地工具调用
+

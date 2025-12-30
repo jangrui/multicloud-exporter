@@ -82,6 +82,76 @@ func DefaultResourceDimMapping() map[string][]string {
 	}
 }
 
+// Validate 验证配置的完整性和合法性
+func (c *Config) Validate() error {
+	var errs []string
+
+	// 验证 Server 配置
+	if c.Server == nil && c.ServerConf == nil {
+		errs = append(errs, "server config is required")
+	} else {
+		server := c.GetServer()
+		// 验证端口
+		if server.Port <= 0 || server.Port > 65535 {
+			errs = append(errs, fmt.Sprintf("invalid port: %d (must be 1-65535)", server.Port))
+		}
+
+		// 验证日志配置
+		if server.Log != nil {
+			level := strings.ToLower(server.Log.Level)
+			validLevels := map[string]bool{"debug": true, "info": true, "warn": true, "error": true, "fatal": true}
+			if !validLevels[level] {
+				errs = append(errs, fmt.Sprintf("invalid log level: %s", server.Log.Level))
+			}
+
+			output := strings.ToLower(server.Log.Output)
+			validOutputs := map[string]bool{"stdout": true, "console": true, "file": true, "both": true}
+			if output != "" && !validOutputs[output] {
+				errs = append(errs, fmt.Sprintf("invalid log output: %s", server.Log.Output))
+			}
+		}
+
+		// 验证并发配置
+		if server.RegionConcurrency < 0 || server.RegionConcurrency > 20 {
+			errs = append(errs, fmt.Sprintf("invalid region_concurrency: %d (must be 0-20)", server.RegionConcurrency))
+		}
+		if server.MetricConcurrency < 0 || server.MetricConcurrency > 20 {
+			errs = append(errs, fmt.Sprintf("invalid metric_concurrency: %d (must be 0-20)", server.MetricConcurrency))
+		}
+		if server.ProductConcurrency < 0 || server.ProductConcurrency > 10 {
+			errs = append(errs, fmt.Sprintf("invalid product_concurrency: %d (must be 0-10)", server.ProductConcurrency))
+		}
+	}
+
+	// 验证账号配置
+	if len(c.AccountsByProvider) == 0 {
+		errs = append(errs, "no accounts configured")
+	}
+
+	for provider, accounts := range c.AccountsByProvider {
+		for i, acc := range accounts {
+			if acc.AccountID == "" {
+				errs = append(errs, fmt.Sprintf("%s: account[%d].account_id is required", provider, i))
+			}
+			if acc.AccessKeyID == "" {
+				errs = append(errs, fmt.Sprintf("%s: account[%d].access_key_id is required", provider, i))
+			}
+			if acc.AccessKeySecret == "" {
+				errs = append(errs, fmt.Sprintf("%s: account[%d].access_key_secret is required", provider, i))
+			}
+			if len(acc.Regions) == 0 {
+				errs = append(errs, fmt.Sprintf("%s: account[%d].regions is empty", provider, i))
+			}
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("config validation failed:\n  - %s", strings.Join(errs, "\n  - "))
+	}
+
+	return nil
+}
+
 // LoadConfig 从环境变量加载拆分配置文件
 func LoadConfig() (*Config, error) {
 	var cfg Config

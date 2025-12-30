@@ -3,7 +3,6 @@ package discovery
 import (
 	"context"
 	"os"
-	"reflect"
 	"sync"
 	"time"
 
@@ -205,7 +204,82 @@ func (m *Manager) Refresh(ctx context.Context) error {
 }
 
 func equalProducts(a, b map[string][]config.Product) bool {
-	return reflect.DeepEqual(a, b)
+	// 快速路径：长度不同
+	if len(a) != len(b) {
+		return false
+	}
+
+	// 比较每个 provider 的产品列表
+	for provider, productsA := range a {
+		productsB, ok := b[provider]
+		if !ok {
+			return false
+		}
+
+		// 快速路径：产品数量不同
+		if len(productsA) != len(productsB) {
+			return false
+		}
+
+		// 比较每个产品
+		for i := range productsA {
+			pa := &productsA[i]
+			pb := &productsB[i]
+
+			// 比较 Namespace 和 AutoDiscover
+			if pa.Namespace != pb.Namespace || pa.AutoDiscover != pb.AutoDiscover {
+				return false
+			}
+
+			// 比较 Period
+			if (pa.Period == nil) != (pb.Period == nil) {
+				return false
+			}
+			if pa.Period != nil && pb.Period != nil && *pa.Period != *pb.Period {
+				return false
+			}
+
+			// 比较 MetricInfo
+			if len(pa.MetricInfo) != len(pb.MetricInfo) {
+				return false
+			}
+
+			for j := range pa.MetricInfo {
+				ma := &pa.MetricInfo[j]
+				mb := &pb.MetricInfo[j]
+
+				// 比较 MetricList
+				if len(ma.MetricList) != len(mb.MetricList) {
+					return false
+				}
+				for k := range ma.MetricList {
+					if ma.MetricList[k] != mb.MetricList[k] {
+						return false
+					}
+				}
+
+				// 比较 Statistics
+				if len(ma.Statistics) != len(mb.Statistics) {
+					return false
+				}
+				for k := range ma.Statistics {
+					if ma.Statistics[k] != mb.Statistics[k] {
+						return false
+					}
+				}
+
+				// 比较 Period
+				if (ma.Period == nil) != (mb.Period == nil) {
+					return false
+				}
+				if ma.Period != nil && mb.Period != nil && *ma.Period != *mb.Period {
+					return false
+				}
+			}
+		}
+	}
+
+	return true
 }
 
 func (m *Manager) Start(ctx context.Context) {
@@ -260,8 +334,18 @@ func (m *Manager) reloadAccounts(path string) string {
 		return ""
 	}
 	if m.cfg != nil {
+		// 使用 Copy-On-Write 模式：先创建深拷贝，再原子替换
+		newAccounts := make(map[string][]config.CloudAccount, len(accCfg.AccountsByProvider))
+		for provider, accounts := range accCfg.AccountsByProvider {
+			// 深拷贝账号列表
+			copiedAccounts := make([]config.CloudAccount, len(accounts))
+			copy(copiedAccounts, accounts)
+			newAccounts[provider] = copiedAccounts
+		}
+
+		// 原子替换配置
 		m.cfg.Mu.Lock()
-		m.cfg.AccountsByProvider = accCfg.AccountsByProvider
+		m.cfg.AccountsByProvider = newAccounts
 		sig := m.accountsSignatureLocked()
 		m.cfg.Mu.Unlock()
 		return sig
@@ -351,6 +435,13 @@ func (m *Manager) Unsubscribe(ch chan struct{}) {
 	m.subsMu.Lock()
 	delete(m.subs, ch)
 	m.subsMu.Unlock()
+}
+
+// GetSubscribersCount 返回当前订阅者数量
+func (m *Manager) GetSubscribersCount() int {
+	m.subsMu.Lock()
+	defer m.subsMu.Unlock()
+	return len(m.subs)
 }
 
 func (m *Manager) broadcast() {

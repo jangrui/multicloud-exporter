@@ -91,8 +91,8 @@ func TestAliyunDiscoverer_Discover_BWP_Fallback(t *testing.T) {
 					AccessKeyID:     "ak",
 					AccessKeySecret: "sk",
 					Regions:         []string{"cn-hangzhou"},
-				Resources:       []string{"bwp"},
-			},
+					Resources:       []string{"bwp"},
+				},
 			},
 		},
 	}
@@ -133,8 +133,8 @@ func TestAliyunDiscoverer_Discover_OSS_Fallback(t *testing.T) {
 					AccessKeyID:     "ak",
 					AccessKeySecret: "sk",
 					Regions:         []string{"cn-hangzhou"},
-				Resources:       []string{"s3"},
-			},
+					Resources:       []string{"s3"},
+				},
 			},
 		},
 	}
@@ -175,8 +175,8 @@ func TestAliyunDiscoverer_Discover_NewProducts_Fallback(t *testing.T) {
 					AccessKeyID:     "ak",
 					AccessKeySecret: "sk",
 					Regions:         []string{"cn-hangzhou"},
-				Resources:       []string{"alb", "nlb", "gwlb"},
-			},
+					Resources:       []string{"alb", "nlb", "gwlb"},
+				},
 			},
 		},
 	}

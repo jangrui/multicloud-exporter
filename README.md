@@ -370,7 +370,41 @@ scrape_configs:
 - `EXPORTER_PORT`: 监听端口；优先级高于配置文件。未设置则读取 `server.port`，再回退为 `9101`。
 - `SCRAPE_INTERVAL`: 采集间隔（默认60s），支持时间格式（如 30s, 1m）。
 - `SERVER_PATH`: 指向 `server.yaml`
- 
+
+### 首次采集策略（智能错峰）
+
+为了解决多Pod部署场景下的首次采集并发问题，exporter 支持智能首次采集错峰策略：
+
+- `FIRST_RUN_STRATEGY`: 首次采集策略（默认 `auto`）
+  - `auto`（推荐）：自动判断
+    - 单/双Pod：立即采集，无需等待
+    - 3-10个Pod：线性延迟 + 随机抖动（5s + 索引×3s）
+    - >10个Pod：指数退避延迟，避免API压力
+  - `immediate`：强制所有Pod立即采集（适合小规模或云API限流宽松的场景）
+  - `staggered`：强制线性延迟，均匀分布（适合对云API限流极度敏感的场景）
+
+- `FIRST_RUN_MAX_DELAY`: 首次采集最大延迟秒数（默认 `180`）
+  - 仅在 `strategy=staggered` 或大规模（>10个Pod）场景生效
+  - 示例：20个Pod，maxDelay=180s，Pod-0立即采集，Pod-19延迟约170秒
+
+**示例**：
+
+```bash
+# 单Pod本地测试（立即采集）
+SCRAPE_INTERVAL=60s ./multicloud-exporter
+
+# 大规模生产环境（20个Pod，指数退避）
+export FIRST_RUN_STRATEGY=auto
+export FIRST_RUN_MAX_DELAY=180
+```
+
+**适用场景**：
+
+- ✅ 小规模（1-2个Pod）：立即采集，用户体验最佳
+- ✅ 中等规模（3-10个Pod）：自动错峰，避免API压力
+- ✅ 大规模（>10个Pod）：指数退避，平滑启动
+
+
 - `ACCOUNTS_PATH`: 指向 `accounts.yaml`
 - `DEFAULT_REGIONS`: 当云侧区域枚举失败时的回退区域列表（逗号分隔），例如：`DEFAULT_REGIONS=cn-hangzhou,ap-guangzhou`
 

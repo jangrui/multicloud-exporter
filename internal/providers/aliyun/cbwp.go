@@ -1,6 +1,7 @@
 package aliyun
 
 import (
+	"context"
 	"strings"
 	"time"
 
@@ -15,7 +16,7 @@ import (
 
 func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []string {
 	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region)
-	ctxLog.Debugf("枚举共享带宽包开始")
+	ctxLog.Infof("枚举共享带宽包开始")
 	client, err := a.clientFactory.NewVPCClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
 		return []string{}
@@ -156,7 +157,8 @@ func (a *Collector) fetchCBWPTags(account config.CloudAccount, region string, id
 
 	// 添加超时保护：整个标签获取操作最多 30 秒
 	const timeout = 30 * time.Second
-	deadline := time.Now().Add(timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
 
 	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", "cbwp")
 	ctxLog.Debugf("开始获取 BWP CodeName 标签 total_ids=%d timeout=%v", len(ids), timeout)
@@ -174,10 +176,14 @@ func (a *Collector) fetchCBWPTags(account config.CloudAccount, region string, id
 	batchCount := 0
 	for start := 0; start < len(ids); start += batchSize {
 		// 检查是否超时
-		if time.Now().After(deadline) {
+		select {
+		case <-ctx.Done():
 			ctxLog.Warnf("获取 CodeName 标签超时，已处理 %d/%d 批次，返回部分结果", batchCount, (len(ids)+batchSize-1)/batchSize)
-			break
+			return out
+		default:
+			// 继续处理
 		}
+
 		batchCount++
 		end := start + batchSize
 		if end > len(ids) {
@@ -194,9 +200,11 @@ func (a *Collector) fetchCBWPTags(account config.CloudAccount, region string, id
 		batchSuccess := false
 		for {
 			// 检查是否超时
-			if time.Now().After(deadline) {
+			select {
+			case <-ctx.Done():
 				ctxLog.Warnf("批次 %d 获取标签时超时，跳过后续处理", batchCount)
-				break
+				return out
+			default:
 			}
 
 			if nextToken != "" {
@@ -206,10 +214,13 @@ func (a *Collector) fetchCBWPTags(account config.CloudAccount, region string, id
 			var callErr error
 			for attempt := 0; attempt < 3; attempt++ {
 				// 每次重试前检查超时
-				if time.Now().After(deadline) {
+				select {
+				case <-ctx.Done():
 					ctxLog.Warnf("批次 %d 重试第 %d 次时超时，放弃", batchCount, attempt+1)
-					break
+					return out
+				default:
 				}
+
 				startReq := time.Now()
 				resp, callErr = client.ListTagResources(req)
 				if callErr == nil {
@@ -237,11 +248,17 @@ func (a *Collector) fetchCBWPTags(account config.CloudAccount, region string, id
 				if sleep > 5*time.Second {
 					sleep = 5 * time.Second
 				}
-				// 如果 sleep 会超过 deadline，缩短 sleep 时间
-				if time.Now().Add(sleep).After(deadline) {
-					sleep = deadline.Sub(time.Now())
-					if sleep < 0 {
-						sleep = 0
+
+				// 使用 context 计算剩余时间，如果 sleep 会超时则缩短
+				// 注意：这里不使用 context.WithDeadline，因为需要等待 sleep
+				// 而是选择较短的 sleep 时间
+				deadline, ok := ctx.Deadline()
+				if ok && time.Now().Add(sleep).After(deadline) {
+					remaining := time.Until(deadline)
+					if remaining > 0 && remaining < sleep {
+						sleep = remaining
+					} else if remaining <= 0 {
+						break
 					}
 				}
 				time.Sleep(sleep)

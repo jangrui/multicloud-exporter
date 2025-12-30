@@ -99,7 +99,7 @@ func (m *mockMonitorClient) GetMonitorData(request *monitor.GetMonitorDataReques
 }
 
 type mockCOSClient struct {
-	GetServiceFunc func(ctx context.Context) (*cos.ServiceGetResult, *cos.Response, error)
+	GetServiceFunc       func(ctx context.Context) (*cos.ServiceGetResult, *cos.Response, error)
 	GetBucketTaggingFunc func(ctx context.Context, bucket string, region string) (map[string]string, error)
 }
 

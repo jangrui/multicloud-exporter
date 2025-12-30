@@ -23,19 +23,19 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 	if err != nil {
 		return []string{}
 	}
-	
+
 	ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "rtype", "clb")
 	ctxLog.Debugf("开始枚举 CLB VIPs")
-	
+
 	var vips []string
 	limit := int64(100) // 腾讯云 CLB API 默认单次最多返回 100 条
 	offset := int64(0)
-	
+
 	for {
 		req := clb.NewDescribeLoadBalancersRequest()
 		req.Limit = common.Int64Ptr(limit)
 		req.Offset = common.Int64Ptr(offset)
-		
+
 		start := time.Now()
 		var resp *clb.DescribeLoadBalancersResponse
 		var callErr error
@@ -68,16 +68,16 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 			ctxLog.Warnf("CLB DescribeLoadBalancers 失败 offset=%d: %v", offset, callErr)
 			break
 		}
-		
+
 		if resp == nil || resp.Response == nil || resp.Response.LoadBalancerSet == nil {
 			break
 		}
-		
+
 		currentCount := uint64(len(resp.Response.LoadBalancerSet))
 		if currentCount == 0 {
 			break
 		}
-		
+
 		for _, lb := range resp.Response.LoadBalancerSet {
 			if lb == nil || lb.LoadBalancerVips == nil {
 				continue
@@ -88,7 +88,7 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 				}
 			}
 		}
-		
+
 		// 使用 TotalCount 和当前已获取的数量来判断是否还有更多数据
 		// 如果返回的数据量小于 limit，说明已经是最后一页
 		// 如果返回的数据量等于 limit，需要检查是否还有更多页
@@ -101,18 +101,18 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 				break
 			}
 		}
-		
+
 		if int64(currentCount) < limit {
 			// 当前页数据量小于 limit，说明已经是最后一页
 			break
 		}
-		
+
 		// 继续下一页
 		offset += limit
 		ctxLog.Debugf("CLB 分页采集 offset=%d current_count=%d total_collected=%d", offset, currentCount, len(vips))
 		time.Sleep(50 * time.Millisecond)
 	}
-	
+
 	t.setCachedIDs(account, region, "QCE/LB", "clb", vips)
 
 	// 更新区域状态

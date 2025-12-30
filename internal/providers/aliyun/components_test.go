@@ -249,7 +249,7 @@ func TestBuildMetricDimensions(t *testing.T) {
 	c := NewCollector(&config.Config{}, nil)
 
 	// Case 1: Simple
-	dims, dyn := c.buildMetricDimensions([]string{"id1"}, "instanceId", []string{"instanceId", "region"}, nil)
+	dims, dyn := c.buildMetricDimensions("acct1", "ns1", []string{"id1"}, "instanceId", []string{"instanceId", "region"}, nil)
 	assert.Len(t, dims, 1)
 	assert.Equal(t, "id1", dims[0]["instanceId"])
 	// "region" is treated as a reserved label (not a CMS dimension key) in buildMetricDimensions.
@@ -262,7 +262,7 @@ func TestBuildMetricDimensions(t *testing.T) {
 			{"mountPath": "/data2"},
 		},
 	}
-	dims, dyn = c.buildMetricDimensions([]string{"id1", "id2"}, "instanceId", []string{"instanceId", "mountPath"}, meta)
+	dims, dyn = c.buildMetricDimensions("acct1", "ns1", []string{"id1", "id2"}, "instanceId", []string{"instanceId", "mountPath"}, meta)
 
 	// id1 should generate 2 entries (/data1, /data2)
 	// id2 should generate 1 entry (fallback)

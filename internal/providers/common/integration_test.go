@@ -10,10 +10,10 @@ import (
 // TestErrorClassification_Integration 测试错误分类的集成场景
 func TestErrorClassification_Integration(t *testing.T) {
 	tests := []struct {
-		name      string
-		err       error
+		name       string
+		err        error
 		classifier ErrorClassifier
-		expected  string
+		expected   string
 	}{
 		{
 			name:       "Aliyun auth error integration",
@@ -216,4 +216,3 @@ func TestErrorHandling_EdgeCases(t *testing.T) {
 		}
 	})
 }
-

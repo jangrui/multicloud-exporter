@@ -32,7 +32,7 @@ func TestInit(t *testing.T) {
 	}
 	Init(cfgFile)
 	assert.NotNil(t, Log)
-	
+
 	// Test Init with both
 	cfgBoth := &config.LogConfig{
 		Level:  "warn",

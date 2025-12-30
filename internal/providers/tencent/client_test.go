@@ -54,9 +54,9 @@ func TestDefaultCOSClient_GetService(t *testing.T) {
 	// but we can try to call it and expect error, covering the line.
 	f := &defaultClientFactory{}
 	client, _ := f.NewCOSClient("ap-guangzhou", "ak", "sk")
-	
+
 	// This will likely fail with network error or auth error, but it covers the line.
 	_, _, err := client.GetService(context.Background())
 	// We just expect it to return something, likely error
-	assert.Error(t, err) 
+	assert.Error(t, err)
 }

@@ -1,6 +1,7 @@
 package logger
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
@@ -16,7 +17,12 @@ var Log *zap.SugaredLogger
 func init() {
 	// Default logger before initialization
 	config := zap.NewDevelopmentConfig()
-	logger, _ := config.Build()
+	logger, err := config.Build()
+	if err != nil {
+		// 如果初始化失败，输出到 stderr 并使用 no-op logger
+		fmt.Fprintf(os.Stderr, "Failed to initialize default logger: %v\n", err)
+		logger = zap.NewNop()
+	}
 	Log = logger.Sugar()
 }
 

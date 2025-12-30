@@ -38,11 +38,11 @@ func TestShouldProcess(t *testing.T) {
 	key := "key1"
 	total := 3
 	idx := ShardIndex(key, total)
-	
+
 	if !ShouldProcess(key, total, idx) {
 		t.Errorf("ShouldProcess(%q, %d, %d) should be true", key, total, idx)
 	}
-	
+
 	if ShouldProcess(key, total, (idx+1)%total) {
 		t.Errorf("ShouldProcess(%q, %d, %d) should be false", key, total, (idx+1)%total)
 	}
@@ -89,7 +89,7 @@ func TestClusterConfig_File(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-    defer func() { _ = os.Remove(tmpfile.Name()) }()
+	defer func() { _ = os.Remove(tmpfile.Name()) }()
 
 	content := "pod-0\npod-1\npod-2\n"
 	if _, err := tmpfile.Write([]byte(content)); err != nil {

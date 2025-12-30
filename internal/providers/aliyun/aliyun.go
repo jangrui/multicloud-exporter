@@ -41,7 +41,7 @@ type Collector struct {
 	ossCache      map[string]ossCacheEntry
 	ossMu         sync.Mutex
 	tagCache      map[string]map[string]string // 标签缓存：key -> resourceID -> codeName
-	tagMu         sync.RWMutex                  // 标签缓存锁
+	tagMu         sync.RWMutex                 // 标签缓存锁
 	clientFactory ClientFactory
 	sf            singleflight.Group
 	regionManager common.RegionManager
@@ -945,7 +945,7 @@ func (a *Collector) listALBIDs(account config.CloudAccount, region string) []str
 		}
 		nextToken := ""
 		loopCount := 0
-		maxLoops := 100 // 防止无限分页的安全上限
+		maxLoops := 100                         // 防止无限分页的安全上限
 		seenNextTokens := make(map[string]bool) // 检测重复的NextToken
 		emptyDataCount := 0                     // 连续空数据计数
 		for {
@@ -1092,7 +1092,7 @@ func (a *Collector) listNLBIDs(account config.CloudAccount, region string) []str
 		}
 		nextToken := ""
 		loopCount := 0
-		maxLoops := 100 // 防止无限分页的安全上限
+		maxLoops := 100                         // 防止无限分页的安全上限
 		seenNextTokens := make(map[string]bool) // 检测重复的NextToken
 		emptyDataCount := 0                     // 连续空数据计数
 		for {
@@ -1887,7 +1887,7 @@ func (a *Collector) fetchAndRecordMetrics(
 func (a *Collector) processMetricBatch(client CMSClient, req *cms.DescribeMetricLastRequest, dims []map[string]string, account config.CloudAccount, region, ns, m, dkey, rtype string, dynamicDims []string, tags map[string]string, stats []string, ctxLog *logger.ContextLogger) {
 	nextToken := ""
 	loopCount := 0
-	maxLoops := 100 // 防止无限分页的安全上限
+	maxLoops := 100                         // 防止无限分页的安全上限
 	seenNextTokens := make(map[string]bool) // 检测重复的NextToken
 	emptyDataCount := 0                     // 连续空数据计数
 	for {

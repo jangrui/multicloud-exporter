@@ -7,10 +7,10 @@ import (
 func init() {
 	metrics.RegisterNamespacePrefix("qce/gwlb", "gwlb")
 	metrics.RegisterNamespaceMetricAlias("qce/gwlb", map[string]string{
-		"InTraffic":   "traffic_rx_bps",
-		"OutTraffic":  "traffic_tx_bps",
-		"NewConn":     "new_connection",
-		"ConcurConn":  "active_connection",
+		"InTraffic":  "traffic_rx_bps",
+		"OutTraffic": "traffic_tx_bps",
+		"NewConn":    "new_connection",
+		"ConcurConn": "active_connection",
 	})
 	metrics.RegisterNamespaceMetricScale("qce/gwlb", map[string]float64{
 		"InTraffic":  1000000,

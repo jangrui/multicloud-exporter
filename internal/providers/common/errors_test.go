@@ -91,17 +91,16 @@ func TestAWSErrorClassifier(t *testing.T) {
 func TestCompatibilityFunctions(t *testing.T) {
 	// 测试兼容函数
 	err := errors.New("Throttling")
-	
+
 	if ClassifyAliyunError(err) != ErrorStatusLimit {
 		t.Errorf("ClassifyAliyunError should return limit_error for Throttling")
 	}
-	
+
 	if ClassifyTencentError(errors.New("RequestLimitExceeded")) != ErrorStatusLimit {
 		t.Errorf("ClassifyTencentError should return limit_error for RequestLimitExceeded")
 	}
-	
+
 	if ClassifyAWSError(errors.New("Throttling")) != ErrorStatusLimit {
 		t.Errorf("ClassifyAWSError should return limit_error for Throttling")
 	}
 }
-

@@ -115,6 +115,14 @@ env: {}
 #  DISCOVERY_TTL: "1d"                # 资源发现缓存生命周期；支持 s/m/h/d；默认 1d
 #  SCRAPE_INTERVAL: "60s"             # 采集间隔；支持 "60s", "1m" 等；默认 60s
 #  PERIOD_FALLBACK: "60"              # Period Fallback 值（秒）；当无法从元数据获取 Period 时的默认值；默认 60
+#
+#  # 首次采集策略（智能错峰）
+#  FIRST_RUN_STRATEGY: "auto"         # 首次采集策略：auto（自动）| immediate（立即）| staggered（强制错峰）；默认 auto
+#                                      # - auto: 单/双Pod立即采集，3-10个Pod线性延迟，>10个Pod指数退避延迟
+#                                      # - immediate: 强制所有Pod立即采集（适合小规模或云API限流宽松的场景）
+#                                      # - staggered: 强制线性延迟，均匀分布（适合对云API限流极度敏感的场景）
+#  FIRST_RUN_MAX_DELAY: "180"         # 首次采集最大延迟秒数（默认180秒）；仅在 strategy=staggered 或大规模场景生效
+#                                      # 示例：20个Pod，maxDelay=180s，Pod-0立即，Pod-19延迟约170秒
 #  
 #  # 并发配置
 #  REGION_CONCURRENCY: "4"            # 区域级并发：同一账号下并行采集的地域数量（建议 1-8）；默认 4

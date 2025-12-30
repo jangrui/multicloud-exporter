@@ -23,19 +23,19 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 	if err != nil {
 		return []string{}
 	}
-	
+
 	ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "rtype", "bwp")
 	ctxLog.Debugf("开始枚举 BWP IDs")
-	
+
 	var ids []string
 	limit := uint64(100) // 腾讯云 VPC API 默认单次最多返回 100 条
 	offset := uint64(0)
-	
+
 	for {
 		req := vpc.NewDescribeBandwidthPackagesRequest()
 		req.Limit = common.Uint64Ptr(limit)
 		req.Offset = common.Uint64Ptr(offset)
-		
+
 		start := time.Now()
 		var resp *vpc.DescribeBandwidthPackagesResponse
 		var callErr error
@@ -68,23 +68,23 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 			ctxLog.Warnf("BWP DescribeBandwidthPackages 失败 offset=%d: %v", offset, callErr)
 			break
 		}
-		
+
 		if resp == nil || resp.Response == nil || resp.Response.BandwidthPackageSet == nil {
 			break
 		}
-		
+
 		currentCount := uint64(len(resp.Response.BandwidthPackageSet))
 		if currentCount == 0 {
 			break
 		}
-		
+
 		for _, bp := range resp.Response.BandwidthPackageSet {
 			if bp == nil || bp.BandwidthPackageId == nil {
 				continue
 			}
 			ids = append(ids, *bp.BandwidthPackageId)
 		}
-		
+
 		// 使用 TotalCount 和当前已获取的数量来判断是否还有更多数据
 		// 如果返回的数据量小于 limit，说明已经是最后一页
 		// 如果返回的数据量等于 limit，需要检查是否还有更多页
@@ -97,18 +97,18 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 				break
 			}
 		}
-		
+
 		if currentCount < limit {
 			// 当前页数据量小于 limit，说明已经是最后一页
 			break
 		}
-		
+
 		// 继续下一页
 		offset += limit
 		ctxLog.Debugf("BWP 分页采集 offset=%d current_count=%d total_collected=%d", offset, currentCount, len(ids))
 		time.Sleep(50 * time.Millisecond)
 	}
-	
+
 	t.setCachedIDs(account, region, "QCE/BWP", "bwp", ids)
 
 	// 更新区域状态

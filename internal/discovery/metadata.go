@@ -20,7 +20,7 @@ type MetricMeta struct {
 func AnnotateCanonical(metas []MetricMeta, mapping config.MetricMapping) []MetricMeta {
 	for i := range metas {
 		m := &metas[i]
-	if m.Provider == "aliyun" {
+		if m.Provider == "aliyun" {
 			for newName, entry := range mapping.Canonical {
 				def := entry.Aliyun
 				if def.Metric == m.Name {

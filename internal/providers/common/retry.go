@@ -43,12 +43,13 @@ func DefaultRetryConfig() RetryConfig {
 //   - 如果上下文被取消，返回 context.Canceled 或 context.DeadlineExceeded
 //
 // 示例：
-//   cfg := common.DefaultRetryConfig()
-//   classifier := &common.AliyunErrorClassifier{}
-//   shouldRetry := common.ShouldRetryForLimitError(classifier)
-//   err := common.RetryWithBackoff(ctx, cfg, func() error {
-//       return someAPI()
-//   }, shouldRetry)
+//
+//	cfg := common.DefaultRetryConfig()
+//	classifier := &common.AliyunErrorClassifier{}
+//	shouldRetry := common.ShouldRetryForLimitError(classifier)
+//	err := common.RetryWithBackoff(ctx, cfg, func() error {
+//	    return someAPI()
+//	}, shouldRetry)
 func RetryWithBackoff(ctx context.Context, cfg RetryConfig, fn func() error, shouldRetry func(error) bool) error {
 	if cfg.MaxAttempts <= 0 {
 		cfg.MaxAttempts = 5
@@ -128,14 +129,16 @@ func pow(x, y float64) float64 {
 //   - classifier: 错误分类器，用于将错误分类为统一的错误状态码
 //
 // 返回值：
-//   返回一个函数，该函数接受 error 并返回 bool，表示是否应该重试
+//
+//	返回一个函数，该函数接受 error 并返回 bool，表示是否应该重试
 //
 // 示例：
-//   classifier := &common.AliyunErrorClassifier{}
-//   shouldRetry := common.ShouldRetryForLimitError(classifier)
-//   if shouldRetry(err) {
-//       // 应该重试
-//   }
+//
+//	classifier := &common.AliyunErrorClassifier{}
+//	shouldRetry := common.ShouldRetryForLimitError(classifier)
+//	if shouldRetry(err) {
+//	    // 应该重试
+//	}
 func ShouldRetryForLimitError(classifier ErrorClassifier) func(error) bool {
 	return func(err error) bool {
 		status := classifier.Classify(err)
@@ -155,14 +158,16 @@ func ShouldRetryForLimitError(classifier ErrorClassifier) func(error) bool {
 //   - classifier: 错误分类器，用于将错误分类为统一的错误状态码
 //
 // 返回值：
-//   返回一个函数，该函数接受 error 并返回 bool，表示是否应该重试
+//
+//	返回一个函数，该函数接受 error 并返回 bool，表示是否应该重试
 //
 // 示例：
-//   classifier := &common.AliyunErrorClassifier{}
-//   shouldRetry := common.ShouldRetryForNetworkError(classifier)
-//   if shouldRetry(err) {
-//       // 应该重试
-//   }
+//
+//	classifier := &common.AliyunErrorClassifier{}
+//	shouldRetry := common.ShouldRetryForNetworkError(classifier)
+//	if shouldRetry(err) {
+//	    // 应该重试
+//	}
 func ShouldRetryForNetworkError(classifier ErrorClassifier) func(error) bool {
 	return func(err error) bool {
 		status := classifier.Classify(err)
@@ -170,4 +175,3 @@ func ShouldRetryForNetworkError(classifier ErrorClassifier) func(error) bool {
 		return status == ErrorStatusNetwork
 	}
 }
-

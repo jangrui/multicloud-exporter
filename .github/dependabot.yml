@@ -1,0 +1,94 @@
+# Dependabot 配置文件
+# 用于自动检测和更新项目依赖
+
+version: 2
+updates:
+  # Go 模块依赖更新
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      # 每周周一检查更新（UTC 时间）
+      day: "monday"
+      time: "09:00"
+    # 检测范围：所有更新
+    open-pull-requests-limit: 10
+    # 分支配置
+    target-branch: "main"
+    # 版本更新策略
+    versioning-strategy: "increase"
+    # 自动合并配置（需要谨慎）
+    automerge:
+      # 仅自动合并补丁版本更新（如 1.2.3 -> 1.2.4）
+      - dependency-type: "direct"
+        update-type: "version-update:semver-patch"
+    # 忽略特定依赖的更新
+    ignore:
+      # 云厂商 SDK 更新较频繁且可能引入破坏性变更，手动更新更安全
+      - dependency-name: "github.com/aliyun/alibaba-cloud-sdk-go"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/clb"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: "github.com/huaweicloud/huaweicloud-sdk-go-v3"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      # 临时忽略某些依赖（如发现问题时可添加）
+      # - dependency-name: "github.com/example/package"
+      #   versions: ["2.x"]
+    # 拉取请求标签
+    labels:
+      - "dependencies"
+      - "go"
+      - "dependabot"
+    # 提交消息
+    commit-message:
+      prefix: "deps"
+      prefix-development: "build(deps-dev)"
+      include: "scope"
+
+  # GitHub Actions 更新
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      # 每周周一检查更新
+      day: "monday"
+      time: "09:00"
+    # 检测范围
+    open-pull-requests-limit: 5
+    # 分支配置
+    target-branch: "main"
+    # 自动合并配置
+    automerge:
+      # 仅自动合并补丁版本更新
+      - dependency-type: "direct"
+        update-type: "version-update:semver-patch"
+    # 拉取请求标签
+    labels:
+      - "dependencies"
+      - "github-actions"
+      - "dependabot"
+    # 提交消息
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+
+  # Docker 基础镜像更新（如果使用）
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      # 每周周一检查更新
+      day: "monday"
+      time: "09:00"
+    # 检测范围
+    open-pull-requests-limit: 5
+    # 分支配置
+    target-branch: "main"
+    # 拉取请求标签
+    labels:
+      - "dependencies"
+      - "docker"
+      - "dependabot"
+    # 提交消息
+    commit-message:
+      prefix: "docker"
+      include: "scope"
