@@ -54,7 +54,8 @@ func logAccountStats(cfg *config.Config) {
 		accountInfo.WriteString(")")
 	}
 
-	logger.Log.Infof("配置加载完成，账号配置集合 sizes: accounts=%d%s", totalAccounts, accountInfo.String())
+	ctxLog := logger.NewContextLogger("Setup", "resource_type", "Config")
+	ctxLog.Infof("配置加载完成，账号配置集合 sizes: accounts=%d%s", totalAccounts, accountInfo.String())
 }
 
 // setupMetricMappings 加载指标映射配置
@@ -80,13 +81,15 @@ func loadMappingsFromPath(mappingPath string) {
 		}
 		fi, err := os.Stat(p)
 		if err != nil {
-			logger.Log.Warnf("映射路径未找到: %s (%v)", p, err)
+			ctxLog := logger.NewContextLogger("Setup", "resource_type", "MetricMapping")
+			ctxLog.Warnf("映射路径未找到: %s (%v)", p, err)
 			continue
 		}
 		if fi.IsDir() {
 			files, err := filepath.Glob(filepath.Join(p, "*.yaml"))
 			if err != nil || len(files) == 0 {
-				logger.Log.Warnf("目录中无映射文件: %s", p)
+				ctxLog := logger.NewContextLogger("Setup", "resource_type", "MetricMapping")
+				ctxLog.Warnf("目录中无映射文件: %s", p)
 				continue
 			}
 			for _, f := range files {
@@ -101,9 +104,11 @@ func loadMappingsFromPath(mappingPath string) {
 		}
 	}
 	if loaded == 0 {
-		logger.Log.Warnf("未从 MAPPING_PATH=%s 加载任何指标映射", mappingPath)
+		ctxLog := logger.NewContextLogger("Setup", "resource_type", "MetricMapping")
+		ctxLog.Warnf("未从 MAPPING_PATH=%s 加载任何指标映射", mappingPath)
 	} else {
-		logger.Log.Infof("已加载指标映射，数量=%d 来源=MAPPING_PATH", loaded)
+		ctxLog := logger.NewContextLogger("Setup", "resource_type", "MetricMapping")
+		ctxLog.Infof("已加载指标映射，数量=%d 来源=MAPPING_PATH", loaded)
 	}
 }
 
@@ -111,9 +116,11 @@ func loadMappingsFromPath(mappingPath string) {
 func loadDefaultMappings(cfg *config.Config) {
 	mappingDir := "configs/mappings"
 	if err := config.ValidateAllMappings(mappingDir); err != nil {
-		logger.Log.Warnf("指标映射验证发现问题:\n%v", err)
+		ctxLog := logger.NewContextLogger("Setup", "resource_type", "MetricMapping")
+		ctxLog.Warnf("指标映射验证发现问题:\n%v", err)
 	} else {
-		logger.Log.Infof("指标映射验证通过，目录=%s", mappingDir)
+		ctxLog := logger.NewContextLogger("Setup", "resource_type", "MetricMapping")
+		ctxLog.Infof("指标映射验证通过，目录=%s", mappingDir)
 	}
 
 	files, err := filepath.Glob(filepath.Join(mappingDir, "*.yaml"))
@@ -134,13 +141,16 @@ func loadDefaultMappings(cfg *config.Config) {
 // loadSingleMapping 加载单个映射文件
 func loadSingleMapping(filePath string) bool {
 	if err := config.ValidateMappingStructure(filePath); err != nil {
-		logger.Log.Warnf("指标映射验证失败，文件=%s 错误=%v", filePath, err)
+		ctxLog := logger.NewContextLogger("Setup", "resource_type", "MetricMapping")
+		ctxLog.Warnf("指标映射验证失败，文件=%s 错误=%v", filePath, err)
 		return false
 	}
 	if err := config.LoadMetricMappings(filePath); err != nil {
-		logger.Log.Warnf("加载指标映射失败，文件=%s 错误=%v", filePath, err)
+		ctxLog := logger.NewContextLogger("Setup", "resource_type", "MetricMapping")
+		ctxLog.Warnf("加载指标映射失败，文件=%s 错误=%v", filePath, err)
 		return false
 	}
-	logger.Log.Infof("已加载指标映射，文件=%s", filePath)
+	ctxLog := logger.NewContextLogger("Setup", "resource_type", "MetricMapping")
+	ctxLog.Infof("已加载指标映射，文件=%s", filePath)
 	return true
 }

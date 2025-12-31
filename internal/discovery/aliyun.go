@@ -214,7 +214,8 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 		client, err := newAliyunCMSClient(region, targetAK, targetSK)
 		if err != nil {
 			if list, ok := fallbackMap[ns]; ok {
-				logger.Log.Warnf("Aliyun CMS 客户端创建失败，命名空间=%s，使用备用指标，错误=%v", ns, err)
+				ctxLog := logger.NewContextLogger("Aliyun", "resource_type", "Discovery", "namespace", ns)
+				ctxLog.Warnf("CMS 客户端创建失败，使用备用指标，错误=%v", err)
 				prods = append(prods, config.Product{Namespace: ns, AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: list}}})
 			}
 			continue
@@ -227,7 +228,8 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 		// 1. Handle API Failure: Use fallback directly
 		if err != nil || resp == nil || resp.Resources.Resource == nil {
 			if list, ok := fallbackMap[ns]; ok {
-				logger.Log.Infof("Aliyun 发现服务启用备用指标，命名空间=%s 原因=元数据不可用", ns)
+				ctxLog := logger.NewContextLogger("Aliyun", "resource_type", "Discovery", "namespace", ns)
+				ctxLog.Infof("发现服务启用备用指标，原因=元数据不可用")
 				metrics = list
 			} else {
 				continue
@@ -240,7 +242,8 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 
 			// 特别记录 BWP 命名空间的调试信息
 			if ns == "acs_bandwidth_package" {
-				logger.Log.Infof("Aliyun BWP 发现服务，必需维度=%v", required)
+				ctxLog := logger.NewContextLogger("Aliyun", "resource_type", "Discovery", "namespace", ns)
+				ctxLog.Infof("BWP 发现服务，必需维度=%v", required)
 			}
 
 			for _, r := range resp.Resources.Resource {
@@ -277,9 +280,11 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 				// 对于 BWP 命名空间，记录每个指标的维度匹配情况
 				if ns == "acs_bandwidth_package" {
 					if has {
-						logger.Log.Debugf("Aliyun BWP 保留指标=%s 维度=%v", name, dims)
+						ctxLog := logger.NewContextLogger("Aliyun", "resource_type", "Discovery", "namespace", ns)
+						ctxLog.Debugf("BWP 保留指标=%s 维度=%v", name, dims)
 					} else {
-						logger.Log.Warnf("Aliyun BWP 过滤指标=%s 维度=%v 必需维度=%v", name, dims, required)
+						ctxLog := logger.NewContextLogger("Aliyun", "resource_type", "Discovery", "namespace", ns)
+						ctxLog.Warnf("BWP 过滤指标=%s 维度=%v 必需维度=%v", name, dims, required)
 					}
 				}
 
@@ -288,20 +293,24 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 					// 原因：某些指标（如 net_tx.rate）可能在某些账号/区域返回的维度与配置不完全一致
 					// 但这些指标在实际采集中仍然有效，不应被过滤
 					if ns == "acs_bandwidth_package" && len(dims) > 0 {
-						logger.Log.Infof("Aliyun BWP 强制保留指标=%s（维度不完全匹配但存在维度），维度=%v", name, dims)
+						ctxLog := logger.NewContextLogger("Aliyun", "resource_type", "Discovery", "namespace", ns)
+						ctxLog.Infof("BWP 强制保留指标=%s（维度不完全匹配但存在维度），维度=%v", name, dims)
 						has = true
 					} else {
-						logger.Log.Debugf("Aliyun 发现服务过滤指标，命名空间=%s 指标=%s 原因=维度不匹配 必需维度=%v 指标维度=%v", ns, name, required, dims)
+						ctxLog := logger.NewContextLogger("Aliyun", "resource_type", "Discovery", "namespace", ns)
+						ctxLog.Debugf("发现服务过滤指标，指标=%s 原因=维度不匹配 必需维度=%v 指标维度=%v", name, required, dims)
 						continue
 					}
 				}
 				metrics = append(metrics, name)
 			}
 			if ns == "acs_bandwidth_package" {
-				logger.Log.Infof("Aliyun BWP 发现服务解析完成，原始指标=%d 过滤后指标=%d", len(resp.Resources.Resource), len(metrics))
+				ctxLog := logger.NewContextLogger("Aliyun", "resource_type", "Discovery", "namespace", ns)
+				ctxLog.Infof("BWP 发现服务解析完成，原始指标=%d 过滤后指标=%d", len(resp.Resources.Resource), len(metrics))
 				// 【诊断日志】列出所有保留的指标
 				if len(metrics) > 0 {
-					logger.Log.Debugf("Aliyun BWP 保留的指标列表=%v", metrics)
+					ctxLog := logger.NewContextLogger("Aliyun", "resource_type", "Discovery", "namespace", ns)
+					ctxLog.Debugf("BWP 保留的指标列表=%v", metrics)
 				}
 			}
 		}

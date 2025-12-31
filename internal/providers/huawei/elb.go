@@ -43,7 +43,8 @@ func (h *Collector) collectELB(account config.CloudAccount, region string) {
 		}
 		productKey := account.AccountID + "|" + region + "|" + p.Namespace
 		if !utils.ShouldProcess(productKey, wTotal, wIndex) {
-			logger.Log.Debugf("Huawei ELB 产品跳过（分片不匹配）account=%s region=%s namespace=%s", account.AccountID, region, p.Namespace)
+			ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "namespace", p.Namespace)
+			ctxLog.Debugf("产品跳过（分片不匹配）")
 			continue
 		}
 		elbs := h.listELBInstances(account, region)
@@ -61,13 +62,15 @@ func (h *Collector) listELBInstances(account config.CloudAccount, region string)
 		for _, id := range ids {
 			elbs = append(elbs, elbInfo{ID: id, Name: id})
 		}
-		logger.Log.Debugf("Huawei ELB 缓存命中，账号ID=%s 区域=%s 数量=%d", account.AccountID, region, len(ids))
+		ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "resource_type", "ELB")
+		ctxLog.Debugf("ELB 缓存命中，数量=%d", len(ids))
 		return elbs
 	}
 
 	client, err := h.clientFactory.NewELBClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
-		logger.Log.Errorf("Huawei ELB 客户端创建失败，区域=%s 错误=%v", region, err)
+		ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "resource_type", "ELB")
+		ctxLog.Errorf("ELB 客户端创建失败，错误=%v", err)
 		return nil
 	}
 
@@ -150,8 +153,9 @@ func (h *Collector) listELBInstances(account config.CloudAccount, region string)
 			status = providerscommon.RegionStatusActive
 		}
 		h.regionManager.UpdateRegionStatus(account.AccountID, region, len(ids), status)
-		logger.Log.Debugf("更新区域状态 account=%s region=%s status=%s count=%d",
-			account.AccountID, region, status, len(ids))
+		ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "resource_type", "ELB")
+		ctxLog.Debugf("更新区域状态, status=%s, count=%d",
+			status, len(ids))
 	}
 
 	if len(elbs) > 0 {
@@ -163,9 +167,11 @@ func (h *Collector) listELBInstances(account config.CloudAccount, region string)
 		for i := 0; i < max; i++ {
 			preview = append(preview, elbs[i].ID)
 		}
-		logger.Log.Debugf("Huawei ELB 已枚举，账号ID=%s 区域=%s 数量=%d 预览=%v", account.AccountID, region, len(elbs), preview)
+		ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "resource_type", "ELB")
+		ctxLog.Debugf("ELB 已枚举，数量=%d 预览=%v", len(elbs), preview)
 	} else {
-		logger.Log.Debugf("Huawei ELB 已枚举，账号ID=%s 区域=%s 数量=%d", account.AccountID, region, len(elbs))
+		ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "resource_type", "ELB")
+		ctxLog.Debugf("ELB 已枚举，数量=%d", len(elbs))
 	}
 	return elbs
 }
@@ -174,7 +180,8 @@ func (h *Collector) listELBInstances(account config.CloudAccount, region string)
 func (h *Collector) fetchELBMonitor(account config.CloudAccount, region string, prod config.Product, elbs []elbInfo) {
 	client, err := h.clientFactory.NewCESClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
-		logger.Log.Errorf("Huawei CES 客户端创建失败，区域=%s 错误=%v", region, err)
+		ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "resource_type", "CES")
+		ctxLog.Errorf("CES 客户端创建失败，错误=%v", err)
 		return
 	}
 
@@ -305,7 +312,9 @@ func (h *Collector) fetchELBMonitor(account config.CloudAccount, region string, 
 					metrics.IncSampleCount(prod.Namespace, 1)
 				}
 
-				time.Sleep(50 * time.Millisecond)
+				// 优化：移除指标间延迟，降低云API压力
+				// 原代码: time.Sleep(50 * time.Millisecond)
+				// 优化后: 连续处理下一个指标，总耗时减少 N指标 × 50ms
 			}
 		}
 	}

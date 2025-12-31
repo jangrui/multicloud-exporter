@@ -26,12 +26,16 @@ func main() {
 	// 1. 加载配置
 	cfg, err := setupConfig()
 	if err != nil {
-		logger.Log.Fatalf("Failed to setup config: %v", err)
+		ctxLog := logger.NewContextLogger("Main", "resource_type", "Config")
+		ctxLog.Errorf("Failed to setup config: %v", err)
+		os.Exit(1)
 	}
 
 	// 验证配置
 	if err := cfg.Validate(); err != nil {
-		logger.Log.Fatalf("Config validation failed: %v", err)
+		ctxLog := logger.NewContextLogger("Main", "resource_type", "Config")
+		ctxLog.Errorf("Config validation failed: %v", err)
+		os.Exit(1)
 	}
 
 	defer logger.Sync()
@@ -49,7 +53,9 @@ func main() {
 	// 5. 初始化发现管理器（必须成功）
 	mgr, err := initializeDiscovery(cfg)
 	if err != nil {
-		logger.Log.Fatalf("Failed to initialize discovery: %v", err)
+		ctxLog := logger.NewContextLogger("Main", "resource_type", "Discovery")
+		ctxLog.Errorf("Failed to initialize discovery: %v", err)
+		os.Exit(1)
 	}
 
 	// 6. 创建采集器
@@ -65,13 +71,15 @@ func main() {
 	setupHTTPHandlers(cfg, coll, mgr)
 
 	// 10. 启动 HTTP 服务器
-	logger.Log.Infof("HTTP 服务启动，监听端口=%s", port)
+	ctxLog := logger.NewContextLogger("Main", "resource_type", "HTTPServer")
+	ctxLog.Infof("HTTP 服务启动，监听端口=%s", port)
 
 	// 在 goroutine 中启动 HTTP 服务器
 	serverErr := make(chan error, 1)
 	go func() {
 		addr := ":" + port
-		logger.Log.Infof("开始监听 %s", addr)
+		ctxLog := logger.NewContextLogger("Main", "resource_type", "HTTPServer")
+		ctxLog.Infof("开始监听 %s", addr)
 		if err := http.ListenAndServe(addr, nil); err != nil {
 			serverErr <- err
 		}
@@ -80,9 +88,12 @@ func main() {
 	// 等待关闭信号或服务器错误
 	select {
 	case <-shutdownCtx.Done():
-		logger.Log.Info("收到关闭信号，正在停止服务...")
+		ctxLog := logger.NewContextLogger("Main", "resource_type", "HTTPServer")
+		ctxLog.Info("收到关闭信号，正在停止服务...")
 	case err := <-serverErr:
-		logger.Log.Fatalf("HTTP 服务器错误: %v", err)
+		ctxLog := logger.NewContextLogger("Main", "resource_type", "HTTPServer")
+		ctxLog.Errorf("HTTP 服务器错误: %v", err)
+		os.Exit(1)
 	}
 
 	// 给 HTTP 服务器一点时间处理最后的请求
@@ -98,7 +109,8 @@ func setupSignalHandler() {
 
 	go func() {
 		sig := <-sigCh
-		logger.Log.Infof("收到信号 %v，开始优雅关闭...", sig)
+		ctxLog := logger.NewContextLogger("Main", "resource_type", "SignalHandler")
+		ctxLog.Infof("收到信号 %v，开始优雅关闭...", sig)
 		shutdownCancel()
 	}()
 }

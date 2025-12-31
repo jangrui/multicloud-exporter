@@ -128,7 +128,8 @@ func handleDiscoveryStream(mgr *discovery.Manager) http.HandlerFunc {
 		subsCount := mgr.GetSubscribersCount()
 		if subsCount >= maxConcurrentSubs {
 			http.Error(w, "too many subscribers", http.StatusServiceUnavailable)
-			logger.Log.Warnf("SSE 连接被拒绝：当前订阅数=%d，上限=%d", subsCount, maxConcurrentSubs)
+			ctxLog := logger.NewContextLogger("Server", "resource_type", "SSE")
+			ctxLog.Warnf("SSE 连接被拒绝：当前订阅数=%d，上限=%d", subsCount, maxConcurrentSubs)
 			return
 		}
 
@@ -144,7 +145,8 @@ func handleDiscoveryStream(mgr *discovery.Manager) http.HandlerFunc {
 		ch := mgr.Subscribe()
 		defer mgr.Unsubscribe(ch)
 
-		logger.Log.Infof("SSE 连接建立，当前订阅数=%d", subsCount+1)
+		ctxLog := logger.NewContextLogger("Server", "resource_type", "SSE")
+		ctxLog.Infof("SSE 连接建立，当前订阅数=%d", subsCount+1)
 
 		// 发送初始版本
 		initPayload := struct {
@@ -164,7 +166,8 @@ func handleDiscoveryStream(mgr *discovery.Manager) http.HandlerFunc {
 			select {
 			case <-ctx.Done():
 				// 超时或客户端断开
-				logger.Log.Infof("SSE 连接关闭")
+				ctxLog := logger.NewContextLogger("Server", "resource_type", "SSE")
+				ctxLog.Infof("SSE 连接关闭")
 				return
 
 			case <-ch:

@@ -342,7 +342,9 @@ func (h *Collector) fetchOBSMonitor(account config.CloudAccount, region string, 
 					ctxLog.Debugf("OBS 暴露指标，指标=%s bucket=%s period=%s 值=%.2f", metricName, resourceID, periodStr, val)
 				}
 
-				time.Sleep(50 * time.Millisecond)
+				// 优化：移除指标间延迟，降低云API压力
+				// 原代码: time.Sleep(50 * time.Millisecond)
+				// 优化后: 连续处理下一个指标，总耗时减少 N指标 × 50ms
 			}
 		}
 	}

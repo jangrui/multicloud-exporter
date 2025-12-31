@@ -115,7 +115,8 @@ func (c *Collector) collectInternal(filterProvider, filterResource string) {
 
 	// 统计账号信息
 	accountInfo := buildAccountInfo(accounts)
-	logger.Log.Infof("开始采集，账号数量=%d%s", len(accounts), accountInfo)
+	ctxLog := logger.NewContextLogger("Collector", "resource_type", "Collection")
+	ctxLog.Infof("开始采集，账号数量=%d%s", len(accounts), accountInfo)
 
 	// 重置命名空间样本计数
 	metrics.ResetSampleCounts()
@@ -145,10 +146,11 @@ func (c *Collector) collectInternal(filterProvider, filterResource string) {
 		wg.Add(1)
 		go func(acc config.CloudAccount) {
 			defer wg.Done()
-			logger.Log.Debugf("开始账号采集 provider=%s account_id=%s", acc.Provider, acc.AccountID)
+			ctxLog := logger.NewContextLogger("Collector", "provider", acc.Provider, "account_id", acc.AccountID)
+			ctxLog.Debugf("开始账号采集")
 			c.collectAccount(acc, filterResource)
 			atomic.AddInt32(&completedCount, 1)
-			logger.Log.Debugf("完成账号采集 provider=%s account_id=%s", acc.Provider, acc.AccountID)
+			ctxLog.Debugf("完成账号采集")
 
 			c.statusLock.Lock()
 			c.status.LastResults[acc.Provider+"|"+acc.AccountID] = AccountStat{
@@ -168,7 +170,8 @@ func (c *Collector) collectInternal(filterProvider, filterResource string) {
 	c.statusLock.Unlock()
 
 	// 输出采集完成日志，包含详细信息
-	logger.Log.Infof("采集完成，账号数量=%d，已完成=%d，总耗时: %v", len(accounts), completedCount, duration)
+	collectionLog := logger.NewContextLogger("Collector", "resource_type", "Collection")
+	collectionLog.Infof("采集完成，账号数量=%d，已完成=%d，总耗时: %v", len(accounts), completedCount, duration)
 }
 
 // buildAccountInfo 构建账号信息字符串，格式为 " (provider1=count1, provider2=count2)"
@@ -203,7 +206,8 @@ func buildAccountInfo(accounts []config.CloudAccount) string {
 func (c *Collector) collectAccount(account config.CloudAccount, filterResource string) {
 	p, ok := c.providers[account.Provider]
 	if !ok {
-		logger.Log.Warnf("未知的云平台: %s", account.Provider)
+		ctxLog := logger.NewContextLogger("Collector", "provider", account.Provider, "account_id", account.AccountID)
+		ctxLog.Warnf("未知的云平台")
 		return
 	}
 

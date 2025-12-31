@@ -14,11 +14,12 @@ import (
 )
 
 func (t *Collector) listGWLBIDs(account config.CloudAccount, region string) []string {
-	ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "rtype", "gwlb")
+	ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "GWLB")
 	ctxLog.Debugf("开始枚举 GWLB IDs")
 
 	if ids, hit := t.getCachedIDs(account, region, "qce/gwlb", "gwlb"); hit {
-		logger.Log.Debugf("Tencent GWLB IDs 缓存命中，账号ID=%s 区域=%s 数量=%d", account.AccountID, region, len(ids))
+		ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "GWLB")
+		ctxLog.Debugf("GWLB IDs 缓存命中，数量=%d", len(ids))
 		return ids
 	}
 	client, err := t.clientFactory.NewMonitorClient(region, account.AccessKeyID, account.AccessKeySecret)
@@ -74,8 +75,7 @@ func (t *Collector) listGWLBIDs(account config.CloudAccount, region string) []st
 			status = providerscommon.RegionStatusActive
 		}
 		t.regionManager.UpdateRegionStatus(account.AccountID, region, len(ids), status)
-		ctxLog.Debugf("更新区域状态 account=%s region=%s status=%s count=%d",
-			account.AccountID, region, status, len(ids))
+		ctxLog.Debugf("更新区域状态, status=%s, count=%d", status, len(ids))
 	}
 
 	if len(ids) > 0 {
@@ -84,9 +84,11 @@ func (t *Collector) listGWLBIDs(account config.CloudAccount, region string) []st
 			max = len(ids)
 		}
 		preview := ids[:max]
-		logger.Log.Debugf("Tencent GWLB 已枚举，账号ID=%s 区域=%s 数量=%d 预览=%v", account.AccountID, region, len(ids), preview)
+		ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "GWLB")
+		ctxLog.Debugf("GWLB已枚举，数量=%d 预览=%v", len(ids), preview)
 	} else {
-		logger.Log.Debugf("Tencent GWLB 已枚举，账号ID=%s 区域=%s 数量=%d", account.AccountID, region, len(ids))
+		ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "GWLB")
+		ctxLog.Debugf("GWLB已枚举，数量=%d", len(ids))
 	}
 	return ids
 }
@@ -202,7 +204,8 @@ func (t *Collector) collectGWLB(account config.CloudAccount, region string) {
 		// 分片键格式：AccountID|Region|Namespace
 		productKey := account.AccountID + "|" + region + "|" + p.Namespace
 		if !utils.ShouldProcess(productKey, wTotal, wIndex) {
-			logger.Log.Debugf("Tencent GWLB 产品跳过（分片不匹配）account=%s region=%s namespace=%s", account.AccountID, region, p.Namespace)
+			ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "namespace", p.Namespace)
+			ctxLog.Debugf("产品跳过（分片不匹配）")
 			continue
 		}
 		ids := t.listGWLBIDs(account, region)

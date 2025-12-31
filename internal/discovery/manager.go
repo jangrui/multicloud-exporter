@@ -192,9 +192,11 @@ func (m *Manager) Refresh(ctx context.Context) error {
 	if changed {
 		m.version++
 		m.updatedAt = time.Now()
-		logger.Log.Infof("发现服务已刷新，版本=%d，总耗时: %v", m.version, duration)
+		ctxLog := logger.NewContextLogger("Discovery", "resource_type", "Manager")
+		ctxLog.Infof("发现服务已刷新，版本=%d，总耗时: %v", m.version, duration)
 	} else {
-		logger.Log.Infof("发现服务检查完成，无变化，总耗时: %v", duration)
+		ctxLog := logger.NewContextLogger("Discovery", "resource_type", "Manager")
+		ctxLog.Infof("发现服务检查完成，无变化，总耗时: %v", duration)
 	}
 	m.mu.Unlock()
 	if changed {

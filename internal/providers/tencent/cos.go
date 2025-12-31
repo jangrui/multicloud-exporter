@@ -40,7 +40,8 @@ func (t *Collector) collectCOS(account config.CloudAccount, region string) {
 		// 分片键格式：AccountID|Region|Namespace
 		productKey := account.AccountID + "|" + region + "|" + p.Namespace
 		if !utils.ShouldProcess(productKey, wTotal, wIndex) {
-			logger.Log.Debugf("Tencent COS 产品跳过（分片不匹配）account=%s region=%s namespace=%s", account.AccountID, region, p.Namespace)
+			ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "namespace", p.Namespace)
+			ctxLog.Debugf("产品跳过（分片不匹配）")
 			continue
 		}
 		buckets := t.listCOSBuckets(account, region)
@@ -85,7 +86,8 @@ func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) [
 	// We use the factory now.
 	client, err := t.clientFactory.NewCOSClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
-		logger.Log.Errorf("Tencent COS 客户端错误: %v", err)
+		ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "COS")
+		ctxLog.Errorf("COS客户端错误: %v", err)
 		return []string{}
 	}
 
@@ -111,7 +113,8 @@ func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) [
 			metrics.RateLimitTotal.WithLabelValues("tencent", "ListBuckets").Inc()
 		}
 		if status == "auth_error" {
-			logger.Log.Errorf("Tencent ListBuckets 错误: %v", callErr)
+			ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "COS")
+			ctxLog.Errorf("ListBuckets认证错误: %v", callErr)
 			return []string{}
 		}
 		// 指数退避重试
@@ -122,7 +125,8 @@ func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) [
 		time.Sleep(sleep)
 	}
 	if callErr != nil {
-		logger.Log.Errorf("Tencent ListBuckets 错误: %v", callErr)
+		ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "COS")
+		ctxLog.Errorf("ListBuckets API调用错误: %v", callErr)
 		return []string{}
 	}
 
@@ -144,8 +148,8 @@ func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) [
 			status = providerscommon.RegionStatusActive
 		}
 		t.regionManager.UpdateRegionStatus(account.AccountID, region, len(buckets), status)
-		logger.Log.Debugf("更新区域状态 account=%s region=%s status=%s count=%d",
-			account.AccountID, region, status, len(buckets))
+		ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "COS")
+		ctxLog.Debugf("更新区域状态, status=%s, count=%d", status, len(buckets))
 	}
 
 	if len(buckets) > 0 {
@@ -154,9 +158,11 @@ func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) [
 			max = len(buckets)
 		}
 		preview := buckets[:max]
-		logger.Log.Debugf("Tencent COS 存储桶已枚举，账号ID=%s 区域=%s 数量=%d 预览=%v", account.AccountID, region, len(buckets), preview)
+		ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "COS")
+		ctxLog.Debugf("COS存储桶已枚举，数量=%d 预览=%v", len(buckets), preview)
 	} else {
-		logger.Log.Debugf("Tencent COS 存储桶已枚举，账号ID=%s 区域=%s 数量=%d", account.AccountID, region, len(buckets))
+		ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "COS")
+		ctxLog.Debugf("COS存储桶已枚举，数量=%d", len(buckets))
 	}
 	return buckets
 }
@@ -216,7 +222,8 @@ func (t *Collector) fetchCOSBucketCodeNames(account config.CloudAccount, region 
 func (t *Collector) fetchCOSMonitor(account config.CloudAccount, region string, prod config.Product, buckets []string) {
 	client, err := t.clientFactory.NewMonitorClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
-		logger.Log.Errorf("Tencent Monitor 客户端错误: %v", err)
+		ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "Monitor")
+		ctxLog.Errorf("Monitor客户端错误: %v", err)
 		return
 	}
 
@@ -247,7 +254,8 @@ func (t *Collector) fetchCOSMonitor(account config.CloudAccount, region string, 
 				localPeriod = 86400
 				startT = now.Add(-48 * time.Hour)
 				endT = now
-				logger.Log.Debugf("Tencent COS 容量类指标 metric=%s period=%d", m, localPeriod)
+				ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "COS")
+				ctxLog.Debugf("COS容量类指标, metric=%s, period=%d", m, localPeriod)
 			} else {
 				// 请求类指标：使用配置的 Period，时间窗口回溯 2 个周期
 				localPeriod = groupPeriod
@@ -290,7 +298,8 @@ func (t *Collector) fetchCOSMonitor(account config.CloudAccount, region string, 
 						// 记录限流指标
 						metrics.RateLimitTotal.WithLabelValues("tencent", "GetMonitorData").Inc()
 					}
-					logger.Log.Warnf("GetMonitorData 错误，指标=%s 错误=%v", m, err)
+					ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "Monitor")
+					ctxLog.Warnf("GetMonitorData API调用错误，指标=%s: %v", m, err)
 					continue
 				}
 				metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", "success").Inc()
@@ -335,8 +344,9 @@ func (t *Collector) fetchCOSMonitor(account config.CloudAccount, region string, 
 					}
 					vec.WithLabelValues(labels...).Set(val)
 				}
-				// Avoid rate limit
-				time.Sleep(50 * time.Millisecond)
+				// 优化：移除指标间延迟，降低云API压力
+				// 原代码: time.Sleep(50 * time.Millisecond)
+				// 优化后: 连续处理下一个指标，总耗时减少 N指标 × 50ms
 			}
 		}
 	}

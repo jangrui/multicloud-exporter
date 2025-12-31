@@ -40,7 +40,8 @@ func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
 
 		// 加载持久化的区域状态
 		if err := c.regionManager.Load(); err != nil {
-			logger.Log.Warnf("加载区域状态失败: %v", err)
+			ctxLog := logger.NewContextLogger("AWS", "resource_type", "RegionManager")
+			ctxLog.Warnf("加载区域状态失败: %v", err)
 		}
 
 		// 启动定期重新发现调度器
@@ -84,7 +85,8 @@ func (c *Collector) Collect(account config.CloudAccount) {
 		case "gwlb":
 			c.collectGWLB(account)
 		default:
-			logger.Log.Warnf("AWS 资源类型 %s 尚未实现", resource)
+			ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "resource_type", resource)
+			ctxLog.Warnf("资源类型尚未实现")
 		}
 	}
 }
@@ -94,13 +96,15 @@ func (c *Collector) getAllRegions(account config.CloudAccount) []string {
 	// 使用 us-east-1 作为默认接入点查询所有区域
 	client, err := c.clientFactory.NewEC2Client(context.Background(), "us-east-1", account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
-		logger.Log.Errorf("AWS 获取区域列表错误，账号ID=%s 错误=%v", account.AccountID, err)
+		ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", "us-east-1", "resource_type", "EC2")
+		ctxLog.Errorf("获取区域列表错误: %v", err)
 		return []string{"us-east-1"}
 	}
 
 	resp, err := client.DescribeRegions(context.Background(), &ec2.DescribeRegionsInput{})
 	if err != nil {
-		logger.Log.Errorf("AWS DescribeRegions 错误，账号ID=%s 错误=%v", account.AccountID, err)
+		ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", "us-east-1", "resource_type", "EC2")
+		ctxLog.Errorf("DescribeRegions API调用错误: %v", err)
 		return []string{"us-east-1"}
 	}
 
@@ -110,13 +114,15 @@ func (c *Collector) getAllRegions(account config.CloudAccount) []string {
 			regions = append(regions, *r.RegionName)
 		}
 	}
-	logger.Log.Debugf("AWS DescribeRegions 成功，数量=%d 账号ID=%s", len(regions), account.AccountID)
+	ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", "us-east-1", "resource_type", "EC2")
+	ctxLog.Debugf("DescribeRegions API调用成功，数量=%d", len(regions))
 
 	// 使用区域管理器进行智能过滤
 	if c.regionManager != nil {
 		activeRegions := c.regionManager.GetActiveRegions(account.AccountID, regions)
-		logger.Log.Infof("AWS 智能区域选择: 总=%d 活跃=%d 账号ID=%s",
-			len(regions), len(activeRegions), account.AccountID)
+		ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "resource_type", "RegionManager")
+		ctxLog.Infof("智能区域选择: 总=%d 活跃=%d",
+			len(regions), len(activeRegions))
 		return activeRegions
 	}
 

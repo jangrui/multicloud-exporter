@@ -149,7 +149,8 @@ func (d *AWSDiscoverer) Discover(ctx context.Context, cfg *config.Config) []conf
 			totalMetrics += len(g.MetricList)
 		}
 	}
-	logger.Log.Infof("AWS 发现服务完成，产品数=%d，指标总数=%d", len(prods), totalMetrics)
+	ctxLog := logger.NewContextLogger("AWS", "resource_type", "Discovery")
+	ctxLog.Infof("发现服务完成，产品数=%d，指标总数=%d", len(prods), totalMetrics)
 	return prods
 }
 

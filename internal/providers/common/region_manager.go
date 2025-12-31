@@ -153,7 +153,8 @@ func NewRegionManager(config RegionDiscoveryConfig) RegionManager {
 
 	// 创建数据目录
 	if err := os.MkdirAll(config.DataDir, 0755); err != nil {
-		logger.Log.Warnf("创建区域状态目录失败: %v", err)
+		ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Initialization")
+		ctxLog.Warnf("创建区域状态目录失败: %v", err)
 	}
 
 	return rm
@@ -170,7 +171,8 @@ func (rm *SmartRegionManager) GetActiveRegions(accountID string, allRegions []st
 
 	// 内存保护
 	if rm.config.MaxAccounts > 0 && len(rm.regionMap) >= rm.config.MaxAccounts {
-		logger.Log.Warnf("账号数达上限 %d，跳过智能区域选择", rm.config.MaxAccounts)
+		ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "RegionSelection", "account_id", accountID)
+		ctxLog.Warnf("账号数达上限 %d，跳过智能区域选择", rm.config.MaxAccounts)
 		return allRegions
 	}
 
@@ -208,12 +210,14 @@ func (rm *SmartRegionManager) GetActiveRegions(accountID string, allRegions []st
 	result := append(activeRegions, unknownRegions...)
 
 	if len(result) == 0 {
-		logger.Log.Warnf("无可用区域，返回全部 account=%s", accountID)
+		ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "RegionSelection", "account_id", accountID)
+		ctxLog.Warnf("无可用区域，返回全部")
 		return allRegions
 	}
 
-	logger.Log.Infof("智能区域选择 account=%s 总=%d 活跃=%d 未知=%d 跳过=%d",
-		accountID, len(allRegions), len(activeRegions), len(unknownRegions), skippedCount)
+	ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "RegionSelection", "account_id", accountID)
+	ctxLog.Infof("智能区域选择 总=%d 活跃=%d 未知=%d 跳过=%d",
+		len(allRegions), len(activeRegions), len(unknownRegions), skippedCount)
 
 	return result
 }
@@ -287,7 +291,8 @@ func (rm *SmartRegionManager) evictLowPriorityRegionsLocked(accountID string) {
 
 	if oldestRegion != "" {
 		delete(regions, oldestRegion)
-		logger.Log.Infof("驱逐旧区域 account=%s region=%s", accountID, oldestRegion)
+		ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Eviction", "account_id", accountID, "region", oldestRegion)
+		ctxLog.Infof("驱逐旧区域")
 	}
 }
 
@@ -305,7 +310,8 @@ func (rm *SmartRegionManager) MarkRegionForRediscovery(accountID, region string)
 		info.EmptyCount = 0
 		info.Priority = 50
 		rm.regionMap[accountID][region] = info
-		logger.Log.Infof("标记区域重新发现 account=%s region=%s", accountID, region)
+		ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Rediscovery", "account_id", accountID, "region", region)
+		ctxLog.Infof("标记区域重新发现")
 	}
 }
 
@@ -355,10 +361,12 @@ func (rm *SmartRegionManager) Load() error {
 	data, err := os.ReadFile(persistPath)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			logger.Log.Warnf("加载区域状态失败: %v", err)
+			ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Persistence")
+			ctxLog.Warnf("加载区域状态失败: %v", err)
 			return err
 		}
-		logger.Log.Infof("区域状态文件不存在: %s", persistPath)
+		ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Persistence")
+		ctxLog.Infof("区域状态文件不存在: %s", persistPath)
 		return nil
 	}
 
@@ -367,13 +375,15 @@ func (rm *SmartRegionManager) Load() error {
 	}
 
 	if err := json.Unmarshal(data, &persisted); err != nil {
-		logger.Log.Errorf("解析区域状态失败: %v", err)
+		ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Persistence")
+		ctxLog.Errorf("解析区域状态失败: %v", err)
 		return err
 	}
 
 	if persisted.RegionMap != nil {
 		rm.regionMap = persisted.RegionMap
-		logger.Log.Infof("成功加载区域状态，账号数=%d", len(rm.regionMap))
+		ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Persistence")
+		ctxLog.Infof("成功加载区域状态，账号数=%d", len(rm.regionMap))
 	}
 
 	rm.statsMu.Lock()
@@ -397,7 +407,8 @@ func (rm *SmartRegionManager) Save() error {
 		lastErr = err
 		if attempt < maxRetries-1 {
 			backoff := time.Duration(attempt+1) * 100 * time.Millisecond
-			logger.Log.Warnf("保存区域状态失败（第 %d 次重试，%v 后重试）: %v", attempt+1, backoff, err)
+			ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Persistence")
+			ctxLog.Warnf("保存区域状态失败（第 %d 次重试，%v 后重试）: %v", attempt+1, backoff, err)
 			time.Sleep(backoff)
 		}
 	}
@@ -427,12 +438,14 @@ func (rm *SmartRegionManager) trySave() error {
 	}, "", "  ")
 
 	if err != nil {
-		logger.Log.Errorf("序列化区域状态失败: %v", err)
+		ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Persistence")
+		ctxLog.Errorf("序列化区域状态失败: %v", err)
 		return err
 	}
 
 	if err := os.MkdirAll(rm.config.DataDir, 0755); err != nil {
-		logger.Log.Errorf("创建持久化目录失败: %v", err)
+		ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Persistence")
+		ctxLog.Errorf("创建持久化目录失败: %v", err)
 		return err
 	}
 
@@ -441,14 +454,16 @@ func (rm *SmartRegionManager) trySave() error {
 	if err := os.WriteFile(tmpFile, data, 0644); err != nil {
 		// 清理失败的临时文件
 		_ = os.Remove(tmpFile)
-		logger.Log.Errorf("写入临时文件失败: %v", err)
+		ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Persistence")
+		ctxLog.Errorf("写入临时文件失败: %v", err)
 		return err
 	}
 
 	if err := os.Rename(tmpFile, persistPath); err != nil {
 		// 清理临时文件
 		_ = os.Remove(tmpFile)
-		logger.Log.Errorf("重命名文件失败: %v", err)
+		ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Persistence")
+		ctxLog.Errorf("重命名文件失败: %v", err)
 		return err
 	}
 
@@ -457,7 +472,8 @@ func (rm *SmartRegionManager) trySave() error {
 	rm.stats.LastSaveTime = time.Now()
 	rm.statsMu.Unlock()
 
-	logger.Log.Debugf("成功保存区域状态，账号数=%d", len(snapshot))
+	ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Persistence")
+	ctxLog.Debugf("成功保存区域状态，账号数=%d", len(snapshot))
 	return nil
 }
 
@@ -470,7 +486,8 @@ func (rm *SmartRegionManager) createSnapshot() map[string]map[string]RegionInfo 
 
 	for accountID, regions := range rm.regionMap {
 		if count >= maxSnapshotSize {
-			logger.Log.Warnf("快照达到上限 %d，停止拷贝", maxSnapshotSize)
+			ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Snapshot")
+			ctxLog.Warnf("快照达到上限 %d，停止拷贝", maxSnapshotSize)
 			break
 		}
 
@@ -488,11 +505,13 @@ func (rm *SmartRegionManager) createSnapshot() map[string]map[string]RegionInfo 
 func (rm *SmartRegionManager) StartRediscoveryScheduler() {
 	rm.schedulerOnce.Do(func() {
 		if !rm.config.Enabled || rm.config.DiscoveryInterval <= 0 {
-			logger.Log.Infof("区域调度器未启用")
+			ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Scheduler")
+			ctxLog.Infof("区域调度器未启用")
 			return
 		}
 
-		logger.Log.Infof("启动区域调度器，周期=%v，清理间隔=%v",
+		ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Scheduler")
+		ctxLog.Infof("启动区域调度器，周期=%v，清理间隔=%v",
 			rm.config.DiscoveryInterval, rm.config.CleanupInterval)
 
 		go func() {
@@ -511,7 +530,8 @@ func (rm *SmartRegionManager) StartRediscoveryScheduler() {
 			for {
 				select {
 				case <-rm.stopChan:
-					logger.Log.Infof("停止区域调度器")
+					ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Scheduler")
+					ctxLog.Infof("停止区域调度器")
 					return
 				case <-ticker.C:
 					// 合并执行所有任务，减少锁竞争
@@ -536,7 +556,8 @@ func (rm *SmartRegionManager) performPeriodicTasks() {
 	if timeSinceCleanup >= rm.config.CleanupInterval {
 		cleaned := rm.CleanupInactiveAccounts(7 * 24 * time.Hour)
 		if cleaned > 0 {
-			logger.Log.Infof("定期清理完成，清理了 %d 个不活跃账号", cleaned)
+			ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Cleanup")
+			ctxLog.Infof("定期清理完成，清理了 %d 个不活跃账号", cleaned)
 		}
 	}
 }
@@ -553,7 +574,8 @@ func (rm *SmartRegionManager) Stop() {
 	done := make(chan struct{})
 	go func() {
 		if err := rm.Save(); err != nil {
-			logger.Log.Errorf("停止时保存区域状态失败: %v", err)
+			ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Persistence")
+			ctxLog.Errorf("停止时保存区域状态失败: %v", err)
 		}
 		close(done)
 	}()
@@ -561,9 +583,11 @@ func (rm *SmartRegionManager) Stop() {
 	// 等待保存完成或超时（1秒）
 	select {
 	case <-done:
-		logger.Log.Infof("区域管理器已停止，状态已保存")
+		ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Shutdown")
+		ctxLog.Infof("区域管理器已停止，状态已保存")
 	case <-time.After(1 * time.Second):
-		logger.Log.Warnf("区域管理器停止超时，放弃保存状态")
+		ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Shutdown")
+		ctxLog.Warnf("区域管理器停止超时，放弃保存状态")
 	}
 }
 
@@ -587,7 +611,8 @@ func (rm *SmartRegionManager) triggerRediscovery() {
 		rm.regionMap[accountID] = regions
 	}
 
-	logger.Log.Infof("区域重新发现完成，标记 %d 个区域为 unknown", totalMarked)
+	ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Rediscovery")
+	ctxLog.Infof("区域重新发现完成，标记 %d 个区域为 unknown", totalMarked)
 }
 
 // GetStats 获取统计信息（优化版本，实时计算所有统计数据）
@@ -668,7 +693,8 @@ func (rm *SmartRegionManager) CleanupInactiveAccounts(olderThan time.Duration) i
 	rm.statsMu.Unlock()
 
 	if len(toDelete) > 0 {
-		logger.Log.Infof("清理了 %d 个不活跃账号（超过 %v 未活跃）", len(toDelete), olderThan)
+		ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Cleanup")
+		ctxLog.Infof("清理了 %d 个不活跃账号（超过 %v 未活跃）", len(toDelete), olderThan)
 	}
 
 	return len(toDelete)

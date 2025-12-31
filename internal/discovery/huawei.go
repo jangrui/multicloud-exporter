@@ -58,7 +58,8 @@ func (d *HuaweiDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 			accounts = append(accounts, xs...)
 		}
 	}
-	logger.Log.Debugf("Huawei 发现服务开始，账号数量=%d", len(accounts))
+	ctxLog := logger.NewContextLogger("Huawei", "resource_type", "Discovery")
+	ctxLog.Debugf("发现服务开始，账号数量=%d", len(accounts))
 	if len(accounts) == 0 {
 		return nil
 	}
@@ -102,7 +103,8 @@ func (d *HuaweiDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 		var metrics []string
 		client, err := newHuaweiCESClient(region, ak, sk)
 		if err != nil {
-			logger.Log.Warnf("Huawei CES 客户端创建失败，命名空间=SYS.ELB 错误=%v", err)
+			ctxLog := logger.NewContextLogger("Huawei", "resource_type", "Discovery", "namespace", "SYS.ELB")
+			ctxLog.Warnf("CES 客户端创建失败，错误=%v", err)
 		} else {
 			ns := "SYS.ELB"
 			req := &cesmodel.ListMetricsRequest{
@@ -110,7 +112,8 @@ func (d *HuaweiDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 			}
 			resp, err := client.ListMetrics(req)
 			if err != nil {
-				logger.Log.Warnf("Huawei ListMetrics 错误，命名空间=SYS.ELB 错误=%v", err)
+				ctxLog := logger.NewContextLogger("Huawei", "resource_type", "Discovery", "namespace", "SYS.ELB")
+				ctxLog.Warnf("ListMetrics API调用错误，错误=%v", err)
 			}
 			if resp != nil && resp.Metrics != nil {
 				for _, m := range *resp.Metrics {
@@ -133,9 +136,11 @@ func (d *HuaweiDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 		}
 		if len(metrics) > 0 {
 			prods = append(prods, config.Product{Namespace: "SYS.ELB", AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: metrics}}})
-			logger.Log.Infof("Huawei 发现服务完成，命名空间=SYS.ELB，指标数量=%d", len(metrics))
+			ctxLog := logger.NewContextLogger("Huawei", "resource_type", "Discovery", "namespace", "SYS.ELB")
+			ctxLog.Infof("发现服务完成，指标数量=%d", len(metrics))
 		} else {
-			logger.Log.Warnf("Huawei 发现服务未发现指标，命名空间=SYS.ELB")
+			ctxLog := logger.NewContextLogger("Huawei", "resource_type", "Discovery", "namespace", "SYS.ELB")
+			ctxLog.Warnf("发现服务未发现指标")
 		}
 	}
 
@@ -169,7 +174,8 @@ func (d *HuaweiDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 		var capacityMetrics, requestMetrics []string
 		client, err := newHuaweiCESClient(region, ak, sk)
 		if err != nil {
-			logger.Log.Warnf("Huawei CES 客户端创建失败，命名空间=SYS.OBS 错误=%v", err)
+			ctxLog := logger.NewContextLogger("Huawei", "resource_type", "Discovery", "namespace", "SYS.OBS")
+			ctxLog.Warnf("CES 客户端创建失败，错误=%v", err)
 			// 使用兜底指标
 			capacityMetrics = capacityFallback
 			requestMetrics = requestFallback
@@ -180,7 +186,8 @@ func (d *HuaweiDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 			}
 			resp, err := client.ListMetrics(req)
 			if err != nil {
-				logger.Log.Warnf("Huawei ListMetrics 错误，命名空间=SYS.OBS 错误=%v", err)
+				ctxLog := logger.NewContextLogger("Huawei", "resource_type", "Discovery", "namespace", "SYS.OBS")
+				ctxLog.Warnf("ListMetrics API调用错误，错误=%v", err)
 			}
 			if resp != nil && resp.Metrics != nil {
 				for _, m := range *resp.Metrics {
@@ -239,9 +246,11 @@ func (d *HuaweiDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 				})
 			}
 			prods = append(prods, config.Product{Namespace: "SYS.OBS", AutoDiscover: true, MetricInfo: metricGroups})
-			logger.Log.Infof("Huawei 发现服务完成，命名空间=SYS.OBS，容量类指标=%d 请求类指标=%d", len(capacityMetrics), len(requestMetrics))
+			ctxLog := logger.NewContextLogger("Huawei", "resource_type", "Discovery", "namespace", "SYS.OBS")
+			ctxLog.Infof("发现服务完成，容量类指标=%d 请求类指标=%d", len(capacityMetrics), len(requestMetrics))
 		} else {
-			logger.Log.Warnf("Huawei 发现服务未发现指标，命名空间=SYS.OBS")
+			ctxLog := logger.NewContextLogger("Huawei", "resource_type", "Discovery", "namespace", "SYS.OBS")
+			ctxLog.Warnf("发现服务未发现指标")
 		}
 	}
 

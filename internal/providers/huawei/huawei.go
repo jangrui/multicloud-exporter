@@ -63,8 +63,9 @@ func (h *Collector) Collect(account config.CloudAccount) {
 	// 使用区域管理器进行智能过滤
 	if h.regionManager != nil {
 		activeRegions := h.regionManager.GetActiveRegions(account.AccountID, regions)
-		logger.Log.Infof("华为云智能区域选择: 总=%d 活跃=%d 账号ID=%s",
-			len(regions), len(activeRegions), account.AccountID)
+		ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "resource_type", "RegionSelection")
+		ctxLog.Infof("智能区域选择: 总=%d 活跃=%d",
+			len(regions), len(activeRegions))
 		regions = activeRegions
 	}
 
@@ -81,7 +82,8 @@ func (h *Collector) Collect(account config.CloudAccount) {
 
 // collectRegion 采集指定区域的资源
 func (h *Collector) collectRegion(account config.CloudAccount, region string) {
-	logger.Log.Debugf("开始采集 Huawei 区域 %s", region)
+	ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "resource_type", "RegionCollector")
+	ctxLog.Debugf("开始采集区域")
 	for _, resource := range account.Resources {
 		r := strings.ToLower(resource)
 		if resource == "*" {
@@ -94,7 +96,8 @@ func (h *Collector) collectRegion(account config.CloudAccount, region string) {
 			case "s3", "obs":
 				h.collectOBS(account, region)
 			default:
-				logger.Log.Warnf("Huawei 资源类型 %s 尚未实现", resource)
+				ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "resource_type", resource)
+				ctxLog.Warnf("资源类型尚未实现")
 			}
 		}
 	}

@@ -90,7 +90,8 @@ func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
 
 		// 加载持久化的区域状态
 		if err := c.regionManager.Load(); err != nil {
-			logger.Log.Warnf("加载区域状态失败: %v", err)
+			ctxLog := logger.NewContextLogger("Aliyun", "resource_type", "RegionManager")
+			ctxLog.Warnf("加载区域状态失败: %v", err)
 		}
 
 		// 启动定期重新发现调度器

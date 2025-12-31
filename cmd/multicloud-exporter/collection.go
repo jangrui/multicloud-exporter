@@ -42,36 +42,42 @@ func startCollectionLoop(ctx context.Context, cfg *config.Config, coll *collecto
 		firstRunDelay := calculateFirstRunDelay(totalShards, shardIndex, interval)
 
 		if firstRunDelay > 0 {
-			logger.Log.Infof("首次采集延迟策略: 分片总数=%d, 当前索引=%d, 延迟=%v",
+			ctxLog := logger.NewContextLogger("Collection", "resource_type", "FirstRun")
+			ctxLog.Infof("首次采集延迟策略: 分片总数=%d, 当前索引=%d, 延迟=%v",
 				totalShards, shardIndex, firstRunDelay)
 
 			select {
 			case <-time.After(firstRunDelay):
 				// 延迟结束，继续执行首次采集
 			case <-ctx.Done():
-				logger.Log.Info("收到停止信号，取消首次采集")
+				ctxLog := logger.NewContextLogger("Collection", "resource_type", "FirstRun")
+				ctxLog.Info("收到停止信号，取消首次采集")
 				return
 			}
 		} else {
-			logger.Log.Infof("首次采集策略: 立即执行 (分片总数=%d, 当前索引=%d)",
+			ctxLog := logger.NewContextLogger("Collection", "resource_type", "FirstRun")
+			ctxLog.Infof("首次采集策略: 立即执行 (分片总数=%d, 当前索引=%d)",
 				totalShards, shardIndex)
 		}
 
 		// 执行首次采集
-		logger.Log.Info("开始首次采集...")
+		ctxLog := logger.NewContextLogger("Collection", "resource_type", "FirstRun")
+		ctxLog.Info("开始首次采集...")
 		coll.Collect()
-		logger.Log.Info("首次采集完成，进入定时采集循环")
+		ctxLog.Info("首次采集完成，进入定时采集循环")
 		// ========== 智能首次采集结束 ==========
 
 		for {
 			select {
 			case <-ctx.Done():
-				logger.Log.Info("采集循环收到停止信号，正在退出...")
+				ctxLog := logger.NewContextLogger("Collection", "resource_type", "CollectionLoop")
+				ctxLog.Info("采集循环收到停止信号，正在退出...")
 				return
 
 			case <-ticker.C:
 				start := time.Now()
-				logger.Log.Infof("开始采集，周期=%v", interval)
+				collectionLog := logger.NewContextLogger("Collection", "resource_type", "CollectionLoop")
+				collectionLog.Infof("开始采集，周期=%v", interval)
 
 				// 检查配置版本是否变化
 				versionChanged := false
@@ -91,9 +97,9 @@ func startCollectionLoop(ctx context.Context, cfg *config.Config, coll *collecto
 				duration := time.Since(start)
 				metrics.CollectionDuration.Observe(duration.Seconds())
 
-				logger.Log.Infof("==========================================")
-				logger.Log.Infof("采集周期完成，总耗时: %v", duration)
-				logger.Log.Infof("==========================================")
+				collectionLog.Infof("==========================================")
+				collectionLog.Infof("采集周期完成，总耗时: %v", duration)
+				collectionLog.Infof("==========================================")
 			}
 		}
 	}()
@@ -127,7 +133,8 @@ func initializeDiscovery(cfg *config.Config) (*discovery.Manager, error) {
 	// 构建产品统计信息
 	productInfo := buildProductStats(productsByProvider)
 
-	logger.Log.Infof("发现服务启动完成，总耗时: %v，发现产品数量: %d%s，版本=%d",
+	ctxLog := logger.NewContextLogger("Discovery", "resource_type", "Manager")
+	ctxLog.Infof("发现服务启动完成，总耗时: %v，发现产品数量: %d%s，版本=%d",
 		discoveryDuration, discoveredTotalProducts, productInfo, mgr.Version())
 
 	// 如果配置中没有产品，使用发现的产品
@@ -170,7 +177,8 @@ func getScrapeInterval(cfg *config.Config) time.Duration {
 		if d, err := time.ParseDuration(server.ScrapeInterval); err == nil {
 			interval = d
 		} else {
-			logger.Log.Warnf("警告: 配置中的 scrape_interval 无效: %v", err)
+			ctxLog := logger.NewContextLogger("Collection", "resource_type", "Config")
+			ctxLog.Warnf("警告: 配置中的 scrape_interval 无效: %v", err)
 		}
 	}
 
@@ -181,7 +189,8 @@ func getScrapeInterval(cfg *config.Config) time.Duration {
 		} else if d, err := time.ParseDuration(envInterval); err == nil {
 			interval = d
 		} else {
-			logger.Log.Warnf("警告: 环境变量 SCRAPE_INTERVAL 无效: %v", err)
+			ctxLog := logger.NewContextLogger("Collection", "resource_type", "Config")
+			ctxLog.Warnf("警告: 环境变量 SCRAPE_INTERVAL 无效: %v", err)
 		}
 	}
 
@@ -304,7 +313,8 @@ func calculateAutoDelay(totalShards, shardIndex int, interval, maxDelay time.Dur
 
 	// 大规模场景警告
 	if totalShards > 10 {
-		logger.Log.Warnf("大规模部署检测: %d个Pod，建议监控云API限流情况", totalShards)
+		ctxLog := logger.NewContextLogger("Collection", "resource_type", "Scale")
+		ctxLog.Warnf("大规模部署检测: %d个Pod，建议监控云API限流情况", totalShards)
 	}
 
 	return totalDelay

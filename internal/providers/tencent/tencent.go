@@ -55,7 +55,8 @@ func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
 
 		// 加载持久化的区域状态
 		if err := c.regionManager.Load(); err != nil {
-			logger.Log.Warnf("加载区域状态失败: %v", err)
+			ctxLog := logger.NewContextLogger("Tencent", "resource_type", "RegionManager")
+			ctxLog.Warnf("加载区域状态失败: %v", err)
 		}
 
 		// 启动定期重新发现调度器
@@ -167,8 +168,9 @@ func (t *Collector) getAllRegions(account config.CloudAccount) []string {
 	// 使用区域管理器进行智能过滤
 	if t.regionManager != nil {
 		activeRegions := t.regionManager.GetActiveRegions(account.AccountID, regions)
-		logger.Log.Infof("智能区域选择: 总=%d 活跃=%d 账号ID=%s",
-			len(regions), len(activeRegions), account.AccountID)
+		ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "resource_type", "RegionManager")
+		ctxLog.Infof("智能区域选择: 总=%d 活跃=%d",
+			len(regions), len(activeRegions))
 		return activeRegions
 	}
 
@@ -176,7 +178,8 @@ func (t *Collector) getAllRegions(account config.CloudAccount) []string {
 }
 
 func (t *Collector) collectRegion(account config.CloudAccount, region string) {
-	logger.Log.Debugf("开始采集 Tencent 区域 %s", region)
+	ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "RegionCollector")
+	ctxLog.Debugf("开始采集区域")
 	for _, resource := range account.Resources {
 		r := strings.ToLower(resource)
 		if resource == "*" {
@@ -197,7 +200,8 @@ func (t *Collector) collectRegion(account config.CloudAccount, region string) {
 			case "gwlb":
 				t.collectGWLB(account, region)
 			default:
-				logger.Log.Warnf("Tencent 资源类型 %s 尚未实现", resource)
+				ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", resource)
+				ctxLog.Warnf("资源类型尚未实现")
 			}
 		}
 	}
@@ -226,7 +230,8 @@ func (t *Collector) collectCLB(account config.CloudAccount, region string) {
 		// 分片键格式：AccountID|Region|Namespace
 		productKey := account.AccountID + "|" + region + "|" + p.Namespace
 		if !utils.ShouldProcess(productKey, wTotal, wIndex) {
-			logger.Log.Debugf("Tencent CLB 产品跳过（分片不匹配）account=%s region=%s namespace=%s", account.AccountID, region, p.Namespace)
+			ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "namespace", p.Namespace)
+			ctxLog.Debugf("产品跳过（分片不匹配）")
 			continue
 		}
 		vips := t.listCLBVips(account, region)
@@ -260,7 +265,8 @@ func (t *Collector) collectBWP(account config.CloudAccount, region string) {
 		// 分片键格式：AccountID|Region|Namespace
 		productKey := account.AccountID + "|" + region + "|" + p.Namespace
 		if !utils.ShouldProcess(productKey, wTotal, wIndex) {
-			logger.Log.Debugf("Tencent BWP 产品跳过（分片不匹配）account=%s region=%s namespace=%s", account.AccountID, region, p.Namespace)
+			ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "namespace", p.Namespace)
+			ctxLog.Debugf("产品跳过（分片不匹配）")
 			continue
 		}
 		ids := t.listBWPIDs(account, region)

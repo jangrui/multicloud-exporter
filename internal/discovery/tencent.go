@@ -34,7 +34,8 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 			accounts = append(accounts, xs...)
 		}
 	}
-	logger.Log.Debugf("Tencent 发现服务开始，账号数量=%d", len(accounts))
+	ctxLog := logger.NewContextLogger("Tencent", "resource_type", "Discovery")
+	ctxLog.Debugf("发现服务开始，账号数量=%d", len(accounts))
 	if len(accounts) == 0 {
 		return nil
 	}
@@ -81,13 +82,15 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 		var metrics []string
 		client, err := newTencentMonitorClient(region, ak, sk)
 		if err != nil {
-			logger.Log.Warnf("Tencent 客户端创建失败，命名空间=QCE/BWP 错误=%v", err)
+			ctxLog := logger.NewContextLogger("Tencent", "resource_type", "Discovery", "namespace", "QCE/BWP")
+			ctxLog.Warnf("客户端创建失败，错误=%v", err)
 		} else {
 			req := monitor.NewDescribeBaseMetricsRequest()
 			req.Namespace = common.StringPtr("QCE/BWP")
 			resp, err := client.DescribeBaseMetrics(req)
 			if err != nil {
-				logger.Log.Warnf("Tencent DescribeBaseMetrics 错误，命名空间=QCE/BWP 错误=%v", err)
+				ctxLog := logger.NewContextLogger("Tencent", "resource_type", "Discovery", "namespace", "QCE/BWP")
+				ctxLog.Warnf("DescribeBaseMetrics API调用错误，错误=%v", err)
 			}
 			if err == nil && resp != nil && resp.Response != nil && resp.Response.MetricSet != nil {
 				for _, m := range resp.Response.MetricSet {
@@ -110,9 +113,11 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 		}
 		if len(metrics) > 0 {
 			prods = append(prods, config.Product{Namespace: "QCE/BWP", AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: metrics}}})
-			logger.Log.Infof("Tencent 发现服务完成，命名空间=QCE/BWP，指标数量=%d", len(metrics))
+			ctxLog := logger.NewContextLogger("Tencent", "resource_type", "Discovery", "namespace", "QCE/BWP")
+			ctxLog.Infof("发现服务完成，指标数量=%d", len(metrics))
 		} else {
-			logger.Log.Warnf("Tencent 发现服务未发现指标，命名空间=QCE/BWP")
+			ctxLog := logger.NewContextLogger("Tencent", "resource_type", "Discovery", "namespace", "QCE/BWP")
+			ctxLog.Warnf("发现服务未发现指标")
 		}
 	}
 	if needGWLB {
@@ -132,14 +137,16 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 		var metrics []string
 		client, err := newTencentMonitorClient(region, ak, sk)
 		if err != nil {
-			logger.Log.Warnf("Tencent 客户端创建失败，命名空间=qce/gwlb 错误=%v", err)
+			ctxLog := logger.NewContextLogger("Tencent", "resource_type", "Discovery", "namespace", "qce/gwlb")
+			ctxLog.Warnf("客户端创建失败，错误=%v", err)
 		} else {
 			ns := "qce/gwlb"
 			req := monitor.NewDescribeBaseMetricsRequest()
 			req.Namespace = common.StringPtr(ns)
 			resp, err := client.DescribeBaseMetrics(req)
 			if err != nil {
-				logger.Log.Warnf("Tencent DescribeBaseMetrics 错误，命名空间=%s 错误=%v", ns, err)
+				ctxLog := logger.NewContextLogger("Tencent", "resource_type", "Discovery", "namespace", ns)
+				ctxLog.Warnf("DescribeBaseMetrics API调用错误，错误=%v", err)
 			}
 			if resp != nil && resp.Response != nil && resp.Response.MetricSet != nil {
 				for _, m := range resp.Response.MetricSet {
@@ -162,9 +169,11 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 		}
 		if len(metrics) > 0 {
 			prods = append(prods, config.Product{Namespace: "qce/gwlb", AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: metrics}}})
-			logger.Log.Infof("Tencent 发现服务完成，命名空间=qce/gwlb，指标数量=%d", len(metrics))
+			ctxLog := logger.NewContextLogger("Tencent", "resource_type", "Discovery", "namespace", "qce/gwlb")
+			ctxLog.Infof("发现服务完成，指标数量=%d", len(metrics))
 		} else {
-			logger.Log.Warnf("Tencent 发现服务未发现指标，命名空间=qce/gwlb")
+			ctxLog := logger.NewContextLogger("Tencent", "resource_type", "Discovery", "namespace", "qce/gwlb")
+			ctxLog.Warnf("发现服务未发现指标")
 		}
 	}
 	if needCLB {
@@ -197,14 +206,16 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 		var metrics []string
 		client, err := newTencentMonitorClient(region, ak, sk)
 		if err != nil {
-			logger.Log.Warnf("Tencent 客户端创建失败，命名空间=QCE/LB 错误=%v", err)
+			ctxLog := logger.NewContextLogger("Tencent", "resource_type", "Discovery", "namespace", "QCE/LB")
+			ctxLog.Warnf("客户端创建失败，错误=%v", err)
 		} else {
 			ns := "QCE/LB"
 			req := monitor.NewDescribeBaseMetricsRequest()
 			req.Namespace = common.StringPtr(ns)
 			resp, err := client.DescribeBaseMetrics(req)
 			if err != nil {
-				logger.Log.Warnf("Tencent DescribeBaseMetrics 错误，命名空间=%s 错误=%v", ns, err)
+				ctxLog := logger.NewContextLogger("Tencent", "resource_type", "Discovery", "namespace", ns)
+				ctxLog.Warnf("DescribeBaseMetrics API调用错误，错误=%v", err)
 			}
 			if resp != nil && resp.Response != nil && resp.Response.MetricSet != nil {
 				for _, m := range resp.Response.MetricSet {
@@ -227,9 +238,11 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 		}
 		if len(metrics) > 0 {
 			prods = append(prods, config.Product{Namespace: "QCE/LB", AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: metrics}}})
-			logger.Log.Infof("Tencent 发现服务完成，命名空间=QCE/LB，指标数量=%d", len(metrics))
+			ctxLog := logger.NewContextLogger("Tencent", "resource_type", "Discovery", "namespace", "QCE/LB")
+			ctxLog.Infof("发现服务完成，指标数量=%d", len(metrics))
 		} else {
-			logger.Log.Warnf("Tencent 发现服务未发现指标，命名空间=QCE/LB")
+			ctxLog := logger.NewContextLogger("Tencent", "resource_type", "Discovery", "namespace", "QCE/LB")
+			ctxLog.Warnf("发现服务未发现指标")
 		}
 	}
 	if needCOS {
@@ -275,7 +288,8 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 		var capacityMetrics, requestMetrics []string
 		client, err := newTencentMonitorClient(region, ak, sk)
 		if err != nil {
-			logger.Log.Warnf("Tencent 客户端创建失败，命名空间=QCE/COS 错误=%v", err)
+			ctxLog := logger.NewContextLogger("Tencent", "resource_type", "Discovery", "namespace", "QCE/COS")
+			ctxLog.Warnf("客户端创建失败，错误=%v", err)
 			// 使用兜底指标
 			capacityMetrics = capacityFallback
 			requestMetrics = requestFallback
@@ -284,7 +298,8 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 			req.Namespace = common.StringPtr("QCE/COS")
 			resp, err := client.DescribeBaseMetrics(req)
 			if err != nil {
-				logger.Log.Warnf("Tencent DescribeBaseMetrics 错误，命名空间=QCE/COS 错误=%v", err)
+				ctxLog := logger.NewContextLogger("Tencent", "resource_type", "Discovery", "namespace", "QCE/COS")
+				ctxLog.Warnf("DescribeBaseMetrics API调用错误，错误=%v", err)
 			}
 			if err == nil && resp != nil && resp.Response != nil && resp.Response.MetricSet != nil {
 				for _, m := range resp.Response.MetricSet {
@@ -344,9 +359,11 @@ func (d *TencentDiscoverer) Discover(ctx context.Context, cfg *config.Config) []
 				})
 			}
 			prods = append(prods, config.Product{Namespace: "QCE/COS", AutoDiscover: true, MetricInfo: metricGroups})
-			logger.Log.Infof("Tencent 发现服务完成，命名空间=QCE/COS，容量类指标=%d 请求类指标=%d", len(capacityMetrics), len(requestMetrics))
+			ctxLog := logger.NewContextLogger("Tencent", "resource_type", "Discovery", "namespace", "QCE/COS")
+			ctxLog.Infof("发现服务完成，容量类指标=%d 请求类指标=%d", len(capacityMetrics), len(requestMetrics))
 		} else {
-			logger.Log.Warnf("Tencent 发现服务未发现指标，命名空间=QCE/COS")
+			ctxLog := logger.NewContextLogger("Tencent", "resource_type", "Discovery", "namespace", "QCE/COS")
+			ctxLog.Warnf("发现服务未发现指标")
 		}
 	}
 	return prods

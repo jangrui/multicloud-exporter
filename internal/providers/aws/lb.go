@@ -10,6 +10,7 @@ import (
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/logger"
 	"multicloud-exporter/internal/metrics"
+	"multicloud-exporter/internal/providers/common"
 	"multicloud-exporter/internal/utils"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -50,11 +51,22 @@ func (l *clbLister) List(ctx context.Context, region string, account config.Clou
 	// - 多页结果：HasMorePages() 返回 true 直到所有页都被获取
 	paginator := elasticloadbalancing.NewDescribeLoadBalancersPaginator(client, &elasticloadbalancing.DescribeLoadBalancersInput{})
 	for paginator.HasMorePages() {
+		start := time.Now()
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
+			status := common.ClassifyAWSError(err)
+			metrics.RequestTotal.WithLabelValues("aws", "DescribeLoadBalancers", status).Inc()
+			metrics.RecordRequest("aws", "DescribeLoadBalancers", status)
+			metrics.RequestDuration.WithLabelValues("aws", "DescribeLoadBalancers").Observe(time.Since(start).Seconds())
+			if status == "limit_error" {
+				metrics.RateLimitTotal.WithLabelValues("aws", "DescribeLoadBalancers").Inc()
+			}
 			// API 调用失败时，返回已收集的数据和错误，允许上层决定如何处理
 			return lbs, err
 		}
+		metrics.RequestTotal.WithLabelValues("aws", "DescribeLoadBalancers", "success").Inc()
+		metrics.RecordRequest("aws", "DescribeLoadBalancers", "success")
+		metrics.RequestDuration.WithLabelValues("aws", "DescribeLoadBalancers").Observe(time.Since(start).Seconds())
 		for _, lb := range page.LoadBalancerDescriptions {
 			if lb.LoadBalancerName != nil {
 				lbs = append(lbs, lbInfo{Name: *lb.LoadBalancerName, CodeName: *lb.LoadBalancerName})
@@ -78,13 +90,25 @@ func (l *clbLister) List(ctx context.Context, region string, account config.Clou
 				end = len(names)
 			}
 			batch := names[i:end]
+			start := time.Now()
 			out, err := client.DescribeTags(ctx, &elasticloadbalancing.DescribeTagsInput{
 				LoadBalancerNames: batch,
 			})
 			if err != nil {
-				logger.Log.Warnf("AWS CLB DescribeTags failed region=%s: %v", region, err)
+				status := common.ClassifyAWSError(err)
+				metrics.RequestTotal.WithLabelValues("aws", "DescribeTags", status).Inc()
+				metrics.RecordRequest("aws", "DescribeTags", status)
+				metrics.RequestDuration.WithLabelValues("aws", "DescribeTags").Observe(time.Since(start).Seconds())
+				if status == "limit_error" {
+					metrics.RateLimitTotal.WithLabelValues("aws", "DescribeTags").Inc()
+				}
+				ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", region, "resource_type", "CLB")
+				ctxLog.Warnf("DescribeTags API调用失败: %v", err)
 				continue
 			}
+			metrics.RequestTotal.WithLabelValues("aws", "DescribeTags", "success").Inc()
+			metrics.RecordRequest("aws", "DescribeTags", "success")
+			metrics.RequestDuration.WithLabelValues("aws", "DescribeTags").Observe(time.Since(start).Seconds())
 			for _, desc := range out.TagDescriptions {
 				if desc.LoadBalancerName != nil {
 					if info, ok := lbMap[*desc.LoadBalancerName]; ok {
@@ -123,18 +147,30 @@ func (l *elbv2Lister) List(ctx context.Context, region string, account config.Cl
 	// - 多页结果：HasMorePages() 返回 true 直到所有页都被获取
 	paginator := elasticloadbalancingv2.NewDescribeLoadBalancersPaginator(client, &elasticloadbalancingv2.DescribeLoadBalancersInput{})
 	for paginator.HasMorePages() {
+		start := time.Now()
 		page, err := paginator.NextPage(ctx)
 		if err != nil {
+			status := common.ClassifyAWSError(err)
+			metrics.RequestTotal.WithLabelValues("aws", "DescribeLoadBalancers", status).Inc()
+			metrics.RecordRequest("aws", "DescribeLoadBalancers", status)
+			metrics.RequestDuration.WithLabelValues("aws", "DescribeLoadBalancers").Observe(time.Since(start).Seconds())
+			if status == "limit_error" {
+				metrics.RateLimitTotal.WithLabelValues("aws", "DescribeLoadBalancers").Inc()
+			}
 			// API 调用失败时，返回已收集的数据和错误，允许上层决定如何处理
 			return lbs, err
 		}
+		metrics.RequestTotal.WithLabelValues("aws", "DescribeLoadBalancers", "success").Inc()
+		metrics.RecordRequest("aws", "DescribeLoadBalancers", "success")
+		metrics.RequestDuration.WithLabelValues("aws", "DescribeLoadBalancers").Observe(time.Since(start).Seconds())
 		for _, lb := range page.LoadBalancers {
 			if lb.Type == l.lbType && lb.LoadBalancerName != nil && lb.LoadBalancerArn != nil {
 				lbs = append(lbs, lbInfo{Name: *lb.LoadBalancerName, ARN: *lb.LoadBalancerArn, CodeName: *lb.LoadBalancerName})
 			}
 		}
 	}
-	logger.Log.Debugf("AWS ELBv2 发现负载均衡器，数量=%d，类型=%s，区域=%s", len(lbs), l.lbType, region)
+	ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", region, "resource_type", string(l.lbType))
+	ctxLog.Debugf("发现负载均衡器，数量=%d，类型=%s，区域=%s", len(lbs), l.lbType, region)
 
 	// Fetch tags for ELBv2
 	if len(lbs) > 0 {
@@ -152,13 +188,25 @@ func (l *elbv2Lister) List(ctx context.Context, region string, account config.Cl
 				end = len(arns)
 			}
 			batch := arns[i:end]
+			start := time.Now()
 			out, err := client.DescribeTags(ctx, &elasticloadbalancingv2.DescribeTagsInput{
 				ResourceArns: batch,
 			})
 			if err != nil {
-				logger.Log.Warnf("AWS ELBv2 DescribeTags failed region=%s: %v", region, err)
+				status := common.ClassifyAWSError(err)
+				metrics.RequestTotal.WithLabelValues("aws", "DescribeTags", status).Inc()
+				metrics.RecordRequest("aws", "DescribeTags", status)
+				metrics.RequestDuration.WithLabelValues("aws", "DescribeTags").Observe(time.Since(start).Seconds())
+				if status == "limit_error" {
+					metrics.RateLimitTotal.WithLabelValues("aws", "DescribeTags").Inc()
+				}
+				ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", region, "resource_type", string(l.lbType))
+				ctxLog.Warnf("DescribeTags API调用失败: %v", err)
 				continue
 			}
+			metrics.RequestTotal.WithLabelValues("aws", "DescribeTags", "success").Inc()
+			metrics.RecordRequest("aws", "DescribeTags", "success")
+			metrics.RequestDuration.WithLabelValues("aws", "DescribeTags").Observe(time.Since(start).Seconds())
 			for _, desc := range out.TagDescriptions {
 				if desc.ResourceArn != nil {
 					if info, ok := lbMap[*desc.ResourceArn]; ok {
@@ -242,7 +290,8 @@ func (c *Collector) collectLBGeneric(account config.CloudAccount, namespace stri
 		// 分片键格式：AccountID|Region|Namespace
 		productKey := account.AccountID + "|" + region + "|" + namespace
 		if !utils.ShouldProcess(productKey, wTotal, wIndex) {
-			logger.Log.Debugf("AWS LB 产品跳过（分片不匹配）account=%s region=%s namespace=%s", account.AccountID, region, namespace)
+			ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", region, "namespace", namespace)
+			ctxLog.Debugf("产品跳过（分片不匹配）")
 			continue
 		}
 		wg.Add(1)
@@ -257,10 +306,13 @@ func (c *Collector) collectLBGeneric(account config.CloudAccount, namespace stri
 }
 
 func (c *Collector) processRegionLB(account config.CloudAccount, region string, prod *config.Product, lister ResourceLister) {
+	// 创建上下文用于 LB 采集
 	ctx := context.Background()
+
 	lbs, err := lister.List(ctx, region, account)
 	if err != nil {
-		logger.Log.Warnf("AWS ListLB failed region=%s: %v", region, err)
+		ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", region, "namespace", prod.Namespace)
+		ctxLog.Errorf("ListLB API调用失败: %v", err)
 		return
 	}
 	if len(lbs) == 0 {
@@ -269,7 +321,8 @@ func (c *Collector) processRegionLB(account config.CloudAccount, region string, 
 
 	cwClient, err := c.clientFactory.NewCloudWatchClient(ctx, region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
-		logger.Log.Warnf("AWS CloudWatch Client failed region=%s: %v", region, err)
+		ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", region, "namespace", prod.Namespace)
+		ctxLog.Errorf("CloudWatch客户端创建失败: %v", err)
 		return
 	}
 
@@ -395,14 +448,27 @@ func (c *Collector) processRegionLB(account config.CloudAccount, region string, 
 			EndTime:           aws.Time(endTime),
 		}
 
+		start := time.Now()
 		out, err := cwClient.GetMetricData(ctx, input)
 		if err != nil {
-			logger.Log.Warnf("AWS GetMetricData failed region=%s: %v", region, err)
+			status := common.ClassifyAWSError(err)
+			metrics.RequestTotal.WithLabelValues("aws", "GetMetricData", status).Inc()
+			metrics.RecordRequest("aws", "GetMetricData", status)
+			metrics.RequestDuration.WithLabelValues("aws", "GetMetricData").Observe(time.Since(start).Seconds())
+			if status == "limit_error" {
+				metrics.RateLimitTotal.WithLabelValues("aws", "GetMetricData").Inc()
+			}
+			ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", region, "namespace", prod.Namespace)
+			ctxLog.Warnf("GetMetricData API调用失败: %v", err)
 			continue
 		}
+		metrics.RequestTotal.WithLabelValues("aws", "GetMetricData", "success").Inc()
+		metrics.RecordRequest("aws", "GetMetricData", "success")
+		metrics.RequestDuration.WithLabelValues("aws", "GetMetricData").Observe(time.Since(start).Seconds())
 
 		if len(out.MetricDataResults) == 0 {
-			logger.Log.Warnf("AWS GetMetricData returned 0 results region=%s", region)
+			ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", region, "namespace", prod.Namespace)
+			ctxLog.Warnf("GetMetricData API调用返回0结果")
 		}
 
 		for _, result := range out.MetricDataResults {

@@ -24,7 +24,7 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 		return []string{}
 	}
 
-	ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "rtype", "clb")
+	ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "CLB")
 	ctxLog.Debugf("开始枚举 CLB VIPs")
 
 	var vips []string
@@ -132,9 +132,11 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 			max = len(vips)
 		}
 		preview := vips[:max]
-		logger.Log.Debugf("Tencent CLB VIPs 已枚举，账号ID=%s 区域=%s 数量=%d 预览=%v", account.AccountID, region, len(vips), preview)
+		ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "CLB")
+		ctxLog.Debugf("CLB VIPs 已枚举，数量=%d 预览=%v", len(vips), preview)
 	} else {
-		logger.Log.Debugf("Tencent CLB VIPs 已枚举，账号ID=%s 区域=%s 数量=%d", account.AccountID, region, len(vips))
+		ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "CLB")
+		ctxLog.Debugf("CLB VIPs 已枚举，数量=%d", len(vips))
 	}
 	return vips
 }
@@ -222,7 +224,8 @@ func (t *Collector) fetchCLBMonitor(account config.CloudAccount, region string, 
 				// 调试日志：记录指标映射信息
 				metricAlias := metrics.GetMetricAlias(prod.Namespace, m)
 				if metricAlias != "" {
-					logger.Log.Debugf("Tencent CLB 指标映射: 命名空间=%s 原始=%s 别名=%s 最终名称=%s_%s", prod.Namespace, m, metricAlias, rtype, metricAlias)
+					ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "CLB")
+				ctxLog.Debugf("CLB指标映射: 命名空间=%s 原始=%s 别名=%s 最终名称=%s_%s", prod.Namespace, m, metricAlias, rtype, metricAlias)
 				}
 				labels := []string{"tencent", account.AccountID, region, rtype, rid, prod.Namespace, m, ""}
 				for len(labels) < count {

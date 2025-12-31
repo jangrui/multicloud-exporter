@@ -15,7 +15,8 @@ import (
 
 func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []string {
 	if ids, hit := t.getCachedIDs(account, region, "QCE/BWP", "bwp"); hit {
-		logger.Log.Debugf("Tencent BWP IDs 缓存命中，账号ID=%s 区域=%s 数量=%d", account.AccountID, region, len(ids))
+		ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "BWP")
+		ctxLog.Debugf("BWP IDs 缓存命中，数量=%d", len(ids))
 		return ids
 	}
 
@@ -24,7 +25,7 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 		return []string{}
 	}
 
-	ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "rtype", "bwp")
+	ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "BWP")
 	ctxLog.Debugf("开始枚举 BWP IDs")
 
 	var ids []string
@@ -65,7 +66,7 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 			time.Sleep(sleep)
 		}
 		if callErr != nil {
-			ctxLog.Warnf("BWP DescribeBandwidthPackages 失败 offset=%d: %v", offset, callErr)
+			ctxLog.Errorf("BWP DescribeBandwidthPackages API调用失败, offset=%d: %v", offset, callErr)
 			break
 		}
 
@@ -92,7 +93,7 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 			totalCollected := uint64(len(ids))
 			if totalCollected >= *resp.Response.TotalCount {
 				// 已收集的数量达到总数，停止分页
-				ctxLog.Debugf("BWP 分页采集完成 offset=%d current_count=%d total_collected=%d total_count=%d",
+				ctxLog.Debugf("BWP分页采集完成, offset=%d, current_count=%d, total_collected=%d, total_count=%d",
 					offset, currentCount, totalCollected, *resp.Response.TotalCount)
 				break
 			}
@@ -105,7 +106,7 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 
 		// 继续下一页
 		offset += limit
-		ctxLog.Debugf("BWP 分页采集 offset=%d current_count=%d total_collected=%d", offset, currentCount, len(ids))
+		ctxLog.Debugf("BWP分页采集, offset=%d, current_count=%d, total_collected=%d", offset, currentCount, len(ids))
 		time.Sleep(50 * time.Millisecond)
 	}
 
@@ -118,8 +119,7 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 			status = providerscommon.RegionStatusActive
 		}
 		t.regionManager.UpdateRegionStatus(account.AccountID, region, len(ids), status)
-		ctxLog.Debugf("更新区域状态 account=%s region=%s status=%s count=%d",
-			account.AccountID, region, status, len(ids))
+		ctxLog.Debugf("更新区域状态, status=%s, count=%d", status, len(ids))
 	}
 
 	if len(ids) > 0 {
@@ -128,9 +128,9 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 			max = len(ids)
 		}
 		preview := ids[:max]
-		logger.Log.Debugf("Tencent BWP 已枚举，账号ID=%s 区域=%s 数量=%d 预览=%v", account.AccountID, region, len(ids), preview)
+		ctxLog.Debugf("BWP已枚举，数量=%d 预览=%v", len(ids), preview)
 	} else {
-		logger.Log.Debugf("Tencent BWP 已枚举，账号ID=%s 区域=%s 数量=%d", account.AccountID, region, len(ids))
+		ctxLog.Debugf("BWP已枚举，数量=%d", len(ids))
 	}
 	return ids
 }
