@@ -1954,7 +1954,7 @@ func (a *Collector) processMetricBatch(client CMSClient, req *cms.DescribeMetric
 		if len(points) == 0 {
 			emptyDataCount++
 			if emptyDataCount >= 3 {
-				ctxLog.Warnf("processMetricBatch 连续%d次返回空数据，退出分页 loop=%d metric=%s region=%s", emptyDataCount, loopCount, m, region)
+				ctxLog.Debugf("processMetricBatch 连续%d次返回空数据，退出分页 loop=%d metric=%s region=%s", emptyDataCount, loopCount, m, region)
 				break
 			}
 		} else {

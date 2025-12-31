@@ -1,6 +1,230 @@
 # 多云资源监控 Exporter
 
-支持阿里云、华为云、腾讯云的资源监控，按云平台、账号、区域区分。
+支持阿里云、华为云、腾讯云、AWS 的资源监控，按云平台、账号、区域区分。
+
+## 快速开始
+
+### 前置条件
+
+- Go 1.23+ （仅开发时需要）
+- 云服务账号凭证（AccessKey ID 和 Secret）
+
+### 5分钟快速安装
+
+#### 从二进制文件安装
+
+```bash
+# 下载最新版本
+curl -LO https://github.com/jangrui/multicloud-exporter/releases/latest/download/multicloud-exporter-linux-amd64
+chmod +x multicloud-exporter-linux-amd64
+
+# 创建配置目录
+mkdir -p ~/multicloud-exporter/configs
+cd ~/multicloud-exporter
+```
+
+#### 从源码构建
+
+```bash
+# 克隆仓库
+git clone https://github.com/jangrui/multicloud-exporter.git
+cd multicloud-exporter
+
+# 构建二进制文件
+go build -o multicloud-exporter ./cmd/multicloud-exporter
+```
+
+### 基础配置
+
+#### 1. 创建服务器配置
+
+创建 `configs/server.yaml`：
+
+```yaml
+server:
+  port: 9101
+  scrape_interval: "60s"
+  discovery_ttl: "1h"
+  page_size: 1000
+
+  # 日志配置
+  log:
+    level: info
+    format: console
+    output: stdout
+```
+
+#### 2. 配置云账号
+
+创建 `configs/accounts.yaml`：
+
+**阿里云示例：**
+```yaml
+accounts:
+  aliyun:
+    - account_id: "1234567890123456"
+      access_key_id: "${ALIYUN_ACCESS_KEY_ID}"
+      access_key_secret: "${ALIYUN_ACCESS_KEY_SECRET}"
+      regions:
+        - cn-hangzhou
+        - cn-beijing
+      resources:
+        - acs_oss_dashboard
+        - acs_slb_dashboard
+```
+
+**腾讯云示例：**
+```yaml
+accounts:
+  tencent:
+    - account_id: "1234567890"
+      access_key_id: "${TENCENT_SECRET_ID}"
+      access_key_secret: "${TENCENT_SECRET_KEY}"
+      regions:
+        - ap-guangzhou
+        - ap-shanghai
+      resources:
+        - QCE/COS
+        - QCE/LB
+```
+
+**AWS 示例：**
+```yaml
+accounts:
+  aws:
+    - account_id: "123456789012"
+      access_key_id: "${AWS_ACCESS_KEY_ID}"
+      access_key_secret: "${AWS_SECRET_ACCESS_KEY}"
+      regions:
+        - us-east-1
+        - us-west-2
+      resources:
+        - AWS/S3
+        - AWS/ELB
+```
+
+#### 3. 设置环境变量
+
+```bash
+# 阿里云
+export ALIYUN_ACCESS_KEY_ID="your-access-key-id"
+export ALIYUN_ACCESS_KEY_SECRET="your-access-key-secret"
+
+# 腾讯云
+export TENCENT_SECRET_ID="your-secret-id"
+export TENCENT_SECRET_KEY="your-secret-key"
+
+# AWS
+export AWS_ACCESS_KEY_ID="your-access-key-id"
+export AWS_SECRET_ACCESS_KEY="your-secret-access-key"
+```
+
+或者使用 `.env` 文件：
+```bash
+cat > .env << EOF
+ALIYUN_ACCESS_KEY_ID=your-access-key-id
+ALIYUN_ACCESS_KEY_SECRET=your-access-key-secret
+EOF
+```
+
+### 启动 Exporter
+
+```bash
+./multicloud-exporter
+```
+
+默认会从以下位置查找配置：
+- `./configs/server.yaml`
+- `~/.config/multicloud-exporter/server.yaml`
+- `/etc/multicloud-exporter/server.yaml`
+
+指定配置路径：
+```bash
+export CONFIG_PATH=/path/to/your/configs
+./multicloud-exporter
+```
+
+### 验证运行
+
+#### 1. 检查健康状态
+
+```bash
+curl http://localhost:9101/-/healthy
+```
+
+应该返回：`OK`
+
+#### 2. 查看指标
+
+```bash
+curl http://localhost:9101/metrics | grep multicloud
+```
+
+你应该能看到类似这样的输出：
+```
+# HELP multicloud_resource_metric 多云资源通用指标
+# TYPE multicloud_resource_metric gauge
+multicloud_resource_metric{account_id="1234567890",cloud_provider="aliyun",metric_name="storage_usage_bytes",region="cn-hangzhou",resource_id="my-bucket",resource_type="acs_oss_dashboard"} 1234567890
+```
+
+#### 3. 查看发现的资源
+
+```bash
+curl http://localhost:9101/api/discovery/resources
+```
+
+返回示例：
+```json
+{
+  "aliyun": {
+    "cn-hangzhou": {
+      "acs_oss_dashboard": ["bucket-1", "bucket-2"]
+    }
+  }
+}
+```
+
+### 配置 Prometheus
+
+在 Prometheus 的 `prometheus.yml` 中添加 scrape 配置：
+
+```yaml
+scrape_configs:
+  - job_name: 'multicloud-exporter'
+    static_configs:
+      - targets: ['localhost:9101']
+    scrape_interval: 60s
+```
+
+重启 Prometheus 后，可以在 Prometheus UI 中查询指标：
+
+```promql
+# 查询所有 OSS 存储使用量
+multicloud_resource_metric{resource_type="acs_oss_dashboard",metric_name="storage_usage_bytes"}
+
+# 查询所有负载均衡的连接数
+multicloud_resource_metric{metric_name="active_connections"}
+```
+
+### 常见问题
+
+**Q: 连接云 API 失败，日志中出现 "authentication failed"**
+
+A: 检查 AccessKey ID 和 Secret 是否正确，确认账号权限包含所需的只读权限。
+
+**Q: 没有发现任何资源**
+
+A: 检查 `accounts.yaml` 中的 `regions` 配置，确认该区域确实有资源。
+
+**Q: 指标数据为空或缺失**
+
+A: 检查 `products.yaml` 中的指标映射配置，确认指标的 `dimensions` 配置正确。
+
+**Q: API 限流**
+
+A: 增加 `server.scrape_interval` 降低采集频率，或启用缓存功能调整 `server.discovery_ttl`。
+
+---
 
 ## 功能特性
 

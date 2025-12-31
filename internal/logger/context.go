@@ -5,17 +5,17 @@ import (
 	"strings"
 )
 
-// ContextLogger wraps the standard logger to provide consistent context fields
-// like account_id, region, namespace, etc. to adhere to DRY principles.
+// ContextLogger 包装标准日志记录器，提供一致的上下文字段
+// 如 account_id、region、namespace 等，遵循 DRY 原则
 type ContextLogger struct {
-	// fields stores key-value pairs in order
+	// fields 按顺序存储键值对
 	fields []interface{}
-	// prefix is an optional string to prepend to messages (e.g. "Aliyun")
+	// prefix 是可选的消息前缀（如 "Aliyun"）
 	prefix string
 }
 
-// NewContextLogger creates a new logger with base context
-// Usage: logger.NewContextLogger("Aliyun", "account_id", accID, "region", region)
+// NewContextLogger 创建带有基础上下文的新日志记录器
+// 用法: logger.NewContextLogger("Aliyun", "account_id", accID, "region", region)
 func NewContextLogger(prefix string, kv ...interface{}) *ContextLogger {
 	return &ContextLogger{
 		prefix: prefix,
@@ -23,7 +23,7 @@ func NewContextLogger(prefix string, kv ...interface{}) *ContextLogger {
 	}
 }
 
-// With adds more context fields and returns a new ContextLogger instance
+// With 添加更多上下文字段并返回新的 ContextLogger 实例
 func (l *ContextLogger) With(kv ...interface{}) *ContextLogger {
 	newFields := make([]interface{}, len(l.fields)+len(kv))
 	copy(newFields, l.fields)
@@ -34,7 +34,7 @@ func (l *ContextLogger) With(kv ...interface{}) *ContextLogger {
 	}
 }
 
-// buildBaseMessage constructs the base message with prefix and context fields
+// buildBaseMessage 构建带前缀和上下文字段的基础消息
 func (l *ContextLogger) buildBaseMessage(content string) string {
 	var sb strings.Builder
 
@@ -45,7 +45,7 @@ func (l *ContextLogger) buildBaseMessage(content string) string {
 
 	sb.WriteString(content)
 
-	// Append context fields
+	// 追加上下文字段
 	for i := 0; i < len(l.fields); i += 2 {
 		if i+1 < len(l.fields) {
 			sb.WriteString(fmt.Sprintf(" %s=%v", l.fields[i], l.fields[i+1]))
@@ -55,56 +55,56 @@ func (l *ContextLogger) buildBaseMessage(content string) string {
 	return sb.String()
 }
 
-// Debug logs a debug message
+// Debug 记录调试消息
 func (l *ContextLogger) Debug(msg string) {
 	if Log != nil {
 		Log.Debug(l.buildBaseMessage(msg))
 	}
 }
 
-// Debugf logs a formatted debug message
+// Debugf 记录格式化的调试消息
 func (l *ContextLogger) Debugf(format string, args ...interface{}) {
 	if Log != nil {
 		Log.Debug(l.buildBaseMessage(fmt.Sprintf(format, args...)))
 	}
 }
 
-// Info logs an info message
+// Info 记录信息消息
 func (l *ContextLogger) Info(msg string) {
 	if Log != nil {
 		Log.Info(l.buildBaseMessage(msg))
 	}
 }
 
-// Infof logs a formatted info message
+// Infof 记录格式化的信息消息
 func (l *ContextLogger) Infof(format string, args ...interface{}) {
 	if Log != nil {
 		Log.Info(l.buildBaseMessage(fmt.Sprintf(format, args...)))
 	}
 }
 
-// Warn logs a warning message
+// Warn 记录警告消息
 func (l *ContextLogger) Warn(msg string) {
 	if Log != nil {
 		Log.Warn(l.buildBaseMessage(msg))
 	}
 }
 
-// Warnf logs a formatted warning message
+// Warnf 记录格式化的警告消息
 func (l *ContextLogger) Warnf(format string, args ...interface{}) {
 	if Log != nil {
 		Log.Warn(l.buildBaseMessage(fmt.Sprintf(format, args...)))
 	}
 }
 
-// Error logs an error message
+// Error 记录错误消息
 func (l *ContextLogger) Error(msg string) {
 	if Log != nil {
 		Log.Error(l.buildBaseMessage(msg))
 	}
 }
 
-// Errorf logs a formatted error message
+// Errorf 记录格式化的错误消息
 func (l *ContextLogger) Errorf(format string, args ...interface{}) {
 	if Log != nil {
 		Log.Error(l.buildBaseMessage(fmt.Sprintf(format, args...)))

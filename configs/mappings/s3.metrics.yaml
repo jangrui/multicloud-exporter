@@ -118,12 +118,10 @@ canonical:
   storage_usage_bytes:
     description: "存储空间使用量"
     aliyun:
-      metric: MeteringStorageUtilization
+      metric: UserStorage
       dimensions:
         - userId
         - BucketName
-        - region
-        - storageType
       unit: Bytes
       scale: 1
     tencent:
@@ -738,6 +736,13 @@ canonical:
       scale: 1
   number_of_objects:
     description: "对象数量"
+    aliyun:
+      metric: ObjectCount
+      dimensions:
+        - userId
+        - BucketName
+      unit: count
+      scale: 1
     aws:
       metric: NumberOfObjects
       dimensions:

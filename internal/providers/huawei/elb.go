@@ -7,7 +7,6 @@ import (
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/logger"
 	"multicloud-exporter/internal/metrics"
-	_ "multicloud-exporter/internal/metrics/huawei" // 注册指标别名
 	providerscommon "multicloud-exporter/internal/providers/common"
 	"multicloud-exporter/internal/utils"
 

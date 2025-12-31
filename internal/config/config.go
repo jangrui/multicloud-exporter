@@ -20,12 +20,11 @@ type CloudAccount struct {
 	Resources       []string `yaml:"resources"`
 }
 
-// expandEnv replaces ${var} or $var in the string according to the values
-// of the current environment variables. It supports default values using
-// the ${var:-default} syntax.
+// expandEnv 根据当前环境变量的值替换字符串中的 ${var} 或 $var
+// 支持使用 ${var:-default} 语法设置默认值
 func expandEnv(s string) string {
 	return os.Expand(s, func(key string) string {
-		// Handle ${VAR:-default}
+		// 处理 ${VAR:-default} 语法
 		if k, def, cut := strings.Cut(key, ":-"); cut {
 			if v, ok := os.LookupEnv(k); ok && v != "" {
 				return v

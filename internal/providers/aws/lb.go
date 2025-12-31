@@ -10,7 +10,6 @@ import (
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/logger"
 	"multicloud-exporter/internal/metrics"
-	_ "multicloud-exporter/internal/metrics/aws" // Register metrics
 	"multicloud-exporter/internal/utils"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -21,19 +20,19 @@ import (
 	elbv2types "github.com/aws/aws-sdk-go-v2/service/elasticloadbalancingv2/types"
 )
 
-// ResourceLister defines the interface for listing AWS resources
+// ResourceLister 定义列出 AWS 资源的接口
 type ResourceLister interface {
 	List(ctx context.Context, region string, account config.CloudAccount) ([]lbInfo, error)
 }
 
-// lbInfo represents common load balancer information
+// lbInfo 表示负载均衡器的通用信息
 type lbInfo struct {
 	Name     string
-	ARN      string // For v2
-	CodeName string // Resolved from tags
+	ARN      string // 用于 v2
+	CodeName string // 从标签解析
 }
 
-// clbLister implements ResourceLister for Classic Load Balancers
+// clbLister 实现 ResourceLister 接口，用于经典负载均衡器
 type clbLister struct {
 	c *Collector
 }
@@ -105,7 +104,7 @@ func (l *clbLister) List(ctx context.Context, region string, account config.Clou
 	return lbs, nil
 }
 
-// elbv2Lister implements ResourceLister for ALB, NLB, and GWLB
+// elbv2Lister 实现 ResourceLister 接口，用于 ALB、NLB 和 GWLB
 type elbv2Lister struct {
 	c      *Collector
 	lbType elbv2types.LoadBalancerTypeEnum

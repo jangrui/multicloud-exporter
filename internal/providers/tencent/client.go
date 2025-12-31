@@ -2,7 +2,6 @@ package tencent
 
 import (
 	"context"
-	"net/http"
 	"net/url"
 
 	clb "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/clb/v20180317"
@@ -12,6 +11,8 @@ import (
 	monitor "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/monitor/v20180724"
 	vpc "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/vpc/v20170312"
 	"github.com/tencentyun/cos-go-sdk-v5"
+
+	"multicloud-exporter/internal/utils"
 )
 
 type CVMClient interface {
@@ -69,7 +70,6 @@ type defaultCOSClient struct {
 	client *cos.Client
 	ak     string
 	sk     string
-	token  string
 }
 
 func (c *defaultCOSClient) GetService(ctx context.Context) (*cos.ServiceGetResult, *cos.Response, error) {
@@ -79,13 +79,7 @@ func (c *defaultCOSClient) GetService(ctx context.Context) (*cos.ServiceGetResul
 func (c *defaultCOSClient) GetBucketTagging(ctx context.Context, bucket string, region string) (map[string]string, error) {
 	u, _ := cos.NewBucketURL(bucket, region, true)
 	b := &cos.BaseURL{BucketURL: u}
-	httpClient := &http.Client{
-		Transport: &cos.AuthorizationTransport{
-			SecretID:     c.ak,
-			SecretKey:    c.sk,
-			SessionToken: c.token,
-		},
-	}
+	httpClient := utils.NewHTTPClient()
 	bc := cos.NewClient(b, httpClient)
 	res, _, err := bc.Bucket.GetTagging(ctx)
 	if err != nil || res == nil {
@@ -103,11 +97,6 @@ func (c *defaultCOSClient) GetBucketTagging(ctx context.Context, bucket string, 
 func (f *defaultClientFactory) NewCOSClient(region, ak, sk string) (COSClient, error) {
 	u, _ := url.Parse("https://cos." + region + ".myqcloud.com")
 	b := &cos.BaseURL{BucketURL: u}
-	c := cos.NewClient(b, &http.Client{
-		Transport: &cos.AuthorizationTransport{
-			SecretID:  ak,
-			SecretKey: sk,
-		},
-	})
+	c := cos.NewClient(b, utils.NewHTTPClient())
 	return &defaultCOSClient{client: c, ak: ak, sk: sk}, nil
 }

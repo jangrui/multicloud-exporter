@@ -10,8 +10,6 @@ import (
 
 	"multicloud-exporter/internal/collector"
 	"multicloud-exporter/internal/logger"
-	_ "multicloud-exporter/internal/metrics/aliyun"
-	_ "multicloud-exporter/internal/metrics/tencent"
 )
 
 // global context for graceful shutdown

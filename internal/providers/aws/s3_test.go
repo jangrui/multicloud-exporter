@@ -289,7 +289,7 @@ func TestCollectS3_BucketSizeBytes_AverageLabelsAndValue(t *testing.T) {
 	}
 	c := &Collector{cfg: &config.Config{}, disc: mgr, clientFactory: f}
 	c.collectS3(config.CloudAccount{AccountID: "acc"})
-	val, ok := findGaugeValue("aws_s3_bucketsizebytes", map[string]string{
+	val, ok := findGaugeValue("s3_storage_usage_bytes", map[string]string{
 		"cloud_provider": "aws",
 		"account_id":     "acc",
 		"region":         "global",
@@ -299,6 +299,7 @@ func TestCollectS3_BucketSizeBytes_AverageLabelsAndValue(t *testing.T) {
 		"metric_name":    "BucketSizeBytes",
 		"bucketname":     "b1",
 		"storagetype":    "StandardStorage",
+		"code_name":      "",
 	})
 	if !ok || val != 1024 {
 		t.Fatalf("BucketSizeBytes value mismatch: got=%v ok=%v", val, ok)
@@ -318,7 +319,7 @@ func TestCollectS3_GetRequests_FilterIdLabel(t *testing.T) {
 	}
 	c := &Collector{cfg: &config.Config{}, disc: mgr, clientFactory: f}
 	c.collectS3(config.CloudAccount{AccountID: "acc"})
-	val, ok := findGaugeValue("aws_s3_getrequests", map[string]string{
+	val, ok := findGaugeValue("s3_requests_get", map[string]string{
 		"cloud_provider": "aws",
 		"account_id":     "acc",
 		"region":         "global",
@@ -328,6 +329,7 @@ func TestCollectS3_GetRequests_FilterIdLabel(t *testing.T) {
 		"metric_name":    "GetRequests",
 		"bucketname":     "b2",
 		"filterid":       "EntireBucket",
+		"code_name":      "",
 	})
 	if !ok || val != 60 {
 		t.Fatalf("GetRequests value mismatch: got=%v ok=%v", val, ok)
@@ -347,7 +349,7 @@ func TestCollectS3_NumberOfObjects_StorageTypeAll(t *testing.T) {
 	}
 	c := &Collector{cfg: &config.Config{}, disc: mgr, clientFactory: f}
 	c.collectS3(config.CloudAccount{AccountID: "acc"})
-	val, ok := findGaugeValue("aws_s3_numberofobjects", map[string]string{
+	val, ok := findGaugeValue("s3_number_of_objects", map[string]string{
 		"cloud_provider": "aws",
 		"account_id":     "acc",
 		"region":         "global",
@@ -357,6 +359,7 @@ func TestCollectS3_NumberOfObjects_StorageTypeAll(t *testing.T) {
 		"metric_name":    "NumberOfObjects",
 		"bucketname":     "b3",
 		"storagetype":    "AllStorageTypes",
+		"code_name":      "",
 	})
 	if !ok || val != 42 {
 		t.Fatalf("NumberOfObjects value mismatch: got=%v ok=%v", val, ok)
@@ -377,8 +380,9 @@ func TestCollectS3_ScaleApplied_GetRequests(t *testing.T) {
 	}
 	c := &Collector{cfg: &config.Config{}, disc: mgr, clientFactory: f}
 	c.collectS3(config.CloudAccount{AccountID: "acc"})
-	val, ok := findGaugeValue("aws_s3_getrequests", map[string]string{
+	val, ok := findGaugeValue("s3_requests_get", map[string]string{
 		"resource_id": "b4",
+		"code_name":   "",
 	})
 	if !ok || val != 30 {
 		t.Fatalf("S3 scale factor not applied: got=%v ok=%v", val, ok)

@@ -3,6 +3,7 @@ package aliyun
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"testing"
 	"unsafe"
@@ -10,8 +11,6 @@ import (
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/discovery"
 	metrics "multicloud-exporter/internal/metrics"
-
-	_ "multicloud-exporter/internal/metrics/aliyun"
 
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/responses"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/cms"
@@ -304,6 +303,9 @@ func TestCollector_ALIYUN_CLB_Utilization_Estimate(t *testing.T) {
 	// Reset metrics to avoid interference from previous tests
 	metrics.Reset()
 
+	// Load config files before testing (required after removing hardcoded registrations)
+	loadTestConfigs(t)
+
 	// Prepare minimal mocks reusing previous setup
 	mockECS := &mockECSClient{
 		DescribeRegionsFunc: func(request *ecs.DescribeRegionsRequest) (*ecs.DescribeRegionsResponse, error) {
@@ -452,4 +454,26 @@ func setDiscoveryProducts(t *testing.T, mgr *discovery.Manager, products map[str
 
 	// Create a new map accessible via reflection
 	reflect.NewAt(field.Type(), unsafe.Pointer(field.UnsafeAddr())).Elem().Set(reflect.ValueOf(products))
+}
+
+// loadTestConfigs loads metric mapping configs from the project root
+func loadTestConfigs(t *testing.T) {
+	// Find project root by looking for configs/mappings directory
+	basePath := "../../.."
+	mappingDir := filepath.Join(basePath, "configs", "mappings")
+
+	files, err := filepath.Glob(filepath.Join(mappingDir, "*.yaml"))
+	if err != nil {
+		t.Fatalf("Failed to find config files: %v", err)
+	}
+	if len(files) == 0 {
+		t.Fatal("No config files found in configs/mappings")
+	}
+
+	// Load all metric mapping files
+	for _, file := range files {
+		if err := config.LoadMetricMappings(file); err != nil {
+			t.Logf("Warning: failed to load %s: %v", file, err)
+		}
+	}
 }

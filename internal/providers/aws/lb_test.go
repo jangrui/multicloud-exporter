@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"testing"
 
 	"multicloud-exporter/internal/config"
@@ -20,6 +21,33 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+func TestMain(m *testing.M) {
+	// Load config files before running tests (required after removing hardcoded registrations)
+	loadTestConfigs()
+	m.Run()
+}
+
+// loadTestConfigs loads metric mapping configs from the project root
+func loadTestConfigs() {
+	basePath := "../../.."
+	mappingDir := filepath.Join(basePath, "configs", "mappings")
+
+	files, err := filepath.Glob(filepath.Join(mappingDir, "*.yaml"))
+	if err != nil {
+		panic(fmt.Sprintf("Failed to find config files: %v", err))
+	}
+	if len(files) == 0 {
+		panic("No config files found in configs/mappings")
+	}
+
+	// Load all metric mapping files
+	for _, file := range files {
+		if err := config.LoadMetricMappings(file); err != nil {
+			panic(fmt.Sprintf("Failed to load config %s: %v", file, err))
+		}
+	}
+}
 
 type mockDiscoverer struct {
 	prods []config.Product
@@ -45,7 +73,7 @@ func TestGetProductConfig_Found(t *testing.T) {
 	prod := config.Product{
 		Namespace:    "AWS/ELB",
 		AutoDiscover: true,
-		MetricInfo:   []config.MetricGroup{{MetricList: []string{"RequestCount"}}},
+		MetricInfo:   []config.MetricGroup{{MetricList: []string{"qps"}}},
 	}
 	discovery.Register("aws", &mockDiscoverer{prods: []config.Product{prod}})
 	mgr := discovery.NewManager(&config.Config{})
@@ -68,7 +96,7 @@ func TestCollectLBGeneric_NoProduct(t *testing.T) {
 func TestProcessRegionLB_ErrorFromLister(t *testing.T) {
 	prod := &config.Product{
 		Namespace:  "AWS/ELB",
-		MetricInfo: []config.MetricGroup{{MetricList: []string{"RequestCount"}}},
+		MetricInfo: []config.MetricGroup{{MetricList: []string{"qps"}}},
 	}
 	c := &Collector{}
 	c.processRegionLB(config.CloudAccount{AccountID: "acc"}, "us-east-1", prod, &errLister{})
@@ -234,7 +262,7 @@ func TestProcessRegionLB_ResultsApplyRate_ALB(t *testing.T) {
 	metrics.Reset()
 	prod := &config.Product{
 		Namespace:  "AWS/ApplicationELB",
-		MetricInfo: []config.MetricGroup{{MetricList: []string{"ProcessedBytes"}}},
+		MetricInfo: []config.MetricGroup{{MetricList: []string{"traffic_rx_bps"}}}, // Changed from ProcessedBytes
 	}
 	lbs := []lbInfo{
 		{Name: "alb-1", ARN: "arn:aws:elasticloadbalancing:us-east-1:123:loadbalancer/app/alb-1/aaaaaaaaaaaaaaaa", CodeName: "alb-1"},
@@ -242,17 +270,18 @@ func TestProcessRegionLB_ResultsApplyRate_ALB(t *testing.T) {
 	c := &Collector{clientFactory: cwMockFactory{}}
 	acc := config.CloudAccount{AccountID: "acc"}
 	c.processRegionLB(acc, "us-east-1", prod, &fixedLister{lbs: lbs})
-	val, ok := findGaugeValue("alb_processedbytes", map[string]string{
+	val, ok := findGaugeValue("alb_traffic_rx_bps", map[string]string{ // Changed from alb_processedbytes
 		"cloud_provider": "aws",
 		"account_id":     "acc",
 		"region":         "us-east-1",
 		"resource_type":  "alb",
 		"resource_id":    "alb-1",
 		"namespace":      "AWS/ApplicationELB",
-		"metric_name":    "ProcessedBytes",
+		"metric_name":    "traffic_rx_bps", // Changed from ProcessedBytes
 		"code_name":      "alb-1",
 	})
-	if !ok || val != 10 {
+	// Expected: (600 / 60) * 8 (scale from config) = 80
+	if !ok || val != 80 {
 		t.Fatalf("value not applied correctly: got=%v ok=%v", val, ok)
 	}
 }
@@ -261,7 +290,7 @@ func TestProcessRegionLB_ResultsAverage_ALB(t *testing.T) {
 	metrics.Reset()
 	prod := &config.Product{
 		Namespace:  "AWS/ApplicationELB",
-		MetricInfo: []config.MetricGroup{{MetricList: []string{"ActiveConnectionCount"}}},
+		MetricInfo: []config.MetricGroup{{MetricList: []string{"active_connection"}}}, // Changed from ActiveConnectionCount
 	}
 	lbs := []lbInfo{
 		{Name: "alb-2", ARN: "arn:aws:elasticloadbalancing:us-east-1:123:loadbalancer/app/alb-2/aaaaaaaaaaaaaaaa", CodeName: "alb-2"},
@@ -269,17 +298,17 @@ func TestProcessRegionLB_ResultsAverage_ALB(t *testing.T) {
 	c := &Collector{clientFactory: cwMockFactory{}}
 	acc := config.CloudAccount{AccountID: "acc"}
 	c.processRegionLB(acc, "us-east-1", prod, &fixedLister{lbs: lbs})
-	val, ok := findGaugeValue("alb_activeconnectioncount", map[string]string{
+	val, ok := findGaugeValue("alb_active_connection", map[string]string{ // Changed from alb_activeconnectioncount
 		"cloud_provider": "aws",
 		"account_id":     "acc",
 		"region":         "us-east-1",
 		"resource_type":  "alb",
 		"resource_id":    "alb-2",
 		"namespace":      "AWS/ApplicationELB",
-		"metric_name":    "ActiveConnectionCount",
+		"metric_name":    "active_connection", // Changed from ActiveConnectionCount
 		"code_name":      "alb-2",
 	})
-	if !ok || val != 600 {
+	if !ok || val != 10 {
 		t.Fatalf("average stat not applied correctly: got=%v ok=%v", val, ok)
 	}
 }
@@ -288,7 +317,7 @@ func TestProcessRegionLB_DimensionFallback_ALB(t *testing.T) {
 	metrics.Reset()
 	prod := &config.Product{
 		Namespace:  "AWS/ApplicationELB",
-		MetricInfo: []config.MetricGroup{{MetricList: []string{"ProcessedBytes"}}},
+		MetricInfo: []config.MetricGroup{{MetricList: []string{"traffic_rx_bps"}}},
 	}
 	lbs := []lbInfo{
 		{Name: "alb-bad", ARN: "bad-arn", CodeName: "alb-bad"},
@@ -296,7 +325,7 @@ func TestProcessRegionLB_DimensionFallback_ALB(t *testing.T) {
 	c := &Collector{clientFactory: cwMockFactory{}}
 	acc := config.CloudAccount{AccountID: "acc"}
 	c.processRegionLB(acc, "us-east-1", prod, &fixedLister{lbs: lbs})
-	_, ok := findGaugeValue("alb_processedbytes", map[string]string{
+	_, ok := findGaugeValue("alb_traffic_rx_bps", map[string]string{
 		"resource_id": "alb-bad",
 	})
 	if !ok {
@@ -306,10 +335,12 @@ func TestProcessRegionLB_DimensionFallback_ALB(t *testing.T) {
 
 func TestProcessRegionLB_ScaleApplied_ALB(t *testing.T) {
 	metrics.Reset()
-	metrics.RegisterNamespaceMetricScale("AWS/ApplicationELB", map[string]float64{"ProcessedBytes": 0.5})
+	// Config file defines scale: 8 for traffic_rx_bps (byte to bit conversion)
+	// Mock returns 600 as Sum over 60s period
+	// Expected: (600 / 60) * 8 = 80
 	prod := &config.Product{
 		Namespace:  "AWS/ApplicationELB",
-		MetricInfo: []config.MetricGroup{{MetricList: []string{"ProcessedBytes"}}},
+		MetricInfo: []config.MetricGroup{{MetricList: []string{"traffic_rx_bps"}}},
 	}
 	lbs := []lbInfo{
 		{Name: "alb-3", ARN: "arn:aws:elasticloadbalancing:us-east-1:123:loadbalancer/app/alb-3/aaaaaaaaaaaaaaaa", CodeName: "alb-3"},
@@ -317,10 +348,10 @@ func TestProcessRegionLB_ScaleApplied_ALB(t *testing.T) {
 	c := &Collector{clientFactory: cwMockFactory{}}
 	acc := config.CloudAccount{AccountID: "acc"}
 	c.processRegionLB(acc, "us-east-1", prod, &fixedLister{lbs: lbs})
-	val, ok := findGaugeValue("alb_processedbytes", map[string]string{
+	val, ok := findGaugeValue("alb_traffic_rx_bps", map[string]string{
 		"resource_id": "alb-3",
 	})
-	if !ok || val != 5 {
+	if !ok || val != 80 {
 		t.Fatalf("scale factor not applied: got=%v ok=%v", val, ok)
 	}
 }
@@ -329,7 +360,7 @@ func TestProcessRegionLB_ResultsApplyRate_NLB(t *testing.T) {
 	metrics.Reset()
 	prod := &config.Product{
 		Namespace:  "AWS/NetworkELB",
-		MetricInfo: []config.MetricGroup{{MetricList: []string{"ProcessedBytes"}}},
+		MetricInfo: []config.MetricGroup{{MetricList: []string{"traffic_rx_bps"}}},
 	}
 	lbs := []lbInfo{
 		{Name: "nlb-1", ARN: "arn:aws:elasticloadbalancing:us-east-1:123:loadbalancer/net/nlb-1/cccccccccccccccc", CodeName: "nlb-1"},
@@ -337,14 +368,14 @@ func TestProcessRegionLB_ResultsApplyRate_NLB(t *testing.T) {
 	c := &Collector{clientFactory: cwMockFactory{}}
 	acc := config.CloudAccount{AccountID: "acc"}
 	c.processRegionLB(acc, "us-east-1", prod, &fixedLister{lbs: lbs})
-	val, ok := findGaugeValue("nlb_processedbytes", map[string]string{
+	val, ok := findGaugeValue("nlb_traffic_rx_bps", map[string]string{
 		"cloud_provider": "aws",
 		"account_id":     "acc",
 		"region":         "us-east-1",
 		"resource_type":  "nlb",
 		"resource_id":    "nlb-1",
 		"namespace":      "AWS/NetworkELB",
-		"metric_name":    "ProcessedBytes",
+		"metric_name":    "traffic_rx_bps",
 		"code_name":      "nlb-1",
 	})
 	if !ok || val != 10 {
@@ -356,7 +387,7 @@ func TestProcessRegionLB_ResultsAverage_GWLB(t *testing.T) {
 	metrics.Reset()
 	prod := &config.Product{
 		Namespace:  "AWS/GatewayELB",
-		MetricInfo: []config.MetricGroup{{MetricList: []string{"ActiveConnectionCount"}}},
+		MetricInfo: []config.MetricGroup{{MetricList: []string{"active_connection"}}},
 	}
 	lbs := []lbInfo{
 		{Name: "gwlb-1", ARN: "arn:aws:elasticloadbalancing:us-east-1:123:loadbalancer/gwlb/gwlb-1/dddddddddddddddd", CodeName: "gwlb-1"},
@@ -364,11 +395,11 @@ func TestProcessRegionLB_ResultsAverage_GWLB(t *testing.T) {
 	c := &Collector{clientFactory: cwMockFactory{}}
 	acc := config.CloudAccount{AccountID: "acc"}
 	c.processRegionLB(acc, "us-east-1", prod, &fixedLister{lbs: lbs})
-	val, ok := findGaugeValue("gwlb_activeconnectioncount", map[string]string{
+	val, ok := findGaugeValue("gwlb_active_connection", map[string]string{
 		"resource_type": "gwlb",
 		"resource_id":   "gwlb-1",
 	})
-	if !ok || val != 600 {
+	if !ok || val != 10 {
 		t.Fatalf("gwlb average not applied correctly: got=%v ok=%v", val, ok)
 	}
 }
@@ -377,7 +408,7 @@ func TestProcessRegionLB_ResultsAverage_CLB(t *testing.T) {
 	metrics.Reset()
 	prod := &config.Product{
 		Namespace:  "AWS/ELB",
-		MetricInfo: []config.MetricGroup{{MetricList: []string{"Latency"}}},
+		MetricInfo: []config.MetricGroup{{MetricList: []string{"rt"}}}, // Changed from Latency
 	}
 	lbs := []lbInfo{
 		{Name: "clb-1", CodeName: "clb-1"},
@@ -385,11 +416,12 @@ func TestProcessRegionLB_ResultsAverage_CLB(t *testing.T) {
 	c := &Collector{clientFactory: cwMockFactory{}}
 	acc := config.CloudAccount{AccountID: "acc"}
 	c.processRegionLB(acc, "us-east-1", prod, &fixedLister{lbs: lbs})
-	val, ok := findGaugeValue("clb_latency", map[string]string{
+	val, ok := findGaugeValue("clb_rt", map[string]string{
 		"resource_type": "clb",
 		"resource_id":   "clb-1",
 	})
-	if !ok || val != 600 {
+	// Expected: (600 / 60) * 1000 (scale from config) = 10000
+	if !ok || val != 10000 {
 		t.Fatalf("clb average not applied correctly: got=%v ok=%v", val, ok)
 	}
 }
@@ -398,7 +430,7 @@ func TestProcessRegionLB_NewConnection_Rate_ALB(t *testing.T) {
 	metrics.Reset()
 	prod := &config.Product{
 		Namespace:  "AWS/ApplicationELB",
-		MetricInfo: []config.MetricGroup{{MetricList: []string{"NewConnectionCount"}}},
+		MetricInfo: []config.MetricGroup{{MetricList: []string{"new_connection"}}},
 	}
 	lbs := []lbInfo{
 		{Name: "alb-4", ARN: "arn:aws:elasticloadbalancing:us-east-1:123:loadbalancer/app/alb-4/aaaaaaaaaaaaaaaa", CodeName: "alb-4"},
@@ -406,14 +438,14 @@ func TestProcessRegionLB_NewConnection_Rate_ALB(t *testing.T) {
 	c := &Collector{clientFactory: cwMockFactory{}}
 	acc := config.CloudAccount{AccountID: "acc"}
 	c.processRegionLB(acc, "us-east-1", prod, &fixedLister{lbs: lbs})
-	val, ok := findGaugeValue("alb_newconnectioncount", map[string]string{
+	val, ok := findGaugeValue("alb_new_connection", map[string]string{
 		"cloud_provider": "aws",
 		"account_id":     "acc",
 		"region":         "us-east-1",
 		"resource_type":  "alb",
 		"resource_id":    "alb-4",
 		"namespace":      "AWS/ApplicationELB",
-		"metric_name":    "NewConnectionCount",
+		"metric_name":    "new_connection",
 		"code_name":      "alb-4",
 	})
 	if !ok || val != 10 {
@@ -425,7 +457,7 @@ func TestProcessRegionLB_HostCount_Average_ALB(t *testing.T) {
 	metrics.Reset()
 	prod := &config.Product{
 		Namespace:  "AWS/ApplicationELB",
-		MetricInfo: []config.MetricGroup{{MetricList: []string{"HealthyHostCount"}}},
+		MetricInfo: []config.MetricGroup{{MetricList: []string{"healthy_host_count"}}},
 	}
 	lbs := []lbInfo{
 		{Name: "alb-5", ARN: "arn:aws:elasticloadbalancing:us-east-1:123:loadbalancer/app/alb-5/aaaaaaaaaaaaaaaa", CodeName: "alb-5"},
@@ -433,17 +465,17 @@ func TestProcessRegionLB_HostCount_Average_ALB(t *testing.T) {
 	c := &Collector{clientFactory: cwMockFactory{}}
 	acc := config.CloudAccount{AccountID: "acc"}
 	c.processRegionLB(acc, "us-east-1", prod, &fixedLister{lbs: lbs})
-	val, ok := findGaugeValue("alb_healthyhostcount", map[string]string{
+	val, ok := findGaugeValue("alb_healthy_host_count", map[string]string{
 		"cloud_provider": "aws",
 		"account_id":     "acc",
 		"region":         "us-east-1",
 		"resource_type":  "alb",
 		"resource_id":    "alb-5",
 		"namespace":      "AWS/ApplicationELB",
-		"metric_name":    "HealthyHostCount",
+		"metric_name":    "healthy_host_count",
 		"code_name":      "alb-5",
 	})
-	if !ok || val != 600 {
+	if !ok || val != 10 {
 		t.Fatalf("host count average not applied correctly: got=%v ok=%v", val, ok)
 	}
 }
@@ -476,7 +508,7 @@ func TestProcessRegionLB_ExposeZero_WhenNoResults(t *testing.T) {
 	metrics.Reset()
 	prod := &config.Product{
 		Namespace:  "AWS/ELB",
-		MetricInfo: []config.MetricGroup{{MetricList: []string{"RequestCount"}}},
+		MetricInfo: []config.MetricGroup{{MetricList: []string{"qps"}}},
 	}
 	lbs := []lbInfo{
 		{Name: "clb-0", CodeName: "clb-0"},
@@ -484,14 +516,14 @@ func TestProcessRegionLB_ExposeZero_WhenNoResults(t *testing.T) {
 	c := &Collector{clientFactory: cwEmptyFactory{}}
 	acc := config.CloudAccount{AccountID: "acc"}
 	c.processRegionLB(acc, "us-east-1", prod, &fixedLister{lbs: lbs})
-	val, ok := findGaugeValue("clb_requestcount", map[string]string{
+	val, ok := findGaugeValue("clb_qps", map[string]string{
 		"cloud_provider": "aws",
 		"account_id":     "acc",
 		"region":         "us-east-1",
 		"resource_type":  "clb",
 		"resource_id":    "clb-0",
 		"namespace":      "AWS/ELB",
-		"metric_name":    "RequestCount",
+		"metric_name":    "qps",
 		"code_name":      "clb-0",
 	})
 	if !ok || val != 0 {
@@ -520,7 +552,7 @@ func (badCWFactory) NewEC2Client(ctx context.Context, region, ak, sk string) (*e
 func TestProcessRegionLB_CWClientError_NoPanic(t *testing.T) {
 	prod := &config.Product{
 		Namespace:  "AWS/ELB",
-		MetricInfo: []config.MetricGroup{{MetricList: []string{"RequestCount"}}},
+		MetricInfo: []config.MetricGroup{{MetricList: []string{"qps"}}},
 	}
 	lbs := []lbInfo{{Name: "clb-1"}}
 	c := &Collector{clientFactory: badCWFactory{}}
@@ -552,7 +584,7 @@ func (f *regionsFactory) NewEC2Client(ctx context.Context, region, ak, sk string
 
 func TestCollectLBGeneric_RegionsWildcard_Fallback(t *testing.T) {
 	discovery.Register("aws", &mockDiscoverer{prods: []config.Product{
-		{Namespace: "AWS/ApplicationELB", AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: []string{"ProcessedBytes"}}}},
+		{Namespace: "AWS/ApplicationELB", AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: []string{"traffic_rx_bps"}}}},
 	}})
 	mgr := discovery.NewManager(&config.Config{})
 	_ = mgr.Refresh(context.Background())
