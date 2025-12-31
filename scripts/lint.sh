@@ -22,8 +22,5 @@ fi
 "${ROOT_DIR}/scripts/golangci-lint.sh" --version
 "${ROOT_DIR}/scripts/golangci-lint.sh" run ./...
 
-# Validate mapping structure and ensure mappings match offline products metadata.
+# Validate mapping structure
 go test ./internal/config >/dev/null
-# 校验所有支持的云厂商映射一致性 (aliyun, tencent, aws)
-# 使用 --skip-missing-metrics 允许暂时跳过元数据缺失的指标（警告但不报错）
-go run ./cmd/mappings-check -providers "${MAPPINGS_CHECK_PROVIDERS:-aliyun,tencent,aws}" --skip-missing-metrics

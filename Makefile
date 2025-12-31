@@ -6,7 +6,7 @@ lint:
 .PHONY: mappings-check
 
 mappings-check:
-	go run ./cmd/mappings-check -providers "$${MAPPINGS_CHECK_PROVIDERS:-aliyun,tencent,aws}"
+	go run ./cmd/mappings-check
 
 .PHONY: check
 check: lint
