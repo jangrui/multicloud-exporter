@@ -225,7 +225,7 @@ func (t *Collector) fetchCLBMonitor(account config.CloudAccount, region string, 
 				metricAlias := metrics.GetMetricAlias(prod.Namespace, m)
 				if metricAlias != "" {
 					ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "CLB")
-				ctxLog.Debugf("CLB指标映射: 命名空间=%s 原始=%s 别名=%s 最终名称=%s_%s", prod.Namespace, m, metricAlias, rtype, metricAlias)
+					ctxLog.Debugf("CLB指标映射: 命名空间=%s 原始=%s 别名=%s 最终名称=%s_%s", prod.Namespace, m, metricAlias, rtype, metricAlias)
 				}
 				labels := []string{"tencent", account.AccountID, region, rtype, rid, prod.Namespace, m, ""}
 				for len(labels) < count {

@@ -1,23 +1,19 @@
 # OS/editor
-
-
-
 .DS_Store
-.vscode/
-.idea/
-.trae/
+.*/
+!/.github/
 
 # Binaries & build outputs
 bin/
 build/
 dist/
+# !dist/multicloud-exporter-*
 
 # Tests & coverage
 *.test
 *.out
 *.cov
 coverage/
-configs/products/
 
 # Logs
 *.log
@@ -32,7 +28,4 @@ configs/products/
 *.key
 
 # Local Resources
-.local/
-.cursor/
-.claude/
 data/

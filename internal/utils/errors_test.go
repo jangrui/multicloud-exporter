@@ -8,22 +8,22 @@ import (
 
 func TestWrapError(t *testing.T) {
 	tests := []struct {
-		name     string
-		err      error
-		message  string
-		wantNil  bool
+		name    string
+		err     error
+		message string
+		wantNil bool
 	}{
 		{
-			name:     "nil error returns nil",
-			err:      nil,
-			message:  "failed",
-			wantNil:  true,
+			name:    "nil error returns nil",
+			err:     nil,
+			message: "failed",
+			wantNil: true,
 		},
 		{
-			name:     "wraps error with message",
-			err:      errors.New("original error"),
-			message:  "operation failed",
-			wantNil:  false,
+			name:    "wraps error with message",
+			err:     errors.New("original error"),
+			message: "operation failed",
+			wantNil: false,
 		},
 	}
 

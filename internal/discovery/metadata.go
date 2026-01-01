@@ -20,31 +20,21 @@ type MetricMeta struct {
 func AnnotateCanonical(metas []MetricMeta, mapping config.MetricMapping) []MetricMeta {
 	for i := range metas {
 		m := &metas[i]
-		if m.Provider == "aliyun" {
-			for newName, entry := range mapping.Canonical {
-				def := entry.Aliyun
-				if def.Metric == m.Name {
-					m.Canonical = newName
-					var xs []string
-					if entry.Tencent.Metric != "" {
-						xs = append(xs, "tencent")
+		// 遍历所有规范化指标，查找当前云厂商的指标映射
+		for newName, entry := range mapping.Canonical {
+			// 从 Providers map 中获取当前云厂商的指标定义
+			if def, exists := entry.Providers[m.Provider]; exists && def.Metric == m.Name {
+				m.Canonical = newName
+
+				// 查找其他云厂商是否有相同的规范化指标（Similar）
+				var xs []string
+				for provider, providerDef := range entry.Providers {
+					if provider != m.Provider && providerDef.Metric != "" {
+						xs = append(xs, provider)
 					}
-					m.Similar = xs
-					break
 				}
-			}
-		} else if m.Provider == "tencent" {
-			for newName, entry := range mapping.Canonical {
-				def := entry.Tencent
-				if def.Metric == m.Name {
-					m.Canonical = newName
-					var xs []string
-					if entry.Aliyun.Metric != "" {
-						xs = append(xs, "aliyun")
-					}
-					m.Similar = xs
-					break
-				}
+				m.Similar = xs
+				break
 			}
 		}
 	}

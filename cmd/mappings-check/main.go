@@ -22,10 +22,8 @@ type metricDef struct {
 }
 
 type canonicalEntry struct {
-	Description string    `yaml:"description"`
-	Aliyun      metricDef `yaml:"aliyun"`
-	Tencent     metricDef `yaml:"tencent"`
-	AWS         metricDef `yaml:"aws"`
+	Description string               `yaml:"description"`
+	Providers   map[string]metricDef `yaml:",inline"` // 动态解析所有云厂商配置
 }
 
 type mappingFile struct {
@@ -97,7 +95,14 @@ func validateMappingFile(path string) error {
 
 	// 检查每个条目至少有一个云厂商的指标
 	for canonical, entry := range mf.Canonical {
-		if entry.Aliyun.Metric == "" && entry.Tencent.Metric == "" && entry.AWS.Metric == "" {
+		hasMetric := false
+		for _, def := range entry.Providers {
+			if def.Metric != "" {
+				hasMetric = true
+				break
+			}
+		}
+		if !hasMetric {
 			return fmt.Errorf("%s: 规范名称 '%s' 没有定义任何云厂商的指标", path, canonical)
 		}
 	}

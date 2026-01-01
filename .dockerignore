@@ -1,11 +1,7 @@
 # OS/editor
-.git
-.github
-.gitignore
 .DS_Store
-.vscode/
-.idea/
-.trae/
+.*/
+# !/.github/
 
 # Binaries & build outputs
 bin/
@@ -32,7 +28,4 @@ coverage/
 *.key
 
 # Local Resources
-.local/
-.cursor/
-.claude/
 data/

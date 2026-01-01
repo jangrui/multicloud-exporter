@@ -21,7 +21,7 @@ func NewHTTPClient() *http.Client {
 			MaxConnsPerHost:     0, // 无限制
 
 			// 空闲连接超时
-			IdleConnTimeout: 90 * time.Second,
+			IdleConnTimeout:   90 * time.Second,
 			DisableKeepAlives: false,
 
 			// TLS 握手超时

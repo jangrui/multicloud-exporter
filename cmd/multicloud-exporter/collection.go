@@ -228,9 +228,9 @@ func parseIntervalSeconds(s string) (time.Duration, error) {
 //   - 策略1（immediate）：立即采集，单/多Pod都无延迟
 //   - 策略2（staggered）：强制错峰，线性分配延迟
 //   - 策略3（auto，默认）：自适应判断
-//     * 单/双Pod：立即采集
-//     * 3-10个Pod：线性延迟 + 随机抖动
-//     * >10个Pod：指数退避延迟，避免大规模并发
+//   - 单/双Pod：立即采集
+//   - 3-10个Pod：线性延迟 + 随机抖动
+//   - >10个Pod：指数退避延迟，避免大规模并发
 //
 // 参数：
 //   - totalShards: 集群总分片数（Pod总数）
