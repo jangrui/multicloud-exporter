@@ -80,6 +80,12 @@ func (c *defaultCOSClient) GetBucketTagging(ctx context.Context, bucket string, 
 	u, _ := cos.NewBucketURL(bucket, region, true)
 	b := &cos.BaseURL{BucketURL: u}
 	httpClient := utils.NewHTTPClient()
+	// 设置认证信息
+	httpClient.Transport = &cos.AuthorizationTransport{
+		SecretID:  c.ak,
+		SecretKey: c.sk,
+		Transport: httpClient.Transport,
+	}
 	bc := cos.NewClient(b, httpClient)
 	res, _, err := bc.Bucket.GetTagging(ctx)
 	if err != nil || res == nil {
@@ -97,6 +103,13 @@ func (c *defaultCOSClient) GetBucketTagging(ctx context.Context, bucket string, 
 func (f *defaultClientFactory) NewCOSClient(region, ak, sk string) (COSClient, error) {
 	u, _ := url.Parse("https://cos." + region + ".myqcloud.com")
 	b := &cos.BaseURL{BucketURL: u}
-	c := cos.NewClient(b, utils.NewHTTPClient())
+	httpClient := utils.NewHTTPClient()
+	// 设置认证信息
+	httpClient.Transport = &cos.AuthorizationTransport{
+		SecretID:  ak,
+		SecretKey: sk,
+		Transport: httpClient.Transport,
+	}
+	c := cos.NewClient(b, httpClient)
 	return &defaultCOSClient{client: c, ak: ak, sk: sk}, nil
 }

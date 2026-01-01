@@ -342,9 +342,10 @@ func (h *Collector) fetchOBSMonitor(account config.CloudAccount, region string, 
 					ctxLog.Debugf("OBS 暴露指标，指标=%s bucket=%s period=%s 值=%.2f", metricName, resourceID, periodStr, val)
 				}
 
-				// 优化：移除指标间延迟，降低云API压力
-				// 原代码: time.Sleep(50 * time.Millisecond)
-				// 优化后: 连续处理下一个指标，总耗时减少 N指标 × 50ms
+				// 华为云 API 限流控制：300 次/分钟
+				// 为避免触发限流，在每次批量请求后添加延迟
+				// 计算：300 次/分钟 = 5 次/秒，安全起见使用 250ms 延迟（4 次/秒）
+				time.Sleep(250 * time.Millisecond)
 			}
 		}
 	}

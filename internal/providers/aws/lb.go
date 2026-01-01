@@ -358,7 +358,7 @@ func (c *Collector) processRegionLB(account config.CloudAccount, region string, 
 				var dims []cwtypes.Dimension
 				// Map dimensions
 				// CLB: LoadBalancerName
-				// ALB/NLB/GWLB: LoadBalancer (ARN suffix?) No, usually LoadBalancer name or ARN suffix depending on metric.
+				// ALB/NLB/GWLB: LoadBalancer (ARN suffix)
 				// For ALB/NLB, dimension is "LoadBalancer". Value is the "app/my-load-balancer/50dc6c495c0c9188" part of ARN.
 				// For CLB, dimension is "LoadBalancerName". Value is Name.
 
@@ -372,14 +372,8 @@ func (c *Collector) processRegionLB(account config.CloudAccount, region string, 
 					if len(parts) == 2 {
 						dimValue = parts[1]
 					} else {
-						// Fallback or error
-						dimValue = lb.Name // Should not happen for v2
+						dimValue = lb.Name
 					}
-
-					// Special handling for TargetGroup metrics if needed (omitted for now)
-					// But wait, are we querying ALB metrics or TG metrics?
-					// The mapping file says "AWS/ApplicationELB" and metric "ActiveConnectionCount".
-					// This is a LoadBalancer metric. Dimension is LoadBalancer.
 				}
 
 				dims = append(dims, cwtypes.Dimension{
@@ -388,19 +382,21 @@ func (c *Collector) processRegionLB(account config.CloudAccount, region string, 
 				})
 
 				stat := "Sum" // Default
-				// Need to determine stat (Sum, Average, Max, SampleCount)
+				// Determine stat (Sum, Average, Max, SampleCount)
 				// Usually Sum for counts/bytes, Average for latency/concurrency.
-				if strings.Contains(metricName, "ActiveConnection") || strings.Contains(metricName, "Latency") || strings.Contains(metricName, "Time") || strings.Contains(metricName, "HostCount") {
+				if strings.Contains(metricName, "ActiveConnection") || strings.Contains(metricName, "ActiveFlow") || strings.Contains(metricName, "Latency") || strings.Contains(metricName, "Time") || strings.Contains(metricName, "HostCount") {
 					stat = "Average"
 				}
 
 				// Initialize gauge to 0 to ensure metric is exposed even if CloudWatch returns no data
-				vec, _ := metrics.NamespaceGauge(prod.Namespace, metricName)
+				vec, labelCount := metrics.NamespaceGauge(prod.Namespace, metricName)
 				codeName := lb.CodeName
 				if codeName == "" {
 					codeName = lb.Name
 				}
-				vec.WithLabelValues(
+
+				// Build label values array matching the expected label count
+				labelValues := []string{
 					"aws",
 					account.AccountID,
 					region,
@@ -409,7 +405,14 @@ func (c *Collector) processRegionLB(account config.CloudAccount, region string, 
 					prod.Namespace,
 					metricName,
 					codeName,
-				).Set(0)
+				}
+
+				// Pad with empty strings if more labels are expected (for extra dimensions)
+				for len(labelValues) < labelCount {
+					labelValues = append(labelValues, "")
+				}
+
+				vec.WithLabelValues(labelValues...).Set(0)
 
 				queries = append(queries, cwtypes.MetricDataQuery{
 					Id: aws.String(id),
@@ -490,23 +493,32 @@ func (c *Collector) processRegionLB(account config.CloudAccount, region string, 
 					}
 
 					// Get GaugeVec
-					vec, _ := metrics.NamespaceGauge(prod.Namespace, info.MetricName)
+					vec, labelCount := metrics.NamespaceGauge(prod.Namespace, info.MetricName)
 
 					// Set labels: cloud_provider, account_id, region, resource_type, resource_id, namespace, metric_name, code_name
 					codeName := info.CodeName
 					if codeName == "" {
 						codeName = info.LBName
 					}
-					vec.WithLabelValues(
+
+					// Build label values array matching the expected label count
+					labelValues := []string{
 						"aws",
 						account.AccountID,
 						region,
-						metrics.GetNamespacePrefix(prod.Namespace), // e.g. alb
+						metrics.GetNamespacePrefix(prod.Namespace),
 						info.LBName,
 						prod.Namespace,
 						info.MetricName,
-						codeName, // code_name
-					).Set(val)
+						codeName,
+					}
+
+					// Pad with empty strings if more labels are expected (for extra dimensions)
+					for len(labelValues) < labelCount {
+						labelValues = append(labelValues, "")
+					}
+
+					vec.WithLabelValues(labelValues...).Set(val)
 				}
 			}
 		}

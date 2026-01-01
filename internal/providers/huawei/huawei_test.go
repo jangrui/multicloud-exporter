@@ -90,14 +90,17 @@ func TestCollector_CacheExpiry(t *testing.T) {
 }
 
 func TestResCacheEntry(t *testing.T) {
+	now := time.Now()
 	entry := resCacheEntry{
 		IDs:       []string{"id1", "id2"},
-		UpdatedAt: time.Now(),
+		UpdatedAt: now,
 	}
 
 	assert.Len(t, entry.IDs, 2)
 	assert.Contains(t, entry.IDs, "id1")
 	assert.Contains(t, entry.IDs, "id2")
+	assert.False(t, entry.UpdatedAt.IsZero())
+	assert.WithinDuration(t, now, entry.UpdatedAt, time.Second)
 }
 
 func TestCollector_CollectWithEmptyAccount(t *testing.T) {
