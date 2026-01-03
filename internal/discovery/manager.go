@@ -91,12 +91,7 @@ type DiscoveryStatus struct {
 }
 
 func (m *Manager) Status() DiscoveryStatus {
-	m.mu.RLock()
-	providers := make([]string, 0, len(m.products))
-	counts := make(map[string]int, len(m.products))
-	providerStats := make(map[string]ProviderStats)
-
-	// 获取账号统计
+	// 先获取账号统计（使用 cfg.Mu）
 	m.cfg.Mu.RLock()
 	accountsByProvider := make(map[string]int)
 	if m.cfg.AccountsByProvider != nil {
@@ -105,6 +100,12 @@ func (m *Manager) Status() DiscoveryStatus {
 		}
 	}
 	m.cfg.Mu.RUnlock()
+
+	// 获取 Manager 的统计信息（使用 mu）
+	m.mu.RLock()
+	providers := make([]string, 0, len(m.products))
+	counts := make(map[string]int, len(m.products))
+	providerStats := make(map[string]ProviderStats)
 
 	// 计算每个云平台的统计信息
 	for provider, products := range m.products {
@@ -149,6 +150,7 @@ func (m *Manager) Status() DiscoveryStatus {
 	refreshCount := m.refreshCount
 	m.mu.RUnlock()
 
+	// 获取订阅者数量（使用 subsMu）
 	m.subsMu.Lock()
 	subs := len(m.subs)
 	m.subsMu.Unlock()

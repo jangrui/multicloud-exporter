@@ -32,18 +32,31 @@ func RecordRequest(provider, api, status string) {
 	now := time.Now().Unix()
 	slot := now % windowSize
 	k := apiKey{Provider: provider, API: api}
+
+	// 先尝试读锁获取
 	apiStatsMu.RLock()
 	st := apiStats[k]
 	apiStatsMu.RUnlock()
+
 	if st == nil {
+		// 创建新的 apiStat
 		st = &apiStat{
 			status:  make(map[string]int64),
 			buckets: make([]timeBucket, windowSize),
 		}
+
+		// 使用双锁检查模式避免重复创建
 		apiStatsMu.Lock()
-		apiStats[k] = st
+		// 再次检查，避免被其他 goroutine 抢先创建
+		if existing, exists := apiStats[k]; exists {
+			st = existing
+		} else {
+			apiStats[k] = st
+		}
 		apiStatsMu.Unlock()
 	}
+
+	// 现在安全地操作 apiStat，不持有 apiStatsMu
 	st.mu.Lock()
 	st.total++
 	if status != "" {
