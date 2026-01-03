@@ -36,6 +36,8 @@ func (h *Collector) collectOBS(account config.CloudAccount, region string) {
 		return
 	}
 
+	ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "rtype", "obs")
+
 	// 产品级分片
 	wTotal, wIndex := utils.ClusterConfig()
 	for _, p := range prods {
@@ -44,7 +46,7 @@ func (h *Collector) collectOBS(account config.CloudAccount, region string) {
 		}
 		productKey := account.AccountID + "|" + region + "|" + p.Namespace
 		if !utils.ShouldProcess(productKey, wTotal, wIndex) {
-			logger.Log.Debugf("Huawei OBS 产品跳过（分片不匹配）account=%s region=%s namespace=%s", account.AccountID, region, p.Namespace)
+			ctxLog.Debugf("OBS 产品跳过（分片不匹配）namespace=%s", p.Namespace)
 			continue
 		}
 		buckets := h.listOBSBuckets(account, region)
@@ -57,23 +59,24 @@ func (h *Collector) collectOBS(account config.CloudAccount, region string) {
 
 // listOBSBuckets 枚举 OBS 存储桶
 func (h *Collector) listOBSBuckets(account config.CloudAccount, region string) []obsInfo {
+	ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "rtype", "obs")
+
 	if ids, hit := h.getCachedIDs(account, region, "SYS.OBS", "obs"); hit {
 		var buckets []obsInfo
 		for _, id := range ids {
 			buckets = append(buckets, obsInfo{Name: id, Location: region})
 		}
-		logger.Log.Debugf("Huawei OBS 缓存命中，账号ID=%s 区域=%s 数量=%d", account.AccountID, region, len(ids))
+		ctxLog.Debugf("OBS 缓存命中，数量=%d", len(ids))
 		return buckets
 	}
 
 	client, err := h.clientFactory.NewOBSClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
-		logger.Log.Errorf("Huawei OBS 客户端创建失败，区域=%s 错误=%v", region, err)
+		ctxLog.Errorf("OBS 客户端创建失败，错误=%v", err)
 		return nil
 	}
 	defer client.Close()
 
-	ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "rtype", "obs")
 	ctxLog.Debugf("开始枚举 OBS 存储桶")
 
 	start := time.Now()
@@ -151,8 +154,7 @@ func (h *Collector) listOBSBuckets(account config.CloudAccount, region string) [
 			status = providerscommon.RegionStatusActive
 		}
 		h.regionManager.UpdateRegionStatus(account.AccountID, region, len(ids), status)
-		ctxLog.Debugf("更新区域状态 account=%s region=%s status=%s count=%d",
-			account.AccountID, region, status, len(ids))
+		ctxLog.Debugf("更新区域状态，status=%s，count=%d", status, len(ids))
 	}
 
 	if len(buckets) > 0 {
@@ -164,9 +166,9 @@ func (h *Collector) listOBSBuckets(account config.CloudAccount, region string) [
 		for i := 0; i < max; i++ {
 			preview = append(preview, buckets[i].Name)
 		}
-		logger.Log.Debugf("Huawei OBS 已枚举，账号ID=%s 区域=%s 数量=%d 预览=%v", account.AccountID, region, len(buckets), preview)
+		ctxLog.Debugf("OBS 已枚举，数量=%d 预览=%v", len(buckets), preview)
 	} else {
-		logger.Log.Debugf("Huawei OBS 已枚举，账号ID=%s 区域=%s 数量=%d", account.AccountID, region, len(buckets))
+		ctxLog.Debugf("OBS 已枚举，数量=%d", len(buckets))
 	}
 	return buckets
 }
@@ -180,13 +182,13 @@ func isOBSCapacityMetric(metricName string) bool {
 
 // fetchOBSMonitor 采集 OBS 监控指标
 func (h *Collector) fetchOBSMonitor(account config.CloudAccount, region string, prod config.Product, buckets []obsInfo) {
+	ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "rtype", "obs")
+
 	client, err := h.clientFactory.NewCESClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
-		logger.Log.Errorf("Huawei CES 客户端创建失败，区域=%s 错误=%v", region, err)
+		ctxLog.Errorf("CES 客户端创建失败，错误=%v", err)
 		return
 	}
-
-	ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "rtype", "obs")
 
 	basePeriod := int32(300) // 默认 5 分钟
 	if prod.Period != nil {

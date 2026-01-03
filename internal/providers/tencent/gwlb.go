@@ -14,11 +14,10 @@ import (
 )
 
 func (t *Collector) listGWLBIDs(account config.CloudAccount, region string) []string {
-	ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "GWLB")
+	ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "rtype", "gwlb")
 	ctxLog.Debugf("开始枚举 GWLB IDs")
 
 	if ids, hit := t.getCachedIDs(account, region, "qce/gwlb", "gwlb"); hit {
-		ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "GWLB")
 		ctxLog.Debugf("GWLB IDs 缓存命中，数量=%d", len(ids))
 		return ids
 	}

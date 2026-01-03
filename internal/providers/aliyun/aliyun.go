@@ -114,6 +114,8 @@ func parseDuration(s string) time.Duration {
 
 // getAccountUID 获取阿里云账号的数字 ID (UID)
 func (a *Collector) getAccountUID(account config.CloudAccount, region string) string {
+	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccessKeyID)
+
 	// 1. 尝试从缓存获取
 	a.uidMu.RLock()
 	uid, ok := a.uidCache[account.AccessKeyID]
@@ -158,13 +160,13 @@ func (a *Collector) getAccountUID(account config.CloudAccount, region string) st
 	if err != nil {
 		// 如果首次失败且 region 不是 cn-hangzhou，尝试 fallback
 		if region != "cn-hangzhou" {
-			logger.Log.Warnf("Aliyun GetCallerIdentity 在 %s 失败: %v, 尝试 fallback 到 cn-hangzhou", region, err)
+			ctxLog.Warnf("GetCallerIdentity 在 %s 失败: %v，尝试 fallback 到 cn-hangzhou", region, err)
 			resp, err = doGet("cn-hangzhou")
 		}
 	}
 
 	if err != nil {
-		logger.Log.Errorf("Aliyun GetCallerIdentity 错误: %v", err)
+		ctxLog.Errorf("GetCallerIdentity 错误: %v", err)
 		return account.AccountID // 回退到配置ID
 	}
 
@@ -234,7 +236,8 @@ func (a *Collector) Collect(account config.CloudAccount) {
 		regions = a.getAllRegions(account)
 	}
 
-	logger.Log.Debugf("Aliyun 开始账号采集 account_id=%s 区域数=%d", account.AccountID, len(regions))
+	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID)
+	ctxLog.Debugf("开始账号采集，区域数=%d", len(regions))
 	limit := 4
 	if a.cfg != nil && a.cfg.Server != nil && a.cfg.Server.RegionConcurrency > 0 {
 		limit = a.cfg.Server.RegionConcurrency
@@ -254,9 +257,10 @@ func (a *Collector) Collect(account config.CloudAccount) {
 		go func(r string) {
 			defer wg.Done()
 			defer func() { <-sem }()
-			logger.Log.Debugf("Aliyun 开始区域采集 account_id=%s region=%s", account.AccountID, r)
+			regionLog := ctxLog.With("region", r)
+			regionLog.Debugf("开始区域采集")
 			a.collectCMSMetrics(account, r)
-			logger.Log.Debugf("Aliyun 完成区域采集 account_id=%s region=%s", account.AccountID, r)
+			regionLog.Debugf("完成区域采集")
 		}(region)
 	}
 	wg.Wait()
@@ -264,9 +268,11 @@ func (a *Collector) Collect(account config.CloudAccount) {
 
 // getAllRegions 通过 DescribeRegions 自动发现全部区域，并使用区域管理器进行智能过滤
 func (a *Collector) getAllRegions(account config.CloudAccount) []string {
+	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID)
+
 	client, err := a.clientFactory.NewECSClient("cn-hangzhou", account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
-		logger.Log.Errorf("Aliyun 获取区域列表错误，账号ID=%s 错误=%v", account.AccountID, err)
+		ctxLog.Errorf("获取区域列表错误，错误=%v", err)
 		return []string{"cn-hangzhou"}
 	}
 
@@ -281,7 +287,7 @@ func (a *Collector) getAllRegions(account config.CloudAccount) []string {
 		} else if strings.Contains(msg, "timeout") || strings.Contains(msg, "unreachable") || strings.Contains(msg, "Temporary network") {
 			status = "network_error"
 		}
-		logger.Log.Errorf("Aliyun 描述区域错误，账号ID=%s 状态=%s 错误=%v", account.AccountID, status, err)
+		ctxLog.Errorf("描述区域错误，状态=%s 错误=%v", status, err)
 		metrics.RequestTotal.WithLabelValues("aliyun", "DescribeRegions", status).Inc()
 		def := os.Getenv("DEFAULT_REGIONS")
 		if def != "" {
@@ -306,13 +312,13 @@ func (a *Collector) getAllRegions(account config.CloudAccount) []string {
 	for _, region := range response.Regions.Region {
 		regions = append(regions, region.RegionId)
 	}
-	logger.Log.Debugf("Aliyun DescribeRegions 成功，总区域数=%d 账号ID=%s", len(regions), account.AccountID)
+	ctxLog.Debugf("DescribeRegions 成功，总区域数=%d", len(regions))
 
 	// 使用区域管理器进行智能过滤
 	if a.regionManager != nil {
 		activeRegions := a.regionManager.GetActiveRegions(account.AccountID, regions)
-		logger.Log.Infof("智能区域选择: 总=%d 活跃=%d 账号ID=%s",
-			len(regions), len(activeRegions), account.AccountID)
+		ctxLog.Infof("智能区域选择: 总=%d 活跃=%d",
+			len(regions), len(activeRegions))
 		return activeRegions
 	}
 
@@ -348,7 +354,7 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 
 	client, err := a.clientFactory.NewCMSClient(region, ak, sk)
 	if err != nil {
-		logger.Log.Errorf("Aliyun CMS 客户端错误: %v", err)
+		baseLog.Errorf("CMS 客户端创建失败，错误=%v", err)
 		return
 	}
 	// Endpoint 使用地域默认配置，如需自定义可在此处扩展
@@ -526,6 +532,8 @@ type metricMeta struct {
 }
 
 func (a *Collector) getMetricMeta(client CMSClient, accountID, namespace, metric string) metricMeta {
+	ctxLog := logger.NewContextLogger("Aliyun", "account_id", accountID)
+
 	key := accountID + "|" + namespace + "|" + metric
 
 	// 首次检查缓存（读锁）
@@ -571,7 +579,7 @@ func (a *Collector) getMetricMeta(client CMSClient, accountID, namespace, metric
 				if sleep > 5*time.Second {
 					sleep = 5 * time.Second
 				}
-				logger.Log.Debugf("Aliyun getMetricMeta 限流重试，账号ID=%s 命名空间=%s 指标=%s 重试次数=%d/%d 延迟=%v", accountID, namespace, metric, attempt+1, 5, sleep)
+				ctxLog.Debugf("getMetricMeta 限流重试，命名空间=%s 指标=%s 重试次数=%d/%d 延迟=%v", namespace, metric, attempt+1, 5, sleep)
 				time.Sleep(sleep)
 				continue
 			}
@@ -581,9 +589,9 @@ func (a *Collector) getMetricMeta(client CMSClient, accountID, namespace, metric
 		if apiErr != nil {
 			st := common.ClassifyAliyunError(apiErr)
 			if st == "limit_error" {
-				logger.Log.Warnf("Aliyun getMetricMeta 错误（重试5次后仍失败），账号ID=%s 命名空间=%s 指标=%s 错误=%v", accountID, namespace, metric, apiErr)
+				ctxLog.Warnf("getMetricMeta 错误（重试5次后仍失败），命名空间=%s 指标=%s 错误=%v", namespace, metric, apiErr)
 			} else {
-				logger.Log.Warnf("Aliyun getMetricMeta 错误，账号ID=%s 命名空间=%s 指标=%s 错误=%v", accountID, namespace, metric, apiErr)
+				ctxLog.Warnf("getMetricMeta 错误，命名空间=%s 指标=%s 错误=%v", namespace, metric, apiErr)
 			}
 			metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricMetaList", st).Inc()
 			metrics.RecordRequest("aliyun", "DescribeMetricMetaList", st)
@@ -595,12 +603,12 @@ func (a *Collector) getMetricMeta(client CMSClient, accountID, namespace, metric
 
 			// 【诊断日志】API 返回结果的详细信息
 			if len(resp.Resources.Resource) == 0 {
-				logger.Log.Debugf("Aliyun getMetricMeta API 返回空结果，账号ID=%s 命名空间=%s 指标=%s 将使用默认维度",
-					accountID, namespace, metric)
+				ctxLog.Debugf("getMetricMeta API 返回空结果，命名空间=%s 指标=%s 将使用默认维度",
+					namespace, metric)
 			} else {
 				r := resp.Resources.Resource[0]
-				logger.Log.Debugf("Aliyun getMetricMeta API 成功，账号ID=%s 命名空间=%s 指标=%s 原始维度=[%s] 原始统计=[%s]",
-					accountID, namespace, metric, r.Dimensions, r.Statistics)
+				ctxLog.Debugf("getMetricMeta API 成功，命名空间=%s 指标=%s 原始维度=[%s] 原始统计=[%s]",
+					namespace, metric, r.Dimensions, r.Statistics)
 			}
 
 			if len(resp.Resources.Resource) > 0 {
@@ -616,8 +624,8 @@ func (a *Collector) getMetricMeta(client CMSClient, accountID, namespace, metric
 				out.Dimensions = ds
 
 				// 【诊断日志】记录维度处理结果
-				logger.Log.Debugf("Aliyun getMetricMeta 维度处理，账号ID=%s 命名空间=%s 指标=%s 原始数量=%d 过滤userId后=%d",
-					accountID, namespace, metric, len(dims), len(ds))
+				ctxLog.Debugf("getMetricMeta 维度处理，命名空间=%s 指标=%s 原始数量=%d 过滤userId后=%d",
+					namespace, metric, len(dims), len(ds))
 				if len(out.Dimensions) == 0 {
 					key := "aliyun." + namespace
 					if server := a.cfg.GetServer(); server != nil {
@@ -666,27 +674,27 @@ func (a *Collector) getMetricMeta(client CMSClient, accountID, namespace, metric
 		if len(out.Dimensions) == 0 {
 			key := "aliyun." + namespace
 			// 【诊断日志】记录默认维度使用
-			logger.Log.Debugf("Aliyun getMetricMeta API 返回空维度或失败，尝试使用默认维度，账号ID=%s 命名空间=%s 指标=%s",
-				accountID, namespace, metric)
+			ctxLog.Debugf("getMetricMeta API 返回空维度或失败，尝试使用默认维度，命名空间=%s 指标=%s",
+				namespace, metric)
 
 			if server := a.cfg.GetServer(); server != nil {
 				if req, ok := server.ResourceDimMapping[key]; ok && len(req) > 0 {
 					out.Dimensions = append(out.Dimensions, req...)
-					logger.Log.Infof("Aliyun getMetricMeta 使用配置文件默认维度，账号ID=%s 命名空间=%s 指标=%s 维度=%v",
-						accountID, namespace, metric, out.Dimensions)
+					ctxLog.Infof("getMetricMeta 使用配置文件默认维度，命名空间=%s 指标=%s 维度=%v",
+						namespace, metric, out.Dimensions)
 				}
 			}
 			if len(out.Dimensions) == 0 {
 				defaults := config.DefaultResourceDimMapping()
 				if req, ok := defaults[key]; ok && len(req) > 0 {
 					out.Dimensions = append(out.Dimensions, req...)
-					logger.Log.Infof("Aliyun getMetricMeta 使用内置默认维度，账号ID=%s 命名空间=%s 指标=%s 维度=%v",
-						accountID, namespace, metric, out.Dimensions)
+					ctxLog.Infof("getMetricMeta 使用内置默认维度，命名空间=%s 指标=%s 维度=%v",
+						namespace, metric, out.Dimensions)
 				}
 			}
 			if len(out.Dimensions) == 0 {
-				logger.Log.Warnf("Aliyun getMetricMeta 无法获取任何维度（API返回空且无默认维度），账号ID=%s 命名空间=%s 指标=%s",
-					accountID, namespace, metric)
+				ctxLog.Warnf("getMetricMeta 无法获取任何维度（API返回空且无默认维度），命名空间=%s 指标=%s",
+					namespace, metric)
 			}
 		}
 
@@ -697,7 +705,7 @@ func (a *Collector) getMetricMeta(client CMSClient, accountID, namespace, metric
 			a.metaCache[key] = out
 			a.metaMu.Unlock()
 		} else {
-			logger.Log.Warnf("Aliyun getMetricMeta 跳过缓存（维度为空），账号ID=%s 命名空间=%s 指标=%s，将使用默认维度", accountID, namespace, metric)
+			ctxLog.Warnf("getMetricMeta 跳过缓存（维度为空），命名空间=%s 指标=%s，将使用默认维度", namespace, metric)
 		}
 
 		return out, nil
@@ -929,6 +937,8 @@ func (a *Collector) cacheKey(account config.CloudAccount, region, namespace, rty
 }
 
 func (a *Collector) listALBIDs(account config.CloudAccount, region string) []string {
+	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccessKeyID, "region", region, "rtype", "alb")
+
 	if ids, _, hit := a.getCachedIDs(account, region, "acs_alb", "alb"); hit {
 		return ids
 	}
@@ -952,7 +962,7 @@ func (a *Collector) listALBIDs(account config.CloudAccount, region string) []str
 		for {
 			loopCount++
 			if loopCount > maxLoops {
-				logger.Log.Errorf("ALB资源枚举达到最大循环次数限制(%d)，强制退出 region=%s", maxLoops, region)
+				ctxLog.Errorf("资源枚举达到最大循环次数限制(%d)，强制退出", maxLoops)
 				break
 			}
 
@@ -962,7 +972,7 @@ func (a *Collector) listALBIDs(account config.CloudAccount, region string) []str
 			if nextToken != "" {
 				// 检测重复的NextToken（防止API返回相同token导致的无限循环）
 				if seenNextTokens[nextToken] {
-					logger.Log.Warnf("ALB资源枚举检测到重复的NextToken，退出分页 loop=%d region=%s", loopCount, region)
+					ctxLog.Warnf("资源枚举检测到重复的NextToken，退出分页 loop=%d", loopCount)
 					break
 				}
 				seenNextTokens[nextToken] = true
@@ -1024,14 +1034,14 @@ func (a *Collector) listALBIDs(account config.CloudAccount, region string) []str
 			if pageDataCount == 0 {
 				emptyDataCount++
 				if emptyDataCount >= 3 {
-					logger.Log.Warnf("资源枚举连续%d次返回空数据，退出分页 loop=%d region=%s", emptyDataCount, loopCount, region)
+					ctxLog.Warnf("资源枚举连续%d次返回空数据，退出分页 loop=%d", emptyDataCount, loopCount)
 					break
 				}
 			} else {
 				emptyDataCount = 0 // 重置空数据计数
 			}
 
-			// NextToken 分页：如果 NextToken 为空（nil 或空字符串），说明已经是最后一页
+			// NextToken 分页：如果 NextToken 为空（nil 或 空字符串），说明已经是最后一页
 			// 即使当前页返回的数据量小于 MaxResults，只要 NextToken 不为空，就应该继续
 			if resp.Body.NextToken == nil || tea.StringValue(resp.Body.NextToken) == "" {
 				break
@@ -1045,7 +1055,6 @@ func (a *Collector) listALBIDs(account config.CloudAccount, region string) []str
 	// 1. ALB API 客户端创建失败（err != nil 或 albClient == nil）
 	// 2. ALB API 调用成功但返回空列表（可能是该区域确实没有资源，或 API 权限问题）
 	// 注意：如果 ALB API 调用失败（callErr != nil），说明是认证或权限问题，不应该回退到 CMS
-	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", "alb")
 	if len(out) == 0 {
 		ctxLog.Debugf("ALB API 返回空列表，尝试回退到 CMS 枚举")
 		cmsClient, cmsErr := a.clientFactory.NewCMSClient(region, account.AccessKeyID, account.AccessKeySecret)
@@ -1076,6 +1085,8 @@ func (a *Collector) listALBIDs(account config.CloudAccount, region string) []str
 }
 
 func (a *Collector) listNLBIDs(account config.CloudAccount, region string) []string {
+	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccessKeyID, "region", region, "rtype", "nlb")
+
 	if ids, _, hit := a.getCachedIDs(account, region, "acs_nlb", "nlb"); hit {
 		return ids
 	}
@@ -1099,7 +1110,7 @@ func (a *Collector) listNLBIDs(account config.CloudAccount, region string) []str
 		for {
 			loopCount++
 			if loopCount > maxLoops {
-				logger.Log.Errorf("NLB资源枚举达到最大循环次数限制(%d)，强制退出 region=%s", maxLoops, region)
+				ctxLog.Errorf("资源枚举达到最大循环次数限制(%d)，强制退出", maxLoops)
 				break
 			}
 
@@ -1109,7 +1120,7 @@ func (a *Collector) listNLBIDs(account config.CloudAccount, region string) []str
 			if nextToken != "" {
 				// 检测重复的NextToken（防止API返回相同token导致的无限循环）
 				if seenNextTokens[nextToken] {
-					logger.Log.Warnf("NLB资源枚举检测到重复的NextToken，退出分页 loop=%d region=%s", loopCount, region)
+					ctxLog.Warnf("资源枚举检测到重复的NextToken，退出分页 loop=%d", loopCount)
 					break
 				}
 				seenNextTokens[nextToken] = true
@@ -1171,7 +1182,7 @@ func (a *Collector) listNLBIDs(account config.CloudAccount, region string) []str
 			if pageDataCount == 0 {
 				emptyDataCount++
 				if emptyDataCount >= 3 {
-					logger.Log.Warnf("资源枚举连续%d次返回空数据，退出分页 loop=%d region=%s", emptyDataCount, loopCount, region)
+					ctxLog.Warnf("资源枚举连续%d次返回空数据，退出分页 loop=%d", emptyDataCount, loopCount)
 					break
 				}
 			} else {
@@ -1192,7 +1203,6 @@ func (a *Collector) listNLBIDs(account config.CloudAccount, region string) []str
 	// 1. NLB API 客户端创建失败（err != nil 或 nlbClient == nil）
 	// 2. NLB API 调用成功但返回空列表（可能是该区域确实没有资源，或 API 权限问题）
 	// 注意：如果 NLB API 调用失败（callErr != nil），说明是认证或权限问题，不应该回退到 CMS
-	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", "nlb")
 	if len(out) == 0 {
 		ctxLog.Debugf("NLB API 返回空列表，尝试回退到 CMS 枚举")
 		cmsClient, cmsErr := a.clientFactory.NewCMSClient(region, account.AccessKeyID, account.AccessKeySecret)

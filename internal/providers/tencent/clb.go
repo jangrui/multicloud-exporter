@@ -14,8 +14,10 @@ import (
 )
 
 func (t *Collector) listCLBVips(account config.CloudAccount, region string) []string {
+	ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "rtype", "clb")
+
 	if ids, hit := t.getCachedIDs(account, region, "QCE/LB", "clb"); hit {
-		logger.Log.Debugf("Tencent CLB VIPs 缓存命中，账号ID=%s 区域=%s 数量=%d", account.AccountID, region, len(ids))
+		ctxLog.Debugf("CLB VIPs 缓存命中，数量=%d", len(ids))
 		return ids
 	}
 
@@ -24,7 +26,6 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 		return []string{}
 	}
 
-	ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "CLB")
 	ctxLog.Debugf("开始枚举 CLB VIPs")
 
 	var vips []string

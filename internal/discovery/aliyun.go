@@ -70,6 +70,8 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 
 	// Fetch meta for each namespace
 	for ns := range nsSet {
+		ctxLogNs := logger.NewContextLogger("Aliyun", "resource_type", "Discovery", "namespace", ns)
+
 		region := "cn-hangzhou"
 		if len(accounts) > 0 && len(accounts[0].Regions) > 0 && accounts[0].Regions[0] != "*" {
 			region = accounts[0].Regions[0]
@@ -329,7 +331,7 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 				}
 			}
 			if added > 0 {
-				logger.Log.Infof("Aliyun 发现服务已追加备用指标，命名空间=%s 新增数量=%d 追加指标=%v", ns, added, func() []string {
+				ctxLogNs.Infof("发现服务已追加备用指标，新增数量=%d 追加指标=%v", added, func() []string {
 					missing := []string{}
 					for _, m := range list {
 						if _, ok := cur[m]; !ok {
@@ -342,11 +344,11 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 		}
 
 		if len(metrics) == 0 {
-			logger.Log.Warnf("Aliyun 发现服务未发现指标，命名空间=%s", ns)
+			ctxLogNs.Warnf("发现服务未发现指标")
 			continue
 		}
 		prods = append(prods, config.Product{Namespace: ns, AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: metrics}}})
-		logger.Log.Infof("Aliyun 发现服务完成，命名空间=%s，指标数量=%d", ns, len(metrics))
+		ctxLogNs.Infof("发现服务完成，指标数量=%d", len(metrics))
 	}
 	return prods
 }

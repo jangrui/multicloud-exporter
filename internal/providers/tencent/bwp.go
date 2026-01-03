@@ -14,8 +14,9 @@ import (
 )
 
 func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []string {
+	ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "rtype", "bwp")
+
 	if ids, hit := t.getCachedIDs(account, region, "QCE/BWP", "bwp"); hit {
-		ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "BWP")
 		ctxLog.Debugf("BWP IDs 缓存命中，数量=%d", len(ids))
 		return ids
 	}
@@ -25,7 +26,6 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 		return []string{}
 	}
 
-	ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "BWP")
 	ctxLog.Debugf("开始枚举 BWP IDs")
 
 	var ids []string

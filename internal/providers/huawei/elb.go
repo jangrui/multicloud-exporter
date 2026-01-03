@@ -35,6 +35,8 @@ func (h *Collector) collectELB(account config.CloudAccount, region string) {
 		return
 	}
 
+	ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "rtype", "elb")
+
 	// 产品级分片
 	wTotal, wIndex := utils.ClusterConfig()
 	for _, p := range prods {
@@ -43,8 +45,7 @@ func (h *Collector) collectELB(account config.CloudAccount, region string) {
 		}
 		productKey := account.AccountID + "|" + region + "|" + p.Namespace
 		if !utils.ShouldProcess(productKey, wTotal, wIndex) {
-			ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "namespace", p.Namespace)
-			ctxLog.Debugf("产品跳过（分片不匹配）")
+			ctxLog.Debugf("ELB 产品跳过（分片不匹配）")
 			continue
 		}
 		elbs := h.listELBInstances(account, region)
@@ -57,24 +58,23 @@ func (h *Collector) collectELB(account config.CloudAccount, region string) {
 
 // listELBInstances 枚举 ELB 实例
 func (h *Collector) listELBInstances(account config.CloudAccount, region string) []elbInfo {
+	ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "rtype", "elb")
+
 	if ids, hit := h.getCachedIDs(account, region, "SYS.ELB", "elb"); hit {
 		var elbs []elbInfo
 		for _, id := range ids {
 			elbs = append(elbs, elbInfo{ID: id, Name: id})
 		}
-		ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "resource_type", "ELB")
 		ctxLog.Debugf("ELB 缓存命中，数量=%d", len(ids))
 		return elbs
 	}
 
 	client, err := h.clientFactory.NewELBClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
-		ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "resource_type", "ELB")
 		ctxLog.Errorf("ELB 客户端创建失败，错误=%v", err)
 		return nil
 	}
 
-	ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "rtype", "elb")
 	ctxLog.Debugf("开始枚举 ELB 实例")
 
 	var elbs []elbInfo
@@ -153,8 +153,7 @@ func (h *Collector) listELBInstances(account config.CloudAccount, region string)
 			status = providerscommon.RegionStatusActive
 		}
 		h.regionManager.UpdateRegionStatus(account.AccountID, region, len(ids), status)
-		ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "resource_type", "ELB")
-		ctxLog.Debugf("更新区域状态, status=%s, count=%d",
+		ctxLog.Debugf("更新区域状态，status=%s，count=%d",
 			status, len(ids))
 	}
 
@@ -167,10 +166,8 @@ func (h *Collector) listELBInstances(account config.CloudAccount, region string)
 		for i := 0; i < max; i++ {
 			preview = append(preview, elbs[i].ID)
 		}
-		ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "resource_type", "ELB")
 		ctxLog.Debugf("ELB 已枚举，数量=%d 预览=%v", len(elbs), preview)
 	} else {
-		ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "resource_type", "ELB")
 		ctxLog.Debugf("ELB 已枚举，数量=%d", len(elbs))
 	}
 	return elbs
@@ -178,9 +175,10 @@ func (h *Collector) listELBInstances(account config.CloudAccount, region string)
 
 // fetchELBMonitor 采集 ELB 监控指标
 func (h *Collector) fetchELBMonitor(account config.CloudAccount, region string, prod config.Product, elbs []elbInfo) {
+	ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "rtype", "elb")
+
 	client, err := h.clientFactory.NewCESClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
-		ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "resource_type", "CES")
 		ctxLog.Errorf("CES 客户端创建失败，错误=%v", err)
 		return
 	}
@@ -249,7 +247,7 @@ func (h *Collector) fetchELBMonitor(account config.CloudAccount, region string, 
 					if status == "limit_error" {
 						metrics.RateLimitTotal.WithLabelValues("huawei", "BatchListMetricData").Inc()
 					}
-					logger.Log.Warnf("BatchListMetricData 错误，指标=%s 错误=%v", metricName, err)
+					ctxLog.Warnf("BatchListMetricData 错误，指标=%s 错误=%v", metricName, err)
 					continue
 				}
 				metrics.RequestTotal.WithLabelValues("huawei", "BatchListMetricData", "success").Inc()
