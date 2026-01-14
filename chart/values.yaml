@@ -11,6 +11,7 @@ service:
   port: 9101
   type: ClusterIP
   nodePort:
+  annotations:
 
 headless:
   enabled: false

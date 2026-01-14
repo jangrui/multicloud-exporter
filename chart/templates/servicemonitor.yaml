@@ -9,6 +9,7 @@ metadata:
     {{- toYaml . | nindent 4 }}
     {{- end }}
 spec:
+  jobLabel: {{ .Values.serviceMonitor.jobLabel | default "app.kubernetes.io/name" | quote }}
   selector:
     matchLabels:
       {{- include "multicloud-exporter.selectorLabels" . | nindent 6 }}
@@ -34,4 +35,3 @@ spec:
 {{ toYaml .Values.serviceMonitor.metricRelabelings | nindent 8 }}
 {{- end }}
 {{- end }}
-
