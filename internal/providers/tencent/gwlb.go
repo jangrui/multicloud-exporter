@@ -65,6 +65,18 @@ func (t *Collector) listGWLBIDs(account config.CloudAccount, region string) []st
 			}
 		}
 	}
+
+	wTotal, wIndex := utils.ClusterConfig()
+	if wTotal > 1 {
+		filteredIDs := []string{}
+		for _, id := range ids {
+			instanceKey := account.AccountID + "|" + region + "|" + "qce/gwlb" + "|" + id
+			if utils.ShouldProcess(instanceKey, wTotal, wIndex) {
+				filteredIDs = append(filteredIDs, id)
+			}
+		}
+		ids = filteredIDs
+	}
 	t.setCachedIDs(account, region, "qce/gwlb", "gwlb", ids)
 
 	// 更新区域状态

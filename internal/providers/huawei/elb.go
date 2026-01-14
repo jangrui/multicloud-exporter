@@ -144,6 +144,28 @@ func (h *Collector) listELBInstances(account config.CloudAccount, region string)
 	for _, elb := range elbs {
 		ids = append(ids, elb.ID)
 	}
+
+	wTotal, wIndex := utils.ClusterConfig()
+	if wTotal > 1 {
+		filteredIDs := []string{}
+		for _, id := range ids {
+			instanceKey := account.AccountID + "|" + region + "|" + "SYS.ELB" + "|" + id
+			if utils.ShouldProcess(instanceKey, wTotal, wIndex) {
+				filteredIDs = append(filteredIDs, id)
+			}
+		}
+		ids = filteredIDs
+		filteredELBs := []elbInfo{}
+		for _, elb := range elbs {
+			for _, id := range ids {
+				if elb.ID == id {
+					filteredELBs = append(filteredELBs, elb)
+					break
+				}
+			}
+		}
+		elbs = filteredELBs
+	}
 	h.setCachedIDs(account, region, "SYS.ELB", "elb", ids)
 
 	// 更新区域状态

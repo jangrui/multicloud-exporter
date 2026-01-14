@@ -145,6 +145,28 @@ func (h *Collector) listOBSBuckets(account config.CloudAccount, region string) [
 	for _, bucket := range buckets {
 		ids = append(ids, bucket.Name)
 	}
+
+	wTotal, wIndex := utils.ClusterConfig()
+	if wTotal > 1 {
+		filteredIDs := []string{}
+		for _, id := range ids {
+			instanceKey := account.AccountID + "|" + region + "|" + "SYS.OBS" + "|" + id
+			if utils.ShouldProcess(instanceKey, wTotal, wIndex) {
+				filteredIDs = append(filteredIDs, id)
+			}
+		}
+		ids = filteredIDs
+		filteredBuckets := []obsInfo{}
+		for _, bucket := range buckets {
+			for _, id := range ids {
+				if bucket.Name == id {
+					filteredBuckets = append(filteredBuckets, bucket)
+					break
+				}
+			}
+		}
+		buckets = filteredBuckets
+	}
 	h.setCachedIDs(account, region, "SYS.OBS", "obs", ids)
 
 	// 更新区域状态

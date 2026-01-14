@@ -110,6 +110,20 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 		return
 	}
 
+	if wTotal > 1 {
+		filteredBuckets := []string{}
+		for _, bucket := range buckets {
+			instanceKey := account.AccountID + "|global|" + s3Prod.Namespace + "|" + bucket
+			if utils.ShouldProcess(instanceKey, wTotal, wIndex) {
+				filteredBuckets = append(filteredBuckets, bucket)
+			}
+		}
+		buckets = filteredBuckets
+		if len(buckets) == 0 {
+			return
+		}
+	}
+
 	codeNames := c.fetchS3BucketCodeNames(ctx, s3Client, buckets)
 
 	// CloudWatch S3 指标维度：BucketName + StorageType（对存储类指标必填）

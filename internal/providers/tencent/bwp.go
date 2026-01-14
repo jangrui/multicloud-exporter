@@ -7,6 +7,7 @@ import (
 	"multicloud-exporter/internal/logger"
 	"multicloud-exporter/internal/metrics"
 	providerscommon "multicloud-exporter/internal/providers/common"
+	"multicloud-exporter/internal/utils"
 
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
 	monitor "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/monitor/v20180724"
@@ -108,6 +109,18 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 		offset += limit
 		ctxLog.Debugf("BWP分页采集, offset=%d, current_count=%d, total_collected=%d", offset, currentCount, len(ids))
 		time.Sleep(50 * time.Millisecond)
+	}
+
+	wTotal, wIndex := utils.ClusterConfig()
+	if wTotal > 1 {
+		filteredIDs := []string{}
+		for _, id := range ids {
+			instanceKey := account.AccountID + "|" + region + "|" + "QCE/BWP" + "|" + id
+			if utils.ShouldProcess(instanceKey, wTotal, wIndex) {
+				filteredIDs = append(filteredIDs, id)
+			}
+		}
+		ids = filteredIDs
 	}
 
 	t.setCachedIDs(account, region, "QCE/BWP", "bwp", ids)

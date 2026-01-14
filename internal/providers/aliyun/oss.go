@@ -174,6 +174,18 @@ func (a *Collector) listOSSIDs(account config.CloudAccount, region string) []str
 		}
 	}
 
+	wTotal, wIndex := utils.ClusterConfig()
+	if wTotal > 1 {
+		filteredBuckets := []string{}
+		for _, bucketName := range regionBuckets {
+			instanceKey := account.AccountID + "|" + region + "|" + "acs_oss_dashboard" + "|" + bucketName
+			if utils.ShouldProcess(instanceKey, wTotal, wIndex) {
+				filteredBuckets = append(filteredBuckets, bucketName)
+			}
+		}
+		regionBuckets = filteredBuckets
+	}
+
 	// Cache the filtered result at region level (consistent with other resources)
 	a.setCachedIDs(account, region, "acs_oss_dashboard", "oss", regionBuckets, nil)
 

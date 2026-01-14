@@ -140,6 +140,18 @@ func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) [
 		}
 	}
 
+	wTotal, wIndex := utils.ClusterConfig()
+	if wTotal > 1 {
+		filteredBuckets := []string{}
+		for _, bucketName := range buckets {
+			instanceKey := account.AccountID + "|" + region + "|" + "QCE/COS" + "|" + bucketName
+			if utils.ShouldProcess(instanceKey, wTotal, wIndex) {
+				filteredBuckets = append(filteredBuckets, bucketName)
+			}
+		}
+		buckets = filteredBuckets
+	}
+
 	t.setCachedIDs(account, region, "QCE/COS", "cos", buckets)
 
 	// 更新区域状态
