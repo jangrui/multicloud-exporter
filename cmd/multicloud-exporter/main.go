@@ -10,6 +10,7 @@ import (
 
 	"multicloud-exporter/internal/collector"
 	"multicloud-exporter/internal/logger"
+	"multicloud-exporter/internal/utils"
 )
 
 // global context for graceful shutdown
@@ -49,6 +50,10 @@ func main() {
 	// 4. 获取服务端口和采集间隔
 	port := getServerPort(cfg)
 	interval := getScrapeInterval(cfg)
+
+	// 设置分片配置缓存 TTL 为采集间隔
+	// 这样可以确保分片拓扑的刷新频率与业务采集频率一致
+	utils.SetClusterConfigTTL(interval)
 
 	// 5. 初始化发现管理器（必须成功）
 	mgr, err := initializeDiscovery(cfg)

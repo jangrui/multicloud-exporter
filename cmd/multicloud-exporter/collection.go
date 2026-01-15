@@ -35,36 +35,49 @@ func startCollectionLoop(ctx context.Context, cfg *config.Config, coll *collecto
 		defer ticker.Stop()
 
 		// ========== 智能首次采集策略 ==========
-		// 获取集群分片配置
-		totalShards, shardIndex := utils.ClusterConfig()
+		// 从环境变量读取策略，默认为 auto
+		strategy := getEnvOrDefault("FIRST_RUN_STRATEGY", "auto")
 
-		// 计算首次采集延迟
-		firstRunDelay := calculateFirstRunDelay(totalShards, shardIndex, interval)
-
-		if firstRunDelay > 0 {
+		shouldRunImmediately := true
+		if strategy == "auto" {
 			ctxLog := logger.NewContextLogger("Collection", "resource_type", "FirstRun")
-			ctxLog.Infof("首次采集延迟策略: 分片总数=%d, 当前索引=%d, 延迟=%v",
-				totalShards, shardIndex, firstRunDelay)
-
-			select {
-			case <-time.After(firstRunDelay):
-				// 延迟结束，继续执行首次采集
-			case <-ctx.Done():
-				ctxLog := logger.NewContextLogger("Collection", "resource_type", "FirstRun")
-				ctxLog.Info("收到停止信号，取消首次采集")
-				return
-			}
+			ctxLog.Infof("首次采集策略(auto): 跳过启动时的立即采集，将在首个采集周期(%v)后开始。这有助于等待 DNS 分片环境就绪并减少 API 压力。", interval)
+			shouldRunImmediately = false
 		} else {
-			ctxLog := logger.NewContextLogger("Collection", "resource_type", "FirstRun")
-			ctxLog.Infof("首次采集策略: 立即执行 (分片总数=%d, 当前索引=%d)",
-				totalShards, shardIndex)
+			// 只有非 auto 策略（如 immediate, staggered）才执行旧的启动逻辑
+			// 获取集群分片配置
+			totalShards, shardIndex := utils.ClusterConfig()
+
+			// 计算首次采集延迟
+			firstRunDelay := calculateFirstRunDelay(totalShards, shardIndex, interval)
+
+			if firstRunDelay > 0 {
+				ctxLog := logger.NewContextLogger("Collection", "resource_type", "FirstRun")
+				ctxLog.Infof("首次采集延迟策略: 分片总数=%d, 当前索引=%d, 延迟=%v",
+					totalShards, shardIndex, firstRunDelay)
+
+				select {
+				case <-time.After(firstRunDelay):
+					// 延迟结束，继续执行首次采集
+				case <-ctx.Done():
+					ctxLog := logger.NewContextLogger("Collection", "resource_type", "FirstRun")
+					ctxLog.Info("收到停止信号，取消首次采集")
+					return
+				}
+			} else {
+				ctxLog := logger.NewContextLogger("Collection", "resource_type", "FirstRun")
+				ctxLog.Infof("首次采集策略: 立即执行 (分片总数=%d, 当前索引=%d)",
+					totalShards, shardIndex)
+			}
 		}
 
-		// 执行首次采集
-		ctxLog := logger.NewContextLogger("Collection", "resource_type", "FirstRun")
-		ctxLog.Info("开始首次采集...")
-		coll.Collect()
-		ctxLog.Info("首次采集完成，进入定时采集循环")
+		// 执行首次采集（仅在非 auto 策略下）
+		if shouldRunImmediately {
+			ctxLog := logger.NewContextLogger("Collection", "resource_type", "FirstRun")
+			ctxLog.Info("开始首次采集...")
+			coll.Collect()
+			ctxLog.Info("首次采集完成，进入定时采集循环")
+		}
 		// ========== 智能首次采集结束 ==========
 
 		for {
