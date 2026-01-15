@@ -1,4 +1,5 @@
-{{- if .Values.headless.enabled }}
+{{- $autoHeadless := and (eq .Values.cluster.discovery "") (gt (int .Values.replicaCount) 1) (not .Values.cluster.sharding.enabled) -}}
+{{- if or .Values.headless.enabled $autoHeadless }}
 apiVersion: v1
 kind: Service
 metadata:

@@ -1,3 +1,8 @@
+{{- $discovery := .Values.cluster.discovery -}}
+{{- if and (eq $discovery "") (gt (int .Values.replicaCount) 1) (not .Values.cluster.sharding.enabled) -}}
+{{- $discovery = "headless" -}}
+{{- end -}}
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -48,8 +53,8 @@ spec:
 {{- end }}
           env:
             - name: CLUSTER_DISCOVERY
-              value: {{ .Values.cluster.discovery | quote }}
-{{- if or .Values.cluster.svcName (and (eq .Values.cluster.discovery "headless") .Values.headless.enabled) }}
+              value: {{ $discovery | quote }}
+{{- if or .Values.cluster.svcName (eq $discovery "headless") }}
             - name: CLUSTER_SVC
               value: {{ .Values.cluster.svcName | default (printf "%s-headless" (default "multicloud-exporter" .Values.fullname)) | quote }}
 {{- end }}
