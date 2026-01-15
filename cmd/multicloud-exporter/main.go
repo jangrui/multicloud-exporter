@@ -55,10 +55,21 @@ func main() {
 	// 这样可以确保分片拓扑的刷新频率与业务采集频率一致
 	utils.SetClusterConfigTTL(interval)
 
+	// 记录集群配置信息
+	discoveryType := os.Getenv("CLUSTER_DISCOVERY")
+	total, index := utils.ClusterConfig()
+	ctxLog := logger.NewContextLogger("Main", "resource_type", "ClusterConfig")
+	if discoveryType != "" {
+		ctxLog.Infof("集群配置初始化: 发现方式=%s, 总Pod数=%d, 当前索引=%d, 缓存TTL=%v",
+			discoveryType, total, index, interval)
+	} else {
+		ctxLog.Infof("集群配置初始化: 单实例模式, total=%d, index=%d", total, index)
+	}
+
 	// 5. 初始化发现管理器（必须成功）
 	mgr, err := initializeDiscovery(cfg)
 	if err != nil {
-		ctxLog := logger.NewContextLogger("Main", "resource_type", "Discovery")
+		ctxLog = logger.NewContextLogger("Main", "resource_type", "Discovery")
 		ctxLog.Errorf("Failed to initialize discovery: %v", err)
 		os.Exit(1)
 	}
@@ -76,7 +87,7 @@ func main() {
 	setupHTTPHandlers(cfg, coll, mgr)
 
 	// 10. 启动 HTTP 服务器
-	ctxLog := logger.NewContextLogger("Main", "resource_type", "HTTPServer")
+	ctxLog = logger.NewContextLogger("Main", "resource_type", "HTTPServer")
 	ctxLog.Infof("HTTP 服务启动，监听端口=%s", port)
 
 	// 在 goroutine 中启动 HTTP 服务器

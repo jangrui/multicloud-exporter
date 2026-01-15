@@ -28,10 +28,36 @@ server:
   # 智能区域发现配置
   region_discovery:
     enabled: ${REGION_DISCOVERY_ENABLED:-true}
-    discovery_interval: ${REGION_DISCOVERY_INTERVAL:-24h}
+    # 重新发现周期：定期将所有区域状态重置为 unknown 以重新探测（默认 1h，用户可自定义）
+    # 支持单位：s(秒), m(分), h(时), d(天, 1d=24h)
+    discovery_interval: ${REGION_DISCOVERY_INTERVAL:-1h}
+    # 空区域跳过阈值：连续多少次发现区域为空后跳过该区域（默认 3）
     empty_threshold: ${REGION_EMPTY_THRESHOLD:-3}
+    # 数据目录：区域状态持久化文件的存储目录
     data_dir: ${REGION_DATA_DIR:-/app/data}
+    # 持久化文件名：区域状态保存的文件名（相对于 data_dir）
     persist_file: ${REGION_PERSIST_FILE:-region_status.json}
+  # 首次采集策略配置
+  # 控制多 Pod 启动时的首次采集时机，避免同时向云厂商 API 发起大量请求导致限流
+  first_run:
+    # 策略类型：
+    #   - auto: 根据 Pod 数量自动选择（1个立即，2-10个线性延迟，>10个指数退避）
+    #   - immediate: 所有 Pod 立即采集（不推荐用于多副本）
+    #   - staggered: 强制使用线性延迟策略
+    strategy: ${FIRST_RUN_STRATEGY:-auto}
+    # 最大延迟时间（秒）：首次采集延迟的上限，防止等待时间过长（默认 180秒）
+    max_delay: ${FIRST_RUN_MAX_DELAY:-180}
+  # 华为云缓存配置
+  # 针对华为云严格的限流策略进行优化，通过缓存减少 API 调用次数
+  huawei_cache:
+    # 是否启用华为云缓存优化（默认 true）
+    enabled: ${HUAWEI_CACHE_ENABLED:-true}
+    # 资源缓存生命周期：缓存资源列表的有效期（默认 10m）
+    # 支持单位：s(秒), m(分), h(时)
+    resource_ttl: ${HUAWEI_CACHE_RESOURCE_TTL:-10m}
+    # 标签缓存生命周期：缓存资源标签的有效期（默认 30m）
+    # 支持单位：s(秒), m(分), h(时)
+    tag_ttl: ${HUAWEI_CACHE_TAG_TTL:-30m}
 
 # 区域数据持久化配置（仅 Kubernetes 部署有效）
 # - enabled: 是否启用 PVC 持久化（默认 false，使用 emptyDir）

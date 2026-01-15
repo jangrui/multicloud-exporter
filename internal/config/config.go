@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -33,6 +34,27 @@ func expandEnv(s string) string {
 		}
 		return os.Getenv(key)
 	})
+}
+
+// parseDuration 解析时间间隔字符串，支持 d(天) 单位
+// 示例：1d -> 24h, 30m -> 30m, 1h -> 1h
+func parseDuration(s string) (time.Duration, error) {
+	if s == "" {
+		return 0, fmt.Errorf("empty duration string")
+	}
+
+	// 支持 d(天) 单位
+	if strings.HasSuffix(s, "d") {
+		days := strings.TrimSuffix(s, "d")
+		var d int
+		if _, err := fmt.Sscanf(days, "%d", &d); err != nil {
+			return 0, fmt.Errorf("invalid duration format: %s", s)
+		}
+		return time.Duration(d) * 24 * time.Hour, nil
+	}
+
+	// 使用标准库解析其他格式
+	return time.ParseDuration(s)
 }
 
 // Config 汇总所有云账号配置
@@ -84,6 +106,7 @@ func DefaultResourceDimMapping() map[string][]string {
 // Validate 验证配置的完整性和合法性
 func (c *Config) Validate() error {
 	var errs []string
+	var warnings []string
 
 	// 验证 Server 配置
 	if c.Server == nil && c.ServerConf == nil {
@@ -120,6 +143,113 @@ func (c *Config) Validate() error {
 		if server.ProductConcurrency < 0 || server.ProductConcurrency > 10 {
 			errs = append(errs, fmt.Sprintf("invalid product_concurrency: %d (must be 0-10)", server.ProductConcurrency))
 		}
+
+		// 验证区域发现配置
+		if server.RegionDiscovery != nil {
+			rd := server.RegionDiscovery
+
+			// 验证 empty_threshold 范围
+			if rd.EmptyThreshold < 0 || rd.EmptyThreshold > 100 {
+				errs = append(errs, fmt.Sprintf("invalid region_discovery.empty_threshold: %d (must be 0-100)", rd.EmptyThreshold))
+			}
+
+			// 验证 data_dir 不为空（如果启用了持久化）
+			if rd.Enabled && rd.DataDir == "" {
+				errs = append(errs, "region_discovery.data_dir is required when region_discovery is enabled")
+			}
+
+			// 验证 persist_file 不为空（如果启用了持久化）
+			if rd.Enabled && rd.PersistFile == "" {
+				errs = append(errs, "region_discovery.persist_file is required when region_discovery is enabled")
+			}
+
+			// 验证 discovery_interval 格式（如果设置了）
+			if rd.DiscoveryInterval != "" {
+				discoveryDuration, err := parseDuration(rd.DiscoveryInterval)
+				if err != nil {
+					errs = append(errs, fmt.Sprintf("invalid region_discovery.discovery_interval: %s (must be valid duration like '1h', '30m')", rd.DiscoveryInterval))
+				} else {
+					// 需求 9.3: 当区域重新发现周期小于采集周期时发出警告
+					if server.ScrapeInterval != "" {
+						scrapeDuration, err := parseDuration(server.ScrapeInterval)
+						if err == nil && discoveryDuration < scrapeDuration {
+							warnings = append(warnings, fmt.Sprintf(
+								"region_discovery.discovery_interval (%s) is less than scrape_interval (%s), "+
+									"this may cause frequent region rediscovery and impact performance",
+								rd.DiscoveryInterval, server.ScrapeInterval))
+						}
+					}
+				}
+			}
+		}
+
+		// 验证华为云缓存配置
+		if server.HuaweiCache != nil {
+			hc := server.HuaweiCache
+
+			// 验证 resource_ttl 格式（如果设置了）
+			if hc.ResourceTTL != "" {
+				if _, err := parseDuration(hc.ResourceTTL); err != nil {
+					errs = append(errs, fmt.Sprintf("invalid huawei_cache.resource_ttl: %s (must be valid duration like '10m', '1h')", hc.ResourceTTL))
+				}
+			}
+
+			// 验证 tag_ttl 格式（如果设置了）
+			if hc.TagTTL != "" {
+				if _, err := parseDuration(hc.TagTTL); err != nil {
+					errs = append(errs, fmt.Sprintf("invalid huawei_cache.tag_ttl: %s (must be valid duration like '30m', '1h')", hc.TagTTL))
+				}
+			}
+		}
+
+		// 验证首次采集策略
+		if server.FirstRunStrategy != "" {
+			validStrategies := map[string]bool{"auto": true, "immediate": true, "staggered": true}
+			if !validStrategies[server.FirstRunStrategy] {
+				warnings = append(warnings, fmt.Sprintf(
+					"invalid first_run_strategy: %s (valid values: auto, immediate, staggered), will use 'auto'",
+					server.FirstRunStrategy))
+				server.FirstRunStrategy = "auto"
+			}
+		}
+
+		// 需求 9.2: 当首次采集最大延迟小于 0 时，使用 180 秒作为默认值
+		if server.FirstRunMaxDelay < 0 {
+			warnings = append(warnings, fmt.Sprintf(
+				"first_run_max_delay is negative (%d), will use default value 180 seconds",
+				server.FirstRunMaxDelay))
+			server.FirstRunMaxDelay = 180
+		}
+
+		// 验证集群稳定性检测配置
+		if server.ClusterStabilityCheck != nil {
+			csc := server.ClusterStabilityCheck
+
+			// 验证 max_wait 格式（如果设置了）
+			if csc.MaxWait != "" {
+				if _, err := parseDuration(csc.MaxWait); err != nil {
+					warnings = append(warnings, fmt.Sprintf(
+						"invalid cluster_stability_check.max_wait: %s, will use default 30s",
+						csc.MaxWait))
+				}
+			}
+
+			// 验证 check_interval 格式（如果设置了）
+			if csc.CheckInterval != "" {
+				if _, err := parseDuration(csc.CheckInterval); err != nil {
+					warnings = append(warnings, fmt.Sprintf(
+						"invalid cluster_stability_check.check_interval: %s, will use default 2s",
+						csc.CheckInterval))
+				}
+			}
+
+			// 验证 required_stable 范围
+			if csc.RequiredStable < 1 || csc.RequiredStable > 10 {
+				warnings = append(warnings, fmt.Sprintf(
+					"cluster_stability_check.required_stable (%d) is out of range (1-10), will use default 3",
+					csc.RequiredStable))
+			}
+		}
 	}
 
 	// 验证账号配置
@@ -144,9 +274,24 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	// 需求 9.5: 记录验证结果
+	// 注意：这里不能直接使用 logger，因为 logger 可能还未初始化
+	// 警告信息将在 main.go 中通过 logger 记录
+	if len(warnings) > 0 {
+		// 将警告信息存储到配置对象中，供后续使用
+		// 由于 Config 结构体没有 warnings 字段，我们在这里直接输出到 stderr
+		for _, warning := range warnings {
+			fmt.Fprintf(os.Stderr, "配置验证警告: %s\n", warning)
+		}
+	}
+
 	if len(errs) > 0 {
 		return fmt.Errorf("config validation failed:\n  - %s", strings.Join(errs, "\n  - "))
 	}
+
+	// 需求 9.5: 记录验证成功
+	fmt.Fprintf(os.Stderr, "配置验证通过: 检查了 %d 个配置项, 发现 %d 个警告\n",
+		len(c.AccountsByProvider), len(warnings))
 
 	return nil
 }
@@ -273,6 +418,18 @@ type ServerConf struct {
 	// RegionDiscovery 定义智能区域发现配置
 	RegionDiscovery *RegionDiscoveryConf `yaml:"region_discovery"`
 
+	// HuaweiCache 定义华为云缓存配置
+	HuaweiCache *HuaweiCacheConf `yaml:"huawei_cache"`
+
+	// FirstRunStrategy 定义首次采集策略：auto（自动判断）、immediate（立即采集）、staggered（强制错峰）
+	FirstRunStrategy string `yaml:"first_run_strategy"`
+
+	// FirstRunMaxDelay 定义首次采集最大延迟时间（秒），默认 180
+	FirstRunMaxDelay int `yaml:"first_run_max_delay"`
+
+	// ClusterStabilityCheck 定义集群稳定性检测配置
+	ClusterStabilityCheck *ClusterStabilityCheckConf `yaml:"cluster_stability_check"`
+
 	// ResourceDimMapping 定义各云厂商、各产品（Namespace）的资源维度校验规则。
 	// Key 为 "provider.namespace"，例如 "aliyun.acs_ecs_dashboard"。
 	// Value 为该产品必须包含的维度键列表（任一匹配即可），例如 ["InstanceId", "instance_id"]。
@@ -284,10 +441,25 @@ type ServerConf struct {
 // RegionDiscoveryConf 定义智能区域发现配置
 type RegionDiscoveryConf struct {
 	Enabled           bool   `yaml:"enabled"`            // 是否启用智能区域发现，默认 true
-	DiscoveryInterval string `yaml:"discovery_interval"` // 重新发现周期，如 "24h"
+	DiscoveryInterval string `yaml:"discovery_interval"` // 重新发现周期，如 "1h"
 	EmptyThreshold    int    `yaml:"empty_threshold"`    // 连续空次数阈值，默认 3
 	DataDir           string `yaml:"data_dir"`           // 数据目录路径，如 "/app/data"
 	PersistFile       string `yaml:"persist_file"`       // 持久化文件名，如 "region_status.json"（相对于 data_dir）
+}
+
+// HuaweiCacheConf 定义华为云缓存配置
+type HuaweiCacheConf struct {
+	Enabled     bool   `yaml:"enabled"`      // 是否启用华为云缓存，默认 true
+	ResourceTTL string `yaml:"resource_ttl"` // 资源缓存 TTL，如 "10m"
+	TagTTL      string `yaml:"tag_ttl"`      // 标签缓存 TTL，如 "30m"
+}
+
+// ClusterStabilityCheckConf 定义集群稳定性检测配置
+type ClusterStabilityCheckConf struct {
+	Enabled        bool   `yaml:"enabled"`         // 是否启用集群稳定性检测，默认 true
+	MaxWait        string `yaml:"max_wait"`        // 最长等待时间，如 "30s"
+	CheckInterval  string `yaml:"check_interval"`  // 检查间隔，如 "2s"
+	RequiredStable int    `yaml:"required_stable"` // 需要连续稳定的次数，默认 3
 }
 
 type FileLogConfig struct {

@@ -1,10 +1,10 @@
-{{- if .Values.server }}
-{{- if .Values.server.regionDiscovery.enabled }}
+{{- if or (and .Values.server .Values.server.regionDiscovery .Values.server.regionDiscovery.enabled) .Values.regionDiscovery.enabled }}
 {{- if .Values.regionData.persistence.enabled }}
+{{- if not .Values.regionData.persistence.existingClaim }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ .Values.regionData.persistence.existingClaim | default (printf "%s-region-data" (default "multicloud-exporter" .Values.fullname)) }}
+  name: {{ printf "%s-region-data" (default "multicloud-exporter" .Values.fullname) }}
   labels: {{- include "multicloud-exporter.labels" . | nindent 4 }}
 spec:
   accessModes:

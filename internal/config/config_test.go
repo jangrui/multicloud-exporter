@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -144,5 +145,561 @@ func TestDefaultResourceDimMapping(t *testing.T) {
 	}
 	if val, ok := mapping["aliyun.acs_ecs_dashboard"]; !ok || len(val) == 0 {
 		t.Error("DefaultResourceDimMapping() missing aliyun.acs_ecs_dashboard")
+	}
+}
+
+// TestParseDuration 测试时间间隔解析函数
+func TestParseDuration(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+		want    string // 期望的标准格式
+	}{
+		{
+			name:    "empty string",
+			input:   "",
+			wantErr: true,
+		},
+		{
+			name:    "days format",
+			input:   "1d",
+			wantErr: false,
+			want:    "24h0m0s",
+		},
+		{
+			name:    "multiple days",
+			input:   "7d",
+			wantErr: false,
+			want:    "168h0m0s",
+		},
+		{
+			name:    "hours format",
+			input:   "24h",
+			wantErr: false,
+			want:    "24h0m0s",
+		},
+		{
+			name:    "minutes format",
+			input:   "30m",
+			wantErr: false,
+			want:    "30m0s",
+		},
+		{
+			name:    "seconds format",
+			input:   "60s",
+			wantErr: false,
+			want:    "1m0s",
+		},
+		{
+			name:    "invalid format",
+			input:   "invalid",
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseDuration(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("parseDuration(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && got.String() != tt.want {
+				t.Errorf("parseDuration(%q) = %v, want %v", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestValidateRegionDiscoveryConfig 测试区域发现配置验证
+func TestValidateRegionDiscoveryConfig(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  *Config
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name: "valid config",
+			config: &Config{
+				Server: &ServerConf{
+					Port: 9101,
+					RegionDiscovery: &RegionDiscoveryConf{
+						Enabled:           true,
+						DiscoveryInterval: "1h",
+						EmptyThreshold:    3,
+						DataDir:           "/app/data",
+						PersistFile:       "region_status.json",
+					},
+				},
+				AccountsByProvider: map[string][]CloudAccount{
+					"aliyun": {
+						{
+							AccountID:       "test",
+							AccessKeyID:     "ak",
+							AccessKeySecret: "sk",
+							Regions:         []string{"cn-hangzhou"},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid empty_threshold - negative",
+			config: &Config{
+				Server: &ServerConf{
+					Port: 9101,
+					RegionDiscovery: &RegionDiscoveryConf{
+						Enabled:           true,
+						DiscoveryInterval: "1h",
+						EmptyThreshold:    -1,
+						DataDir:           "/app/data",
+						PersistFile:       "region_status.json",
+					},
+				},
+				AccountsByProvider: map[string][]CloudAccount{
+					"aliyun": {{AccountID: "test", AccessKeyID: "ak", AccessKeySecret: "sk", Regions: []string{"cn-hangzhou"}}},
+				},
+			},
+			wantErr: true,
+			errMsg:  "empty_threshold",
+		},
+		{
+			name: "invalid empty_threshold - too large",
+			config: &Config{
+				Server: &ServerConf{
+					Port: 9101,
+					RegionDiscovery: &RegionDiscoveryConf{
+						Enabled:           true,
+						DiscoveryInterval: "1h",
+						EmptyThreshold:    101,
+						DataDir:           "/app/data",
+						PersistFile:       "region_status.json",
+					},
+				},
+				AccountsByProvider: map[string][]CloudAccount{
+					"aliyun": {{AccountID: "test", AccessKeyID: "ak", AccessKeySecret: "sk", Regions: []string{"cn-hangzhou"}}},
+				},
+			},
+			wantErr: true,
+			errMsg:  "empty_threshold",
+		},
+		{
+			name: "missing data_dir when enabled",
+			config: &Config{
+				Server: &ServerConf{
+					Port: 9101,
+					RegionDiscovery: &RegionDiscoveryConf{
+						Enabled:           true,
+						DiscoveryInterval: "1h",
+						EmptyThreshold:    3,
+						DataDir:           "",
+						PersistFile:       "region_status.json",
+					},
+				},
+				AccountsByProvider: map[string][]CloudAccount{
+					"aliyun": {{AccountID: "test", AccessKeyID: "ak", AccessKeySecret: "sk", Regions: []string{"cn-hangzhou"}}},
+				},
+			},
+			wantErr: true,
+			errMsg:  "data_dir is required",
+		},
+		{
+			name: "missing persist_file when enabled",
+			config: &Config{
+				Server: &ServerConf{
+					Port: 9101,
+					RegionDiscovery: &RegionDiscoveryConf{
+						Enabled:           true,
+						DiscoveryInterval: "1h",
+						EmptyThreshold:    3,
+						DataDir:           "/app/data",
+						PersistFile:       "",
+					},
+				},
+				AccountsByProvider: map[string][]CloudAccount{
+					"aliyun": {{AccountID: "test", AccessKeyID: "ak", AccessKeySecret: "sk", Regions: []string{"cn-hangzhou"}}},
+				},
+			},
+			wantErr: true,
+			errMsg:  "persist_file is required",
+		},
+		{
+			name: "invalid discovery_interval format",
+			config: &Config{
+				Server: &ServerConf{
+					Port: 9101,
+					RegionDiscovery: &RegionDiscoveryConf{
+						Enabled:           true,
+						DiscoveryInterval: "invalid",
+						EmptyThreshold:    3,
+						DataDir:           "/app/data",
+						PersistFile:       "region_status.json",
+					},
+				},
+				AccountsByProvider: map[string][]CloudAccount{
+					"aliyun": {{AccountID: "test", AccessKeyID: "ak", AccessKeySecret: "sk", Regions: []string{"cn-hangzhou"}}},
+				},
+			},
+			wantErr: true,
+			errMsg:  "discovery_interval",
+		},
+		{
+			name: "disabled region_discovery - no validation",
+			config: &Config{
+				Server: &ServerConf{
+					Port: 9101,
+					RegionDiscovery: &RegionDiscoveryConf{
+						Enabled:           false,
+						DiscoveryInterval: "",
+						EmptyThreshold:    0,
+						DataDir:           "",
+						PersistFile:       "",
+					},
+				},
+				AccountsByProvider: map[string][]CloudAccount{
+					"aliyun": {{AccountID: "test", AccessKeyID: "ak", AccessKeySecret: "sk", Regions: []string{"cn-hangzhou"}}},
+				},
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if tt.wantErr && err != nil && tt.errMsg != "" {
+				if !strings.Contains(err.Error(), tt.errMsg) {
+					t.Errorf("Validate() error = %v, want error containing %q", err, tt.errMsg)
+				}
+			}
+		})
+	}
+}
+
+// TestValidateHuaweiCacheConfig 测试华为云缓存配置验证
+func TestValidateHuaweiCacheConfig(t *testing.T) {
+	tests := []struct {
+		name    string
+		config  *Config
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name: "valid huawei cache config",
+			config: &Config{
+				Server: &ServerConf{
+					Port: 9101,
+					HuaweiCache: &HuaweiCacheConf{
+						Enabled:     true,
+						ResourceTTL: "10m",
+						TagTTL:      "30m",
+					},
+				},
+				AccountsByProvider: map[string][]CloudAccount{
+					"huawei": {
+						{
+							AccountID:       "test",
+							AccessKeyID:     "ak",
+							AccessKeySecret: "sk",
+							Regions:         []string{"cn-north-1"},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid resource_ttl format",
+			config: &Config{
+				Server: &ServerConf{
+					Port: 9101,
+					HuaweiCache: &HuaweiCacheConf{
+						Enabled:     true,
+						ResourceTTL: "invalid",
+						TagTTL:      "30m",
+					},
+				},
+				AccountsByProvider: map[string][]CloudAccount{
+					"huawei": {{AccountID: "test", AccessKeyID: "ak", AccessKeySecret: "sk", Regions: []string{"cn-north-1"}}},
+				},
+			},
+			wantErr: true,
+			errMsg:  "resource_ttl",
+		},
+		{
+			name: "invalid tag_ttl format",
+			config: &Config{
+				Server: &ServerConf{
+					Port: 9101,
+					HuaweiCache: &HuaweiCacheConf{
+						Enabled:     true,
+						ResourceTTL: "10m",
+						TagTTL:      "invalid",
+					},
+				},
+				AccountsByProvider: map[string][]CloudAccount{
+					"huawei": {{AccountID: "test", AccessKeyID: "ak", AccessKeySecret: "sk", Regions: []string{"cn-north-1"}}},
+				},
+			},
+			wantErr: true,
+			errMsg:  "tag_ttl",
+		},
+		{
+			name: "disabled huawei cache - no validation",
+			config: &Config{
+				Server: &ServerConf{
+					Port: 9101,
+					HuaweiCache: &HuaweiCacheConf{
+						Enabled:     false,
+						ResourceTTL: "",
+						TagTTL:      "",
+					},
+				},
+				AccountsByProvider: map[string][]CloudAccount{
+					"huawei": {{AccountID: "test", AccessKeyID: "ak", AccessKeySecret: "sk", Regions: []string{"cn-north-1"}}},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "empty ttl values - should pass",
+			config: &Config{
+				Server: &ServerConf{
+					Port: 9101,
+					HuaweiCache: &HuaweiCacheConf{
+						Enabled:     true,
+						ResourceTTL: "",
+						TagTTL:      "",
+					},
+				},
+				AccountsByProvider: map[string][]CloudAccount{
+					"huawei": {{AccountID: "test", AccessKeyID: "ak", AccessKeySecret: "sk", Regions: []string{"cn-north-1"}}},
+				},
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.Validate()
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Validate() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if tt.wantErr && err != nil && tt.errMsg != "" {
+				if !strings.Contains(err.Error(), tt.errMsg) {
+					t.Errorf("Validate() error = %v, want error containing %q", err, tt.errMsg)
+				}
+			}
+		})
+	}
+}
+
+// TestValidateFirstRunStrategy 测试首次采集策略配置验证
+func TestValidateFirstRunStrategy(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   *Config
+		wantWarn bool // 是否期望警告（通过 stderr 输出）
+	}{
+		{
+			name: "valid strategy - auto",
+			config: &Config{
+				Server: &ServerConf{
+					Port:             9101,
+					FirstRunStrategy: "auto",
+					FirstRunMaxDelay: 180,
+				},
+				AccountsByProvider: map[string][]CloudAccount{
+					"aliyun": {{AccountID: "test", AccessKeyID: "ak", AccessKeySecret: "sk", Regions: []string{"cn-hangzhou"}}},
+				},
+			},
+			wantWarn: false,
+		},
+		{
+			name: "valid strategy - immediate",
+			config: &Config{
+				Server: &ServerConf{
+					Port:             9101,
+					FirstRunStrategy: "immediate",
+					FirstRunMaxDelay: 180,
+				},
+				AccountsByProvider: map[string][]CloudAccount{
+					"aliyun": {{AccountID: "test", AccessKeyID: "ak", AccessKeySecret: "sk", Regions: []string{"cn-hangzhou"}}},
+				},
+			},
+			wantWarn: false,
+		},
+		{
+			name: "valid strategy - staggered",
+			config: &Config{
+				Server: &ServerConf{
+					Port:             9101,
+					FirstRunStrategy: "staggered",
+					FirstRunMaxDelay: 180,
+				},
+				AccountsByProvider: map[string][]CloudAccount{
+					"aliyun": {{AccountID: "test", AccessKeyID: "ak", AccessKeySecret: "sk", Regions: []string{"cn-hangzhou"}}},
+				},
+			},
+			wantWarn: false,
+		},
+		{
+			name: "invalid strategy - should use default",
+			config: &Config{
+				Server: &ServerConf{
+					Port:             9101,
+					FirstRunStrategy: "invalid",
+					FirstRunMaxDelay: 180,
+				},
+				AccountsByProvider: map[string][]CloudAccount{
+					"aliyun": {{AccountID: "test", AccessKeyID: "ak", AccessKeySecret: "sk", Regions: []string{"cn-hangzhou"}}},
+				},
+			},
+			wantWarn: true,
+		},
+		{
+			name: "negative max_delay - should use default",
+			config: &Config{
+				Server: &ServerConf{
+					Port:             9101,
+					FirstRunStrategy: "auto",
+					FirstRunMaxDelay: -100,
+				},
+				AccountsByProvider: map[string][]CloudAccount{
+					"aliyun": {{AccountID: "test", AccessKeyID: "ak", AccessKeySecret: "sk", Regions: []string{"cn-hangzhou"}}},
+				},
+			},
+			wantWarn: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.Validate()
+			if err != nil {
+				t.Errorf("Validate() unexpected error = %v", err)
+			}
+			// 注意：警告信息会输出到 stderr，这里只验证不报错
+			// 实际的警告验证需要捕获 stderr 输出，这里简化处理
+		})
+	}
+}
+
+// TestValidateClusterStabilityCheck 测试集群稳定性检测配置验证
+func TestValidateClusterStabilityCheck(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   *Config
+		wantWarn bool
+	}{
+		{
+			name: "valid cluster stability check config",
+			config: &Config{
+				Server: &ServerConf{
+					Port: 9101,
+					ClusterStabilityCheck: &ClusterStabilityCheckConf{
+						Enabled:        true,
+						MaxWait:        "30s",
+						CheckInterval:  "2s",
+						RequiredStable: 3,
+					},
+				},
+				AccountsByProvider: map[string][]CloudAccount{
+					"aliyun": {{AccountID: "test", AccessKeyID: "ak", AccessKeySecret: "sk", Regions: []string{"cn-hangzhou"}}},
+				},
+			},
+			wantWarn: false,
+		},
+		{
+			name: "invalid max_wait format",
+			config: &Config{
+				Server: &ServerConf{
+					Port: 9101,
+					ClusterStabilityCheck: &ClusterStabilityCheckConf{
+						Enabled:        true,
+						MaxWait:        "invalid",
+						CheckInterval:  "2s",
+						RequiredStable: 3,
+					},
+				},
+				AccountsByProvider: map[string][]CloudAccount{
+					"aliyun": {{AccountID: "test", AccessKeyID: "ak", AccessKeySecret: "sk", Regions: []string{"cn-hangzhou"}}},
+				},
+			},
+			wantWarn: true,
+		},
+		{
+			name: "invalid check_interval format",
+			config: &Config{
+				Server: &ServerConf{
+					Port: 9101,
+					ClusterStabilityCheck: &ClusterStabilityCheckConf{
+						Enabled:        true,
+						MaxWait:        "30s",
+						CheckInterval:  "invalid",
+						RequiredStable: 3,
+					},
+				},
+				AccountsByProvider: map[string][]CloudAccount{
+					"aliyun": {{AccountID: "test", AccessKeyID: "ak", AccessKeySecret: "sk", Regions: []string{"cn-hangzhou"}}},
+				},
+			},
+			wantWarn: true,
+		},
+		{
+			name: "required_stable out of range - too small",
+			config: &Config{
+				Server: &ServerConf{
+					Port: 9101,
+					ClusterStabilityCheck: &ClusterStabilityCheckConf{
+						Enabled:        true,
+						MaxWait:        "30s",
+						CheckInterval:  "2s",
+						RequiredStable: 0,
+					},
+				},
+				AccountsByProvider: map[string][]CloudAccount{
+					"aliyun": {{AccountID: "test", AccessKeyID: "ak", AccessKeySecret: "sk", Regions: []string{"cn-hangzhou"}}},
+				},
+			},
+			wantWarn: true,
+		},
+		{
+			name: "required_stable out of range - too large",
+			config: &Config{
+				Server: &ServerConf{
+					Port: 9101,
+					ClusterStabilityCheck: &ClusterStabilityCheckConf{
+						Enabled:        true,
+						MaxWait:        "30s",
+						CheckInterval:  "2s",
+						RequiredStable: 11,
+					},
+				},
+				AccountsByProvider: map[string][]CloudAccount{
+					"aliyun": {{AccountID: "test", AccessKeyID: "ak", AccessKeySecret: "sk", Regions: []string{"cn-hangzhou"}}},
+				},
+			},
+			wantWarn: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.Validate()
+			if err != nil {
+				t.Errorf("Validate() unexpected error = %v", err)
+			}
+			// 注意：警告信息会输出到 stderr，这里只验证不报错
+		})
 	}
 }

@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"multicloud-exporter/internal/logger"
+	"multicloud-exporter/internal/metrics"
 )
 
 // RegionStatus 区域状态
@@ -53,18 +54,20 @@ type RegionDiscoveryConfig struct {
 
 // RegionManagerStats 统计信息
 type RegionManagerStats struct {
-	TotalAccounts   int       `json:"total_accounts"`
-	TotalRegions    int       `json:"total_regions"`
-	ActiveRegions   int       `json:"active_regions"`
-	EmptyRegions    int       `json:"empty_regions"`
-	UnknownRegions  int       `json:"unknown_regions"`
-	SkippedRegions  int       `json:"skipped_regions"`
-	LastCleanupTime time.Time `json:"last_cleanup_time"`
-	LastSaveTime    time.Time `json:"last_save_time"`
-	LastLoadTime    time.Time `json:"last_load_time"`
-	SaveCount       int64     `json:"save_count"`
-	LoadCount       int64     `json:"load_count"`
-	UpdateCount     int64     `json:"update_count"`
+	TotalAccounts       int       `json:"total_accounts"`
+	TotalRegions        int       `json:"total_regions"`
+	ActiveRegions       int       `json:"active_regions"`
+	EmptyRegions        int       `json:"empty_regions"`
+	UnknownRegions      int       `json:"unknown_regions"`
+	SkippedRegions      int       `json:"skipped_regions"`
+	LastCleanupTime     time.Time `json:"last_cleanup_time"`
+	LastRediscoveryTime time.Time `json:"last_rediscovery_time"`
+	LastSaveTime        time.Time `json:"last_save_time"`
+	LastLoadTime        time.Time `json:"last_load_time"`
+	SaveCount           int64     `json:"save_count"`
+	LoadCount           int64     `json:"load_count"`
+	UpdateCount         int64     `json:"update_count"`
+	RediscoveryCount    int64     `json:"rediscovery_count"`
 }
 
 // RegionManager 区域管理器接口
@@ -121,10 +124,10 @@ type SmartRegionManager struct {
 func NewRegionManager(config RegionDiscoveryConfig) RegionManager {
 	// 设置默认值
 	if config.DiscoveryInterval <= 0 {
-		config.DiscoveryInterval = 24 * time.Hour
+		config.DiscoveryInterval = 1 * time.Hour
 	}
 	if config.EmptyThreshold <= 0 {
-		config.EmptyThreshold = 3
+		config.EmptyThreshold = 10
 	}
 	if config.DataDir == "" {
 		config.DataDir = "/app/data"
@@ -147,7 +150,8 @@ func NewRegionManager(config RegionDiscoveryConfig) RegionManager {
 		regionMap: make(map[string]map[string]RegionInfo),
 		stopChan:  make(chan struct{}),
 		stats: RegionManagerStats{
-			LastCleanupTime: time.Now(),
+			LastCleanupTime:     time.Now(),
+			LastRediscoveryTime: time.Now(),
 		},
 	}
 
@@ -350,6 +354,10 @@ func (rm *SmartRegionManager) ShouldSkipRegion(accountID, region string) bool {
 }
 
 // Load 加载持久化状态
+// 容错策略：
+// - 文件不存在：初始化为空 map（所有区域将被视为 unknown）
+// - 文件损坏：重新初始化为空 map，记录错误但不返回错误
+// - 读取失败：记录错误但不返回错误，使用空 map 继续运行
 func (rm *SmartRegionManager) Load() error {
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
@@ -357,33 +365,58 @@ func (rm *SmartRegionManager) Load() error {
 	atomic.AddInt64(&rm.stats.LoadCount, 1)
 
 	persistPath := filepath.Join(rm.config.DataDir, rm.config.PersistFile)
+	ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Persistence")
 
+	// 读取文件
 	data, err := os.ReadFile(persistPath)
 	if err != nil {
-		if !os.IsNotExist(err) {
-			ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Persistence")
-			ctxLog.Warnf("加载区域状态失败: %v", err)
-			return err
+		if os.IsNotExist(err) {
+			// 文件不存在是正常情况（首次运行）
+			ctxLog.Infof("区域状态文件不存在（首次运行），将初始化为空状态: %s", persistPath)
+			rm.regionMap = make(map[string]map[string]RegionInfo)
+			rm.statsMu.Lock()
+			rm.stats.LastLoadTime = time.Now()
+			rm.statsMu.Unlock()
+			return nil
 		}
-		ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Persistence")
-		ctxLog.Infof("区域状态文件不存在: %s", persistPath)
+
+		// 其他读取错误（权限、IO 错误等）
+		ctxLog.Errorf("读取区域状态文件失败（路径=%s）: %v，将初始化为空状态", persistPath, err)
+		rm.regionMap = make(map[string]map[string]RegionInfo)
+		rm.statsMu.Lock()
+		rm.stats.LastLoadTime = time.Now()
+		rm.statsMu.Unlock()
+		// 不返回错误，允许程序继续运行
 		return nil
 	}
 
+	// 解析 JSON
 	var persisted struct {
 		RegionMap map[string]map[string]RegionInfo `json:"region_map"`
+		UpdatedAt time.Time                        `json:"updated_at"`
 	}
 
 	if err := json.Unmarshal(data, &persisted); err != nil {
-		ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Persistence")
-		ctxLog.Errorf("解析区域状态失败: %v", err)
-		return err
+		// 文件损坏或格式错误
+		ctxLog.Errorf("解析区域状态文件失败（路径=%s，大小=%d 字节）: %v，将重新初始化为空状态",
+			persistPath, len(data), err)
+		rm.regionMap = make(map[string]map[string]RegionInfo)
+		rm.statsMu.Lock()
+		rm.stats.LastLoadTime = time.Now()
+		rm.statsMu.Unlock()
+		// 不返回错误，允许程序继续运行，下次保存时会覆盖损坏的文件
+		return nil
 	}
 
+	// 成功加载
 	if persisted.RegionMap != nil {
 		rm.regionMap = persisted.RegionMap
-		ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Persistence")
-		ctxLog.Infof("成功加载区域状态，账号数=%d", len(rm.regionMap))
+		ctxLog.Infof("成功加载区域状态（路径=%s，账号数=%d，更新时间=%v）",
+			persistPath, len(rm.regionMap), persisted.UpdatedAt.Format("2006-01-02 15:04:05"))
+	} else {
+		// 文件存在但 region_map 为空
+		ctxLog.Warnf("区域状态文件存在但内容为空（路径=%s），将初始化为空状态", persistPath)
+		rm.regionMap = make(map[string]map[string]RegionInfo)
 	}
 
 	rm.statsMu.Lock()
@@ -546,13 +579,19 @@ func (rm *SmartRegionManager) StartRediscoveryScheduler() {
 func (rm *SmartRegionManager) performPeriodicTasks() {
 	now := time.Now()
 
-	// 1. 检查是否需要触发重新发现（从上次清理时间推算）
-	timeSinceCleanup := now.Sub(rm.stats.LastCleanupTime)
-	if timeSinceCleanup >= rm.config.DiscoveryInterval {
-		rm.triggerRediscovery()
+	// 1. 检查是否需要触发重新发现（从上次重新发现时间推算）
+	rm.statsMu.RLock()
+	lastRediscovery := rm.stats.LastRediscoveryTime
+	lastCleanup := rm.stats.LastCleanupTime
+	rm.statsMu.RUnlock()
+
+	timeSinceRediscovery := now.Sub(lastRediscovery)
+	if timeSinceRediscovery >= rm.config.DiscoveryInterval {
+		rm.triggerRediscovery("periodic")
 	}
 
 	// 2. 检查是否需要清理不活跃账号
+	timeSinceCleanup := now.Sub(lastCleanup)
 	if timeSinceCleanup >= rm.config.CleanupInterval {
 		cleaned := rm.CleanupInactiveAccounts(7 * 24 * time.Hour)
 		if cleaned > 0 {
@@ -592,13 +631,19 @@ func (rm *SmartRegionManager) Stop() {
 }
 
 // triggerRediscovery 触发重新发现
-func (rm *SmartRegionManager) triggerRediscovery() {
+// 参数:
+//   - reason: 触发原因（如 "periodic", "manual", "config_change"）
+func (rm *SmartRegionManager) triggerRediscovery(reason string) {
+	startTime := time.Now()
+
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
 	totalMarked := 0
+	accountCount := 0
 
 	for accountID, regions := range rm.regionMap {
+		accountCount++
 		for region, info := range regions {
 			if info.Status == RegionStatusActive || info.Status == RegionStatusEmpty {
 				info.Status = RegionStatusUnknown
@@ -611,8 +656,22 @@ func (rm *SmartRegionManager) triggerRediscovery() {
 		rm.regionMap[accountID] = regions
 	}
 
+	// 更新统计信息
+	now := time.Now()
+	rm.statsMu.Lock()
+	rm.stats.LastRediscoveryTime = now
+	atomic.AddInt64(&rm.stats.RediscoveryCount, 1)
+	rm.statsMu.Unlock()
+
+	// 记录 Prometheus 指标
+	duration := time.Since(startTime).Seconds()
+	metrics.RegionRediscoveryTotal.WithLabelValues(reason).Inc()
+	metrics.RegionRediscoveryDuration.Observe(duration)
+	metrics.RegionRediscoveryMarkedTotal.Set(float64(totalMarked))
+
 	ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Rediscovery")
-	ctxLog.Infof("区域重新发现完成，标记 %d 个区域为 unknown", totalMarked)
+	ctxLog.Infof("区域重新发现完成 原因=%s 账号数=%d 标记区域数=%d 耗时=%.3fs",
+		reason, accountCount, totalMarked, duration)
 }
 
 // GetStats 获取统计信息（优化版本，实时计算所有统计数据）
@@ -643,18 +702,20 @@ func (rm *SmartRegionManager) GetStats() RegionManagerStats {
 	}
 
 	return RegionManagerStats{
-		TotalAccounts:   len(rm.regionMap),
-		TotalRegions:    activeCount + emptyCount + unknownCount,
-		ActiveRegions:   activeCount,
-		EmptyRegions:    emptyCount,
-		UnknownRegions:  unknownCount,
-		SkippedRegions:  skippedCount, // 实时计算，不累积
-		LastCleanupTime: rm.stats.LastCleanupTime,
-		LastSaveTime:    rm.stats.LastSaveTime,
-		LastLoadTime:    rm.stats.LastLoadTime,
-		SaveCount:       atomic.LoadInt64(&rm.stats.SaveCount),
-		LoadCount:       atomic.LoadInt64(&rm.stats.LoadCount),
-		UpdateCount:     atomic.LoadInt64(&rm.stats.UpdateCount),
+		TotalAccounts:       len(rm.regionMap),
+		TotalRegions:        activeCount + emptyCount + unknownCount,
+		ActiveRegions:       activeCount,
+		EmptyRegions:        emptyCount,
+		UnknownRegions:      unknownCount,
+		SkippedRegions:      skippedCount, // 实时计算，不累积
+		LastCleanupTime:     rm.stats.LastCleanupTime,
+		LastRediscoveryTime: rm.stats.LastRediscoveryTime,
+		LastSaveTime:        rm.stats.LastSaveTime,
+		LastLoadTime:        rm.stats.LastLoadTime,
+		SaveCount:           atomic.LoadInt64(&rm.stats.SaveCount),
+		LoadCount:           atomic.LoadInt64(&rm.stats.LoadCount),
+		UpdateCount:         atomic.LoadInt64(&rm.stats.UpdateCount),
+		RediscoveryCount:    atomic.LoadInt64(&rm.stats.RediscoveryCount),
 	}
 }
 

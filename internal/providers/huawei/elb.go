@@ -2,6 +2,7 @@
 package huawei
 
 import (
+	"context"
 	"time"
 
 	"multicloud-exporter/internal/config"
@@ -89,31 +90,33 @@ func (h *Collector) listELBInstances(account config.CloudAccount, region string)
 
 		start := time.Now()
 		var resp *elbmodel.ListLoadBalancersResponse
-		var callErr error
-		for attempt := 0; attempt < 3; attempt++ {
-			resp, callErr = client.ListLoadBalancers(req)
-			if callErr == nil {
-				metrics.RequestTotal.WithLabelValues("huawei", "ListLoadBalancers", "success").Inc()
-				metrics.RecordRequest("huawei", "ListLoadBalancers", "success")
-				metrics.RequestDuration.WithLabelValues("huawei", "ListLoadBalancers").Observe(time.Since(start).Seconds())
-				break
+
+		// 使用通用重试机制
+		retryConfig := providerscommon.DefaultRetryConfig()
+		shouldRetry := providerscommon.ShouldRetryForLimitError(providerscommon.HuaweiClassifier)
+
+		callErr := providerscommon.RetryWithBackoff(context.TODO(), retryConfig, func() error {
+			var err error
+			resp, err = client.ListLoadBalancers(req)
+
+			// 记录指标
+			if err != nil {
+				status := providerscommon.ClassifyHuaweiError(err)
+				metrics.RequestTotal.WithLabelValues("huawei", "ListLoadBalancers", status).Inc()
+				metrics.RecordRequest("huawei", "ListLoadBalancers", status)
+				if status == providerscommon.ErrorStatusLimit {
+					metrics.RateLimitTotal.WithLabelValues("huawei", "ListLoadBalancers").Inc()
+					ctxLog.Warnf("ELB ListLoadBalancers 限流，将重试")
+				}
+				return err
 			}
-			status := providerscommon.ClassifyHuaweiError(callErr)
-			metrics.RequestTotal.WithLabelValues("huawei", "ListLoadBalancers", status).Inc()
-			metrics.RecordRequest("huawei", "ListLoadBalancers", status)
-			if status == "limit_error" {
-				metrics.RateLimitTotal.WithLabelValues("huawei", "ListLoadBalancers").Inc()
-			}
-			if status == "auth_error" {
-				return nil
-			}
-			// 指数退避重试
-			sleep := time.Duration(200*(1<<attempt)) * time.Millisecond
-			if sleep > 5*time.Second {
-				sleep = 5 * time.Second
-			}
-			time.Sleep(sleep)
-		}
+
+			metrics.RequestTotal.WithLabelValues("huawei", "ListLoadBalancers", "success").Inc()
+			metrics.RecordRequest("huawei", "ListLoadBalancers", "success")
+			metrics.RequestDuration.WithLabelValues("huawei", "ListLoadBalancers").Observe(time.Since(start).Seconds())
+			return nil
+		}, shouldRetry)
+
 		if callErr != nil {
 			ctxLog.Warnf("ELB ListLoadBalancers 失败: %v", callErr)
 			break
@@ -261,20 +264,38 @@ func (h *Collector) fetchELBMonitor(account config.CloudAccount, region string, 
 				}
 
 				reqStart := time.Now()
-				resp, err := client.BatchListMetricData(req)
-				if err != nil {
-					status := providerscommon.ClassifyHuaweiError(err)
-					metrics.RequestTotal.WithLabelValues("huawei", "BatchListMetricData", status).Inc()
-					metrics.RecordRequest("huawei", "BatchListMetricData", status)
-					if status == "limit_error" {
-						metrics.RateLimitTotal.WithLabelValues("huawei", "BatchListMetricData").Inc()
+				var resp *cesmodel.BatchListMetricDataResponse
+
+				// 使用通用重试机制
+				retryConfig := providerscommon.DefaultRetryConfig()
+				shouldRetry := providerscommon.ShouldRetryForLimitError(providerscommon.HuaweiClassifier)
+
+				err := providerscommon.RetryWithBackoff(context.TODO(), retryConfig, func() error {
+					var apiErr error
+					resp, apiErr = client.BatchListMetricData(req)
+
+					// 记录指标
+					if apiErr != nil {
+						status := providerscommon.ClassifyHuaweiError(apiErr)
+						metrics.RequestTotal.WithLabelValues("huawei", "BatchListMetricData", status).Inc()
+						metrics.RecordRequest("huawei", "BatchListMetricData", status)
+						if status == providerscommon.ErrorStatusLimit {
+							metrics.RateLimitTotal.WithLabelValues("huawei", "BatchListMetricData").Inc()
+							ctxLog.Warnf("ELB BatchListMetricData 限流，将重试")
+						}
+						return apiErr
 					}
+
+					metrics.RequestTotal.WithLabelValues("huawei", "BatchListMetricData", "success").Inc()
+					metrics.RecordRequest("huawei", "BatchListMetricData", "success")
+					metrics.RequestDuration.WithLabelValues("huawei", "BatchListMetricData").Observe(time.Since(reqStart).Seconds())
+					return nil
+				}, shouldRetry)
+
+				if err != nil {
 					ctxLog.Warnf("BatchListMetricData 错误，指标=%s 错误=%v", metricName, err)
 					continue
 				}
-				metrics.RequestTotal.WithLabelValues("huawei", "BatchListMetricData", "success").Inc()
-				metrics.RecordRequest("huawei", "BatchListMetricData", "success")
-				metrics.RequestDuration.WithLabelValues("huawei", "BatchListMetricData").Observe(time.Since(reqStart).Seconds())
 
 				if resp == nil || resp.Metrics == nil || len(*resp.Metrics) == 0 {
 					continue

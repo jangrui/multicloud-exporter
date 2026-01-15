@@ -2,6 +2,7 @@
 package huawei
 
 import (
+	"context"
 	"strings"
 	"time"
 
@@ -81,31 +82,33 @@ func (h *Collector) listOBSBuckets(account config.CloudAccount, region string) [
 
 	start := time.Now()
 	var output *obs.ListBucketsOutput
-	var callErr error
-	for attempt := 0; attempt < 3; attempt++ {
-		output, callErr = client.ListBuckets(&obs.ListBucketsInput{QueryLocation: true})
-		if callErr == nil {
-			metrics.RequestTotal.WithLabelValues("huawei", "ListBuckets", "success").Inc()
-			metrics.RecordRequest("huawei", "ListBuckets", "success")
-			metrics.RequestDuration.WithLabelValues("huawei", "ListBuckets").Observe(time.Since(start).Seconds())
-			break
+
+	// 使用通用重试机制
+	retryConfig := providerscommon.DefaultRetryConfig()
+	shouldRetry := providerscommon.ShouldRetryForLimitError(providerscommon.HuaweiClassifier)
+
+	callErr := providerscommon.RetryWithBackoff(context.TODO(), retryConfig, func() error {
+		var err error
+		output, err = client.ListBuckets(&obs.ListBucketsInput{QueryLocation: true})
+
+		// 记录指标
+		if err != nil {
+			status := providerscommon.ClassifyHuaweiError(err)
+			metrics.RequestTotal.WithLabelValues("huawei", "ListBuckets", status).Inc()
+			metrics.RecordRequest("huawei", "ListBuckets", status)
+			if status == providerscommon.ErrorStatusLimit {
+				metrics.RateLimitTotal.WithLabelValues("huawei", "ListBuckets").Inc()
+				ctxLog.Warnf("OBS ListBuckets 限流，将重试")
+			}
+			return err
 		}
-		status := providerscommon.ClassifyHuaweiError(callErr)
-		metrics.RequestTotal.WithLabelValues("huawei", "ListBuckets", status).Inc()
-		metrics.RecordRequest("huawei", "ListBuckets", status)
-		if status == "limit_error" {
-			metrics.RateLimitTotal.WithLabelValues("huawei", "ListBuckets").Inc()
-		}
-		if status == "auth_error" {
-			return nil
-		}
-		// 指数退避重试
-		sleep := time.Duration(200*(1<<attempt)) * time.Millisecond
-		if sleep > 5*time.Second {
-			sleep = 5 * time.Second
-		}
-		time.Sleep(sleep)
-	}
+
+		metrics.RequestTotal.WithLabelValues("huawei", "ListBuckets", "success").Inc()
+		metrics.RecordRequest("huawei", "ListBuckets", "success")
+		metrics.RequestDuration.WithLabelValues("huawei", "ListBuckets").Observe(time.Since(start).Seconds())
+		return nil
+	}, shouldRetry)
+
 	if callErr != nil {
 		ctxLog.Warnf("OBS ListBuckets 失败: %v", callErr)
 		return nil
@@ -290,20 +293,38 @@ func (h *Collector) fetchOBSMonitor(account config.CloudAccount, region string, 
 				}
 
 				reqStart := time.Now()
-				resp, err := client.BatchListMetricData(req)
-				if err != nil {
-					status := providerscommon.ClassifyHuaweiError(err)
-					metrics.RequestTotal.WithLabelValues("huawei", "BatchListMetricData", status).Inc()
-					metrics.RecordRequest("huawei", "BatchListMetricData", status)
-					if status == "limit_error" {
-						metrics.RateLimitTotal.WithLabelValues("huawei", "BatchListMetricData").Inc()
+				var resp *cesmodel.BatchListMetricDataResponse
+
+				// 使用通用重试机制
+				retryConfig := providerscommon.DefaultRetryConfig()
+				shouldRetry := providerscommon.ShouldRetryForLimitError(providerscommon.HuaweiClassifier)
+
+				err := providerscommon.RetryWithBackoff(context.TODO(), retryConfig, func() error {
+					var apiErr error
+					resp, apiErr = client.BatchListMetricData(req)
+
+					// 记录指标
+					if apiErr != nil {
+						status := providerscommon.ClassifyHuaweiError(apiErr)
+						metrics.RequestTotal.WithLabelValues("huawei", "BatchListMetricData", status).Inc()
+						metrics.RecordRequest("huawei", "BatchListMetricData", status)
+						if status == providerscommon.ErrorStatusLimit {
+							metrics.RateLimitTotal.WithLabelValues("huawei", "BatchListMetricData").Inc()
+							ctxLog.Warnf("OBS BatchListMetricData 限流，将重试")
+						}
+						return apiErr
 					}
+
+					metrics.RequestTotal.WithLabelValues("huawei", "BatchListMetricData", "success").Inc()
+					metrics.RecordRequest("huawei", "BatchListMetricData", "success")
+					metrics.RequestDuration.WithLabelValues("huawei", "BatchListMetricData").Observe(time.Since(reqStart).Seconds())
+					return nil
+				}, shouldRetry)
+
+				if err != nil {
 					ctxLog.Warnf("OBS BatchListMetricData 错误，指标=%s period=%s 错误=%v", metricName, periodStr, err)
 					continue
 				}
-				metrics.RequestTotal.WithLabelValues("huawei", "BatchListMetricData", "success").Inc()
-				metrics.RecordRequest("huawei", "BatchListMetricData", "success")
-				metrics.RequestDuration.WithLabelValues("huawei", "BatchListMetricData").Observe(time.Since(reqStart).Seconds())
 
 				if resp == nil || resp.Metrics == nil || len(*resp.Metrics) == 0 {
 					ctxLog.Debugf("OBS BatchListMetricData 无数据，指标=%s period=%s", metricName, periodStr)

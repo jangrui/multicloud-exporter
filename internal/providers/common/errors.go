@@ -112,8 +112,13 @@ func (c *HuaweiErrorClassifier) Classify(err error) string {
 		strings.Contains(msg, "AK/SK") {
 		return ErrorStatusAuth
 	}
-	// 限流错误
-	if strings.Contains(msg, "throttling") || strings.Contains(msg, "429") ||
+	// 限流错误 - 华为云特定错误码和通用限流关键词
+	// APIGW.0308: 华为云 API 网关限流错误码
+	// throttling: 通用限流关键词
+	// ratelimit: 限流关键词（单词形式）
+	// 429: HTTP 限流状态码
+	if strings.Contains(msg, "APIGW.0308") || strings.Contains(msg, "throttling") ||
+		strings.Contains(msg, "ratelimit") || strings.Contains(msg, "429") ||
 		strings.Contains(msg, "TooManyRequests") || strings.Contains(msg, "rate limit") {
 		return ErrorStatusLimit
 	}

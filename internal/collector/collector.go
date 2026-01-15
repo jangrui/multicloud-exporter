@@ -18,6 +18,7 @@ import (
 	_ "multicloud-exporter/internal/providers/aws"
 	_ "multicloud-exporter/internal/providers/huawei"
 	_ "multicloud-exporter/internal/providers/tencent"
+	"multicloud-exporter/internal/utils"
 )
 
 // Status 定义采集器状态
@@ -113,10 +114,20 @@ func (c *Collector) collectInternal(filterProvider, filterResource string) {
 		accounts = filtered
 	}
 
+	// 获取当前分片配置
+	wTotal, wIndex := utils.ClusterConfig()
+
 	// 统计账号信息
 	accountInfo := buildAccountInfo(accounts)
 	ctxLog := logger.NewContextLogger("Collector", "resource_type", "Collection")
-	ctxLog.Infof("开始采集，账号数量=%d%s", len(accounts), accountInfo)
+	ctxLog.Infof("开始采集，账号数量=%d%s，分片配置: total=%d, index=%d", len(accounts), accountInfo, wTotal, wIndex)
+
+	// 记录分片任务分配信息
+	if wTotal > 1 {
+		ctxLog.Infof("分片模式: 当前 Pod 索引=%d/%d，将根据账号-区域-产品哈希值过滤任务", wIndex, wTotal)
+	} else {
+		ctxLog.Infof("单实例模式: 处理所有采集任务")
+	}
 
 	// 重置命名空间样本计数
 	metrics.ResetSampleCounts()

@@ -454,6 +454,134 @@ kubectl exec deployment/multicloud-exporter -- cat /app/data/region_status.json
   - 环境变量 `CLUSTER_SVC=<headless-service-name>`
 - **扩缩容**：直接调整 `replicas` 数量，集群会自动重新平衡分片（注意：扩缩容期间可能会有短暂的重复采集或漏采）。
 
+## Kubernetes 多副本优化配置
+
+在 Kubernetes 多副本部署场景下，为了避免滚动更新时的重复采集、优化首次采集错峰、提升区域发现性能，exporter 提供了以下优化配置：
+
+### 集群稳定性检测
+
+在滚动更新时，等待集群拓扑稳定后再开始采集，避免重复采集。
+
+```yaml
+# values.yaml
+cluster:
+  stabilityCheck:
+    enabled: true          # 是否启用稳定性检测（默认 true）
+    maxWait: 30s           # 最长等待时间（默认 30s）
+    checkInterval: 2s      # 检查间隔（默认 2s）
+    requiredStable: 3      # 需要连续稳定的次数（默认 3）
+```
+
+**工作原理**：
+- Pod 启动时通过 DNS 查询 Headless Service，获取集群中所有 Pod 的 IP 列表
+- 连续 N 次（默认 3 次）查询结果一致，认为集群稳定
+- 稳定后才开始首次采集，避免滚动更新期间的重复采集
+
+**环境变量**：
+- `CLUSTER_STABILITY_CHECK_ENABLED`: 是否启用（默认 `true`）
+- `CLUSTER_STABILITY_MAX_WAIT`: 最长等待时间（默认 `30s`）
+- `CLUSTER_STABILITY_CHECK_INTERVAL`: 检查间隔（默认 `2s`）
+- `CLUSTER_STABILITY_REQUIRED_STABLE`: 连续稳定次数（默认 `3`）
+
+### 首次采集策略（智能错峰）
+
+控制多个 Pod 启动时的首次采集时机，避免同时向云厂商 API 发起大量请求导致限流。
+
+```yaml
+# values.yaml
+firstRun:
+  strategy: auto         # 首次采集策略：auto | immediate | staggered（默认 auto）
+  maxDelay: 180          # 首次采集最大延迟秒数（默认 180）
+```
+
+**策略说明**：
+- `auto`（推荐）：自动判断
+  - 单 Pod：立即采集，无需等待
+  - 2-10 个 Pod：线性延迟 + 随机抖动（5s + 索引×3s）
+  - >10 个 Pod：指数退避延迟，避免 API 压力
+- `immediate`：强制所有 Pod 立即采集（适合小规模或云 API 限流宽松的场景）
+- `staggered`：强制线性延迟，均匀分布（适合对云 API 限流极度敏感的场景）
+
+**环境变量**：
+- `FIRST_RUN_STRATEGY`: 首次采集策略（默认 `auto`）
+- `FIRST_RUN_MAX_DELAY`: 首次采集最大延迟秒数（默认 `180`）
+
+**示例**：
+
+```bash
+# 单 Pod 本地测试（立即采集）
+helm install multicloud-exporter ./chart --set replicaCount=1
+
+# 大规模生产环境（20 个 Pod，指数退避）
+helm install multicloud-exporter ./chart \
+  --set replicaCount=20 \
+  --set firstRun.strategy=auto \
+  --set firstRun.maxDelay=180
+```
+
+### 华为云限流优化
+
+针对华为云的严格限流策略，通过缓存减少 API 调用次数。
+
+```yaml
+# values.yaml
+huaweiCache:
+  enabled: true          # 是否启用华为云缓存（默认 true）
+  resourceTTL: 10m       # 资源缓存 TTL（默认 10 分钟）
+  tagTTL: 30m            # 标签缓存 TTL（默认 30 分钟）
+```
+
+**优化效果**：
+- 资源列表缓存：减少 ListResources API 调用
+- 标签缓存：减少 GetResourceTags API 调用
+- 自动重试：检测到限流错误时，使用指数退避重试（初始 200ms，最大 5s）
+
+**环境变量**：
+- `HUAWEI_CACHE_ENABLED`: 是否启用（默认 `true`）
+- `HUAWEI_CACHE_RESOURCE_TTL`: 资源缓存 TTL（默认 `10m`）
+- `HUAWEI_CACHE_TAG_TTL`: 标签缓存 TTL（默认 `30m`）
+
+### 完整部署示例
+
+```bash
+# 3 副本部署，启用所有优化
+helm install multicloud-exporter ./chart \
+  --set replicaCount=3 \
+  --set cluster.discovery=headless \
+  --set cluster.stabilityCheck.enabled=true \
+  --set firstRun.strategy=auto \
+  --set firstRun.maxDelay=180 \
+  --set regionDiscovery.enabled=true \
+  --set regionDiscovery.discoveryInterval=1h \
+  --set huaweiCache.enabled=true \
+  --set regionData.persistence.enabled=true \
+  --set regionData.persistence.storageClass=standard
+```
+
+### 监控指标
+
+优化功能提供了以下 Prometheus 指标用于监控：
+
+```promql
+# 集群配置刷新次数
+multicloud_cluster_config_refresh_total
+
+# 集群配置刷新耗时
+multicloud_cluster_config_refresh_duration_seconds
+
+# 区域状态分布
+multicloud_region_status{account_id, region, status}
+
+# 区域跳过次数
+multicloud_region_skipped_total{account_id, region}
+
+# 缓存命中率
+multicloud_cache_hit_ratio{cache_type}
+
+# 首次采集延迟
+multicloud_first_run_delay_seconds{pod_index}
+```
+
 ### LB/BWP 指标统一与映射
 
 - 统一映射文件：

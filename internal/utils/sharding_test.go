@@ -133,3 +133,187 @@ func TestClusterConfig_Headless(t *testing.T) {
 		t.Errorf("ClusterConfig() = (%d, %d); want (3, 1)", total, index)
 	}
 }
+
+// TestClusterConfigCache_TTL 测试缓存 TTL 功能
+func TestClusterConfigCache_TTL(t *testing.T) {
+	originalLookup := lookupIPFunc
+	defer func() { lookupIPFunc = originalLookup }()
+
+	// 重置缓存状态
+	defer func() {
+		clusterCfgMu.Lock()
+		clusterCfgTotal = 0
+		clusterCfgIndex = 0
+		clusterCfgTTL = 0
+		clusterCfgMu.Unlock()
+	}()
+
+	callCount := 0
+	lookupIPFunc = func(host string) ([]net.IP, error) {
+		callCount++
+		if host == "headless-svc" {
+			return []net.IP{
+				net.ParseIP("10.0.0.1"),
+				net.ParseIP("10.0.0.2"),
+			}, nil
+		}
+		return nil, &net.DNSError{Err: "not found"}
+	}
+
+	t.Setenv("CLUSTER_DISCOVERY", "headless")
+	t.Setenv("CLUSTER_SVC", "headless-svc")
+	t.Setenv("POD_IP", "10.0.0.1")
+
+	// 测试 1: 禁用缓存（TTL = 0），每次都应该查询 DNS
+	SetClusterConfigTTL(0)
+	callCount = 0
+
+	total1, index1 := ClusterConfig()
+	if total1 != 2 || index1 != 0 {
+		t.Errorf("第1次调用: ClusterConfig() = (%d, %d); want (2, 0)", total1, index1)
+	}
+	if callCount != 1 {
+		t.Errorf("第1次调用: DNS 查询次数 = %d; want 1", callCount)
+	}
+
+	total2, index2 := ClusterConfig()
+	if total2 != 2 || index2 != 0 {
+		t.Errorf("第2次调用: ClusterConfig() = (%d, %d); want (2, 0)", total2, index2)
+	}
+	if callCount != 2 {
+		t.Errorf("第2次调用: DNS 查询次数 = %d; want 2 (缓存禁用)", callCount)
+	}
+
+	// 测试 2: 启用缓存（TTL = 1小时），第二次调用应该命中缓存
+	// 先清理之前的缓存状态
+	clusterCfgMu.Lock()
+	clusterCfgTotal = 0
+	clusterCfgIndex = 0
+	clusterCfgMu.Unlock()
+
+	SetClusterConfigTTL(3600 * 1000000000) // 1 小时
+	callCount = 0
+
+	total3, index3 := ClusterConfig()
+	if total3 != 2 || index3 != 0 {
+		t.Errorf("第3次调用: ClusterConfig() = (%d, %d); want (2, 0)", total3, index3)
+	}
+	if callCount != 1 {
+		t.Errorf("第3次调用: DNS 查询次数 = %d; want 1", callCount)
+	}
+
+	total4, index4 := ClusterConfig()
+	if total4 != 2 || index4 != 0 {
+		t.Errorf("第4次调用: ClusterConfig() = (%d, %d); want (2, 0)", total4, index4)
+	}
+	if callCount != 1 {
+		t.Errorf("第4次调用: DNS 查询次数 = %d; want 1 (应该命中缓存)", callCount)
+	}
+}
+
+// TestClusterConfigCache_Expiry 测试缓存过期后重新查询
+func TestClusterConfigCache_Expiry(t *testing.T) {
+	originalLookup := lookupIPFunc
+	defer func() { lookupIPFunc = originalLookup }()
+
+	// 重置缓存状态
+	defer func() {
+		clusterCfgMu.Lock()
+		clusterCfgTotal = 0
+		clusterCfgIndex = 0
+		clusterCfgTTL = 0
+		clusterCfgMu.Unlock()
+	}()
+
+	callCount := 0
+	lookupIPFunc = func(host string) ([]net.IP, error) {
+		callCount++
+		return []net.IP{
+			net.ParseIP("10.0.0.1"),
+			net.ParseIP("10.0.0.2"),
+		}, nil
+	}
+
+	t.Setenv("CLUSTER_DISCOVERY", "headless")
+	t.Setenv("CLUSTER_SVC", "headless-svc")
+	t.Setenv("POD_IP", "10.0.0.1")
+
+	// 设置一个很短的 TTL（1 纳秒，立即过期）
+	SetClusterConfigTTL(1)
+	callCount = 0
+
+	// 第一次调用
+	total1, index1 := ClusterConfig()
+	if total1 != 2 || index1 != 0 {
+		t.Errorf("第1次调用: ClusterConfig() = (%d, %d); want (2, 0)", total1, index1)
+	}
+	if callCount != 1 {
+		t.Errorf("第1次调用: DNS 查询次数 = %d; want 1", callCount)
+	}
+
+	// 第二次调用，缓存应该已过期，需要重新查询
+	total2, index2 := ClusterConfig()
+	if total2 != 2 || index2 != 0 {
+		t.Errorf("第2次调用: ClusterConfig() = (%d, %d); want (2, 0)", total2, index2)
+	}
+	if callCount != 2 {
+		t.Errorf("第2次调用: DNS 查询次数 = %d; want 2 (缓存已过期)", callCount)
+	}
+}
+
+// TestClusterConfigCache_DNSFailureFallback 测试 DNS 查询失败时使用缓存配置
+func TestClusterConfigCache_DNSFailureFallback(t *testing.T) {
+	originalLookup := lookupIPFunc
+	defer func() { lookupIPFunc = originalLookup }()
+
+	// 重置缓存状态
+	defer func() {
+		clusterCfgMu.Lock()
+		clusterCfgTotal = 0
+		clusterCfgIndex = 0
+		clusterCfgTTL = 0
+		clusterCfgMu.Unlock()
+	}()
+
+	callCount := 0
+	shouldFail := false
+
+	lookupIPFunc = func(host string) ([]net.IP, error) {
+		callCount++
+		if shouldFail {
+			return nil, &net.DNSError{Err: "temporary failure"}
+		}
+		return []net.IP{
+			net.ParseIP("10.0.0.1"),
+			net.ParseIP("10.0.0.2"),
+			net.ParseIP("10.0.0.3"),
+		}, nil
+	}
+
+	t.Setenv("CLUSTER_DISCOVERY", "headless")
+	t.Setenv("CLUSTER_SVC", "headless-svc")
+	t.Setenv("POD_IP", "10.0.0.2")
+
+	// 设置一个很短的 TTL，确保缓存会过期
+	SetClusterConfigTTL(1)
+
+	// 第一次调用成功，建立缓存
+	total1, index1 := ClusterConfig()
+	if total1 != 3 || index1 != 1 {
+		t.Errorf("第1次调用: ClusterConfig() = (%d, %d); want (3, 1)", total1, index1)
+	}
+
+	// 模拟 DNS 查询失败
+	shouldFail = true
+	callCount = 0
+
+	// 第二次调用，DNS 失败但应该使用上次成功的配置
+	total2, index2 := ClusterConfig()
+	if total2 != 3 || index2 != 1 {
+		t.Errorf("第2次调用（DNS失败）: ClusterConfig() = (%d, %d); want (3, 1) (应该使用缓存配置)", total2, index2)
+	}
+	// 应该尝试了 3 次 DNS 查询（重试机制）
+	if callCount != 3 {
+		t.Errorf("DNS 失败时的查询次数 = %d; want 3 (应该重试3次)", callCount)
+	}
+}

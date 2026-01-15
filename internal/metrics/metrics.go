@@ -93,6 +93,74 @@ var (
 		},
 		[]string{"cloud_provider"},
 	)
+	// RegionRediscoveryTotal 区域重新发现触发次数
+	RegionRediscoveryTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "multicloud_region_rediscovery_total",
+			Help: " - 区域重新发现触发次数",
+		},
+		[]string{"reason"},
+	)
+	// RegionRediscoveryDuration 区域重新发现耗时
+	RegionRediscoveryDuration = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "multicloud_region_rediscovery_duration_seconds",
+			Help:    " - 区域重新发现耗时（秒）",
+			Buckets: prometheus.DefBuckets,
+		},
+	)
+	// RegionRediscoveryMarkedTotal 区域重新发现标记的区域总数
+	RegionRediscoveryMarkedTotal = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "multicloud_region_rediscovery_marked_total",
+			Help: " - 最近一次重新发现标记的区域总数",
+		},
+	)
+	// ClusterConfigRefreshTotal 集群配置刷新次数
+	ClusterConfigRefreshTotal = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "multicloud_cluster_config_refresh_total",
+			Help: " - 集群配置刷新次数统计",
+		},
+	)
+	// ClusterConfigRefreshDuration 集群配置刷新耗时
+	ClusterConfigRefreshDuration = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Name:    "multicloud_cluster_config_refresh_duration_seconds",
+			Help:    " - 集群配置刷新耗时（秒）",
+			Buckets: prometheus.DefBuckets,
+		},
+	)
+	// ClusterConfigTotal 当前集群总 Pod 数
+	ClusterConfigTotal = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "multicloud_cluster_config_total",
+			Help: " - 当前集群总 Pod 数",
+		},
+	)
+	// ClusterConfigIndex 当前 Pod 索引
+	ClusterConfigIndex = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "multicloud_cluster_config_index",
+			Help: " - 当前 Pod 在集群中的索引",
+		},
+	)
+	// FirstRunDelaySeconds 首次采集延迟时间
+	FirstRunDelaySeconds = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "multicloud_first_run_delay_seconds",
+			Help: " - 首次采集延迟时间（秒）",
+		},
+		[]string{"pod_index", "strategy"},
+	)
+	// CacheHitRatio 缓存命中率
+	CacheHitRatio = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "multicloud_cache_hit_ratio",
+			Help: " - 缓存命中率（0-1）",
+		},
+		[]string{"cache_type"},
+	)
 )
 
 var (

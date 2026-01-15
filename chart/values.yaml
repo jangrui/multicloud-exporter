@@ -24,7 +24,14 @@ serviceMonitor:
   interval: "60s"
   scrapeTimeout: "30s"
   metricRelabelings: []
-  relabelings: []
+  relabelings:
+    # 排除 Headless Service，避免重复采集指标
+    # 当同时存在标准 Service 和 Headless Service（如 multicloud-exporter 和 multicloud-exporter-headless）时
+    # VMServiceScrape 会从两个 Service 采集数据，导致指标重复
+    # 使用以下 relabeling 配置仅保留标准 Service：
+    - action: keep
+      sourceLabels: ["__meta_kubernetes_service_name"]
+      regex: "multicloud-exporter"
 
 hpa:
   enabled: false
@@ -66,6 +73,40 @@ cluster:
     enabled: false
     total: 1
     index: 0
+  
+  # 集群稳定性检测配置（用于多副本场景）
+  # 在滚动更新时，等待集群拓扑稳定后再开始采集，避免重复采集
+  stabilityCheck:
+    enabled: true          # 是否启用稳定性检测；默认 true
+    maxWait: 30s           # 最长等待时间；默认 30s
+    checkInterval: 2s      # 检查间隔；默认 2s
+    requiredStable: 3      # 需要连续稳定的次数；默认 3
+
+# 首次采集策略配置（智能错峰）
+# 控制多个 Pod 启动时的首次采集时机，避免同时向云厂商 API 发起大量请求导致限流
+firstRun:
+  strategy: auto         # 首次采集策略：auto（自动）| immediate（立即）| staggered（强制错峰）；默认 auto
+                         # - auto: 单 Pod 立即采集，2-10 个 Pod 线性延迟，>10 个 Pod 指数退避延迟
+                         # - immediate: 强制所有 Pod 立即采集（适合小规模或云 API 限流宽松的场景）
+                         # - staggered: 强制线性延迟，均匀分布（适合对云 API 限流极度敏感的场景）
+  maxDelay: 180          # 首次采集最大延迟秒数；默认 180 秒
+                         # 示例：20 个 Pod，maxDelay=180s，Pod-0 立即，Pod-19 延迟约 170 秒
+
+# 区域发现配置（智能区域选择）
+# 自动识别有资源的区域并优先采集，跳过连续多次无资源的区域
+regionDiscovery:
+  enabled: true                # 是否启用智能区域发现；默认 true
+  discoveryInterval: 1h        # 重新发现周期；支持 s/m/h/d；默认 1h（从 24h 改为 1h）
+  emptyThreshold: 3            # 连续空次数阈值；默认 3
+  dataDir: /app/data           # 数据目录路径；默认 /app/data
+  persistFile: region_status.json  # 持久化文件名（相对于 dataDir）；默认 region_status.json
+
+# 华为云缓存配置（限流优化）
+# 针对华为云的严格限流策略，通过缓存减少 API 调用次数
+huaweiCache:
+  enabled: true          # 是否启用华为云缓存；默认 true
+  resourceTTL: 10m       # 资源缓存 TTL；默认 10 分钟
+  tagTTL: 30m            # 标签缓存 TTL；默认 30 分钟
 
 # Server 配置（可选）：如果设置，将创建 ConfigMap 并挂载到容器
 # 如果未设置，将使用镜像内置的 server.yaml 配置
@@ -78,12 +119,8 @@ server: {}
 #  region_concurrency: 4              # 区域级并发：同一账号下并行采集的地域数量（建议 1-8）；默认 4（与 configs/server.yaml 一致）
 #  product_concurrency: 2             # 产品级并发：同一地域下并行处理的命名空间数量（建议 1-4）；默认 2
 #  metric_concurrency: 5              # 指标级并发：同一地域、同一产品下并行处理的指标批次（建议 1-10）；默认 5
-#  region_discovery:               # 智能区域发现配置
-#    enabled: true                 # 是否启用智能区域发现；默认 true
-#    discovery_interval: "24h"     # 重新发现周期；支持 s/m/h/d；默认 24h
-#    empty_threshold: 3            # 连续空次数阈值；默认 3
-#    data_dir: "/app/data"         # 数据目录路径；默认 /app/data
-#    persist_file: "region_status.json"  # 持久化文件名（相对于 data_dir）；默认 region_status.json
+#  # 注意：region_discovery、huawei_cache、first_run 等配置已移至顶层独立配置组
+#  # 如需在 server.yaml 中配置，请参考 configs/server.yaml 模板
 
 # 区域数据持久化配置（可选）：启用后使用 PVC 保存区域状态，跨 Pod 重启保留
 # 默认使用 emptyDir，仅在 Pod 生命周期内保留状态
@@ -117,7 +154,7 @@ env: {}
 #  SCRAPE_INTERVAL: "60s"             # 采集间隔；支持 "60s", "1m" 等；默认 60s
 #  PERIOD_FALLBACK: "60"              # Period Fallback 值（秒）；当无法从元数据获取 Period 时的默认值；默认 60
 #
-#  # 首次采集策略（智能错峰）
+#  # 首次采集策略（智能错峰）- 对应 firstRun 配置组
 #  FIRST_RUN_STRATEGY: "auto"         # 首次采集策略：auto（自动）| immediate（立即）| staggered（强制错峰）；默认 auto
 #                                      # - auto: 单/双Pod立即采集，3-10个Pod线性延迟，>10个Pod指数退避延迟
 #                                      # - immediate: 强制所有Pod立即采集（适合小规模或云API限流宽松的场景）
@@ -130,11 +167,23 @@ env: {}
 #  PRODUCT_CONCURRENCY: "2"           # 产品级并发：同一地域下并行处理的命名空间数量（建议 1-4）；默认 2
 #  METRIC_CONCURRENCY: "5"            # 指标级并发：同一地域、同一产品下并行处理的指标批次（建议 1-10）；默认 5
 #
-#  # 智能区域发现配置
+#  # 智能区域发现配置 - 对应 regionDiscovery 配置组
 #  REGION_DISCOVERY_ENABLED: "true"         # 是否启用智能区域发现；默认 true
-#  REGION_DISCOVERY_INTERVAL: "24h"         # 重新发现周期；支持 s/m/h/d；默认 24h
+#  REGION_DISCOVERY_INTERVAL: "1h"          # 重新发现周期；支持 s/m/h/d；默认 1h（从 24h 改为 1h）
 #  REGION_EMPTY_THRESHOLD: "3"              # 连续空次数阈值；默认 3
-#  REGION_PERSIST_FILE: "./data/region_status.json"  # 持久化文件路径；默认 ./data/region_status.json
+#  REGION_DATA_DIR: "/app/data"             # 数据目录路径；默认 /app/data
+#  REGION_PERSIST_FILE: "region_status.json"  # 持久化文件名；默认 region_status.json
+#
+#  # 华为云缓存配置 - 对应 huaweiCache 配置组
+#  HUAWEI_CACHE_ENABLED: "true"       # 是否启用华为云缓存；默认 true
+#  HUAWEI_CACHE_RESOURCE_TTL: "10m"   # 资源缓存 TTL；默认 10 分钟
+#  HUAWEI_CACHE_TAG_TTL: "30m"        # 标签缓存 TTL；默认 30 分钟
+#
+#  # 集群稳定性检测配置 - 对应 cluster.stabilityCheck 配置组
+#  CLUSTER_STABILITY_CHECK_ENABLED: "true"    # 是否启用稳定性检测；默认 true
+#  CLUSTER_STABILITY_MAX_WAIT: "30s"          # 最长等待时间；默认 30s
+#  CLUSTER_STABILITY_CHECK_INTERVAL: "2s"     # 检查间隔；默认 2s
+#  CLUSTER_STABILITY_REQUIRED_STABLE: "3"     # 需要连续稳定的次数；默认 3
 #
 #  # 安全配置
 #  ADMIN_AUTH_ENABLED: "false"        # 是否启用管理接口认证；默认 false

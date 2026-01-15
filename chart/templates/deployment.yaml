@@ -76,6 +76,42 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
+{{- if .Values.firstRun }}
+            - name: FIRST_RUN_STRATEGY
+              value: {{ .Values.firstRun.strategy | default "auto" | quote }}
+            - name: FIRST_RUN_MAX_DELAY
+              value: {{ .Values.firstRun.maxDelay | default 180 | quote }}
+{{- end }}
+{{- if .Values.regionDiscovery }}
+            - name: REGION_DISCOVERY_ENABLED
+              value: {{ .Values.regionDiscovery.enabled | default true | quote }}
+            - name: REGION_DISCOVERY_INTERVAL
+              value: {{ .Values.regionDiscovery.discoveryInterval | default "1h" | quote }}
+            - name: REGION_EMPTY_THRESHOLD
+              value: {{ .Values.regionDiscovery.emptyThreshold | default 3 | quote }}
+            - name: REGION_DATA_DIR
+              value: {{ .Values.regionDiscovery.dataDir | default "/app/data" | quote }}
+            - name: REGION_PERSIST_FILE
+              value: {{ .Values.regionDiscovery.persistFile | default "region_status.json" | quote }}
+{{- end }}
+{{- if .Values.huaweiCache }}
+            - name: HUAWEI_CACHE_ENABLED
+              value: {{ .Values.huaweiCache.enabled | default true | quote }}
+            - name: HUAWEI_CACHE_RESOURCE_TTL
+              value: {{ .Values.huaweiCache.resourceTTL | default "10m" | quote }}
+            - name: HUAWEI_CACHE_TAG_TTL
+              value: {{ .Values.huaweiCache.tagTTL | default "30m" | quote }}
+{{- end }}
+{{- if .Values.cluster.stabilityCheck }}
+            - name: CLUSTER_STABILITY_CHECK_ENABLED
+              value: {{ .Values.cluster.stabilityCheck.enabled | default true | quote }}
+            - name: CLUSTER_STABILITY_MAX_WAIT
+              value: {{ .Values.cluster.stabilityCheck.maxWait | default "30s" | quote }}
+            - name: CLUSTER_STABILITY_CHECK_INTERVAL
+              value: {{ .Values.cluster.stabilityCheck.checkInterval | default "2s" | quote }}
+            - name: CLUSTER_STABILITY_REQUIRED_STABLE
+              value: {{ .Values.cluster.stabilityCheck.requiredStable | default 3 | quote }}
+{{- end }}
 {{- if .Values.env }}
 {{- range $k, $v := .Values.env }}
             - name: {{ $k }}
@@ -89,6 +125,9 @@ spec:
 {{- if and .Values.server .Values.server.regionDiscovery .Values.server.regionDiscovery.enabled }}
             - name: REGION_DATA_DIR
               value: /app/data
+{{- else if .Values.regionDiscovery.enabled }}
+            - name: REGION_DATA_DIR
+              value: {{ .Values.regionDiscovery.dataDir | default "/app/data" | quote }}
 {{- end }}
 {{- if and .Values.accounts .Values.accounts.grouped }}
             - name: ACCOUNTS_PATH
@@ -213,6 +252,9 @@ spec:
 {{- if and .Values.server .Values.server.regionDiscovery .Values.server.regionDiscovery.enabled }}
             - name: region-data
               mountPath: /app/data
+{{- else if .Values.regionDiscovery.enabled }}
+            - name: region-data
+              mountPath: {{ .Values.regionDiscovery.dataDir | default "/app/data" }}
 {{- end }}
           resources: {{- toYaml .Values.resources | nindent 12 }}
       volumes:
@@ -227,6 +269,14 @@ spec:
             name: {{ default "multicloud-exporter" .Values.fullname }}-accounts
 {{- end }}
 {{- if and .Values.server .Values.server.regionDiscovery .Values.server.regionDiscovery.enabled }}
+        - name: region-data
+{{- if .Values.regionData.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.regionData.persistence.existingClaim | default (printf "%s-region-data" (default "multicloud-exporter" .Values.fullname)) }}
+{{- else }}
+          emptyDir: {}
+{{- end }}
+{{- else if .Values.regionDiscovery.enabled }}
         - name: region-data
 {{- if .Values.regionData.persistence.enabled }}
           persistentVolumeClaim:

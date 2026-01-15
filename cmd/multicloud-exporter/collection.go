@@ -21,13 +21,17 @@ import (
 // startCollectionLoop 启动周期性采集循环（支持优雅停止和智能首次采集）
 //
 // 首次采集策略（自适应错峰）：
-//   - 单/双Pod场景：立即采集，无需等待
-//   - 3-10个Pod（中等规模）：线性延迟 + 随机抖动
-//   - >10个Pod（大规模）：指数退避延迟，避免API压力
+//   - auto（默认）：等待集群稳定后，根据 Pod 数量自动选择延迟策略
+//   - immediate：跳过稳定性检测，立即采集
+//   - staggered：等待集群稳定后，使用线性延迟分布
 //
 // 环境变量控制：
 //   - FIRST_RUN_STRATEGY: auto（自动）| immediate（立即）| staggered（强制错峰）
 //   - FIRST_RUN_MAX_DELAY: 最大延迟秒数（默认180秒）
+//   - CLUSTER_STABILITY_CHECK_ENABLED: 是否启用集群稳定性检测（默认 true）
+//   - CLUSTER_STABILITY_MAX_WAIT: 稳定性检测最长等待时间（默认 30s）
+//   - CLUSTER_STABILITY_CHECK_INTERVAL: 稳定性检测间隔（默认 2s）
+//   - CLUSTER_STABILITY_REQUIRED_STABLE: 需要连续稳定的次数（默认 3）
 func startCollectionLoop(ctx context.Context, cfg *config.Config, coll *collector.Collector, mgr *discovery.Manager, interval time.Duration) {
 	go func() {
 		lastVer := int64(-1)
@@ -35,49 +39,45 @@ func startCollectionLoop(ctx context.Context, cfg *config.Config, coll *collecto
 		defer ticker.Stop()
 
 		// ========== 智能首次采集策略 ==========
-		// 从环境变量读取策略，默认为 auto
-		strategy := getEnvOrDefault("FIRST_RUN_STRATEGY", "auto")
+		// 计算首次采集延迟（集成集群稳定性检测）
+		firstRunDelay := calculateFirstRunDelay(interval)
 
-		shouldRunImmediately := true
-		if strategy == "auto" {
+		if firstRunDelay > 0 {
 			ctxLog := logger.NewContextLogger("Collection", "resource_type", "FirstRun")
-			ctxLog.Infof("首次采集策略(auto): 跳过启动时的立即采集，将在首个采集周期(%v)后开始。这有助于等待 DNS 分片环境就绪并减少 API 压力。", interval)
-			shouldRunImmediately = false
-		} else {
-			// 只有非 auto 策略（如 immediate, staggered）才执行旧的启动逻辑
-			// 获取集群分片配置
-			totalShards, shardIndex := utils.ClusterConfig()
+			ctxLog.Infof("首次采集延迟: %v，等待后开始采集...", firstRunDelay)
 
-			// 计算首次采集延迟
-			firstRunDelay := calculateFirstRunDelay(totalShards, shardIndex, interval)
-
-			if firstRunDelay > 0 {
+			select {
+			case <-time.After(firstRunDelay):
+			case <-ctx.Done():
 				ctxLog := logger.NewContextLogger("Collection", "resource_type", "FirstRun")
-				ctxLog.Infof("首次采集延迟策略: 分片总数=%d, 当前索引=%d, 延迟=%v",
-					totalShards, shardIndex, firstRunDelay)
-
-				select {
-				case <-time.After(firstRunDelay):
-					// 延迟结束，继续执行首次采集
-				case <-ctx.Done():
-					ctxLog := logger.NewContextLogger("Collection", "resource_type", "FirstRun")
-					ctxLog.Info("收到停止信号，取消首次采集")
-					return
-				}
-			} else {
-				ctxLog := logger.NewContextLogger("Collection", "resource_type", "FirstRun")
-				ctxLog.Infof("首次采集策略: 立即执行 (分片总数=%d, 当前索引=%d)",
-					totalShards, shardIndex)
+				ctxLog.Info("收到停止信号，取消首次采集")
+				return
 			}
 		}
 
-		// 执行首次采集（仅在非 auto 策略下）
-		if shouldRunImmediately {
-			ctxLog := logger.NewContextLogger("Collection", "resource_type", "FirstRun")
-			ctxLog.Info("开始首次采集...")
-			coll.Collect()
-			ctxLog.Info("首次采集完成，进入定时采集循环")
+		// 执行首次采集
+		ctxLog := logger.NewContextLogger("Collection", "resource_type", "FirstRun")
+		ctxLog.Info("开始首次采集...")
+
+		// 记录分片配置信息和指标
+		total, index := utils.ClusterConfig()
+		ctxLog.Infof("分片配置: total=%d, index=%d", total, index)
+
+		// 记录集群配置指标
+		metrics.ClusterConfigTotal.Set(float64(total))
+		metrics.ClusterConfigIndex.Set(float64(index))
+
+		// 记录首次采集延迟指标
+		if firstRunDelay > 0 {
+			strategy := getEnvOrDefault("FIRST_RUN_STRATEGY", "auto")
+			metrics.FirstRunDelaySeconds.WithLabelValues(
+				fmt.Sprintf("%d", index),
+				strategy,
+			).Set(firstRunDelay.Seconds())
 		}
+
+		coll.Collect()
+		ctxLog.Info("首次采集完成，进入定时采集循环")
 		// ========== 智能首次采集结束 ==========
 
 		for {
@@ -92,12 +92,21 @@ func startCollectionLoop(ctx context.Context, cfg *config.Config, coll *collecto
 				collectionLog := logger.NewContextLogger("Collection", "resource_type", "CollectionLoop")
 				collectionLog.Infof("开始采集，周期=%v", interval)
 
+				// 记录当前分片配置和指标
+				total, index := utils.ClusterConfig()
+				collectionLog.Infof("当前分片配置: total=%d, index=%d", total, index)
+
+				// 更新集群配置指标
+				metrics.ClusterConfigTotal.Set(float64(total))
+				metrics.ClusterConfigIndex.Set(float64(index))
+
 				// 检查配置版本是否变化
 				versionChanged := false
 				if v := mgr.Version(); v != lastVer {
 					cfg.ProductsByProvider = mgr.Get()
 					lastVer = v
 					versionChanged = true
+					collectionLog.Infof("配置版本变化: %d -> %d", lastVer, v)
 				}
 
 				// 版本变化时重置指标
@@ -175,7 +184,7 @@ func buildProductStats(productsByProvider map[string]int) string {
 		if i > 0 {
 			info.WriteString(", ")
 		}
-		info.WriteString(fmt.Sprintf("%s=%d", provider, productsByProvider[provider]))
+		fmt.Fprintf(&info, "%s=%d", provider, productsByProvider[provider])
 	}
 	info.WriteString(")")
 	return info.String()
@@ -235,57 +244,107 @@ func parseIntervalSeconds(s string) (time.Duration, error) {
 
 // ========== 智能首次采集策略相关函数 ==========
 
-// calculateFirstRunDelay 计算首次采集延迟时间
+// calculateFirstRunDelay 计算首次采集延迟时间（集成集群稳定性检测）
 //
 // 策略说明：
-//   - 策略1（immediate）：立即采集，单/多Pod都无延迟
-//   - 策略2（staggered）：强制错峰，线性分配延迟
-//   - 策略3（auto，默认）：自适应判断
-//   - 单/双Pod：立即采集
-//   - 3-10个Pod：线性延迟 + 随机抖动
-//   - >10个Pod：指数退避延迟，避免大规模并发
+//   - immediate：跳过稳定性检测，立即采集
+//   - staggered：等待集群稳定后，使用线性延迟分布
+//   - auto（默认）：等待集群稳定后，根据 Pod 数量自动选择延迟策略
+//   - 单 Pod：立即采集
+//   - 2-10 个 Pod：线性延迟 + 随机抖动
+//   - >10 个 Pod：指数退避延迟
 //
 // 参数：
-//   - totalShards: 集群总分片数（Pod总数）
-//   - shardIndex: 当前Pod的索引
-//   - interval: 采集间隔
+//   - interval: 采集间隔（用于设置集群配置缓存 TTL）
 //
 // 返回：
-//   - 首次采集延迟时间（0表示立即采集）
-func calculateFirstRunDelay(totalShards, shardIndex int, interval time.Duration) time.Duration {
-	// 从环境变量读取策略
+//   - 首次采集延迟时间（0 表示立即采集）
+func calculateFirstRunDelay(interval time.Duration) time.Duration {
+	ctxLog := logger.NewContextLogger("Collection", "resource_type", "FirstRunStrategy")
+
+	// 从环境变量读取策略配置
 	strategy := getEnvOrDefault("FIRST_RUN_STRATEGY", "auto")
-	maxDelaySeconds := getEnvIntOrDefault("FIRST_RUN_MAX_DELAY", 180) // 默认最大180秒
+	maxDelaySeconds := getEnvIntOrDefault("FIRST_RUN_MAX_DELAY", 180) // 默认最大 180 秒
 	maxDelay := time.Duration(maxDelaySeconds) * time.Second
 
-	switch strategy {
-	case "immediate":
-		// 策略1：立即采集（单/多Pod都立即）
+	// 设置集群配置缓存 TTL（使用采集间隔）
+	utils.SetClusterConfigTTL(interval)
+
+	ctxLog.Infof("首次采集策略: %s, 最大延迟: %v", strategy, maxDelay)
+
+	// 策略 1: immediate - 跳过稳定性检测，立即采集
+	if strategy == "immediate" {
+		ctxLog.Info("策略选择: immediate - 跳过集群稳定性检测，立即开始采集")
 		return 0
-
-	case "staggered":
-		// 策略2：强制错峰（单/多Pod都延迟）
-		return calculateStaggeredDelay(totalShards, shardIndex, maxDelay)
-
-	case "auto":
-		fallthrough
-	default:
-		// 策略3：自动判断（推荐）
-		return calculateAutoDelay(totalShards, shardIndex, interval, maxDelay)
 	}
+
+	// 策略 2 和 3: 需要等待集群稳定
+	// 读取稳定性检测配置
+	stabilityCheckEnabled := getEnvBoolOrDefault("CLUSTER_STABILITY_CHECK_ENABLED", true)
+	maxWaitSeconds := getEnvIntOrDefault("CLUSTER_STABILITY_MAX_WAIT", 30)
+	checkIntervalSeconds := getEnvIntOrDefault("CLUSTER_STABILITY_CHECK_INTERVAL", 2)
+	requiredStable := getEnvIntOrDefault("CLUSTER_STABILITY_REQUIRED_STABLE", 3)
+
+	maxWait := time.Duration(maxWaitSeconds) * time.Second
+	checkInterval := time.Duration(checkIntervalSeconds) * time.Second
+
+	var totalShards, shardIndex int
+	var stable bool
+
+	if stabilityCheckEnabled {
+		ctxLog.Infof("开始集群稳定性检测: 最长等待=%v, 检查间隔=%v, 需要连续稳定=%d次",
+			maxWait, checkInterval, requiredStable)
+
+		// 记录稳定性检测开始时间
+		stabilityCheckStart := time.Now()
+
+		// 等待集群稳定
+		totalShards, shardIndex, stable = utils.WaitForStableCluster(maxWait, checkInterval, requiredStable)
+
+		// 计算稳定性检测耗时
+		stabilityCheckDuration := time.Since(stabilityCheckStart)
+
+		if stable {
+			ctxLog.Infof("集群稳定性检测完成: 集群已稳定, total=%d, index=%d, 耗时=%v",
+				totalShards, shardIndex, stabilityCheckDuration)
+		} else {
+			ctxLog.Warnf("集群稳定性检测超时: 使用当前配置, total=%d, index=%d, 耗时=%v",
+				totalShards, shardIndex, stabilityCheckDuration)
+		}
+	} else {
+		ctxLog.Info("集群稳定性检测已禁用，直接获取集群配置")
+		totalShards, shardIndex = utils.ClusterConfig()
+		ctxLog.Infof("集群配置: total=%d, index=%d", totalShards, shardIndex)
+	}
+
+	// 策略 2: staggered - 强制线性错峰
+	if strategy == "staggered" {
+		delay := calculateStaggeredDelay(totalShards, shardIndex, maxDelay)
+		ctxLog.Infof("策略选择: staggered - 线性错峰延迟, total=%d, index=%d, delay=%v",
+			totalShards, shardIndex, delay)
+		return delay
+	}
+
+	// 策略 3: auto - 自动判断（默认）
+	delay := calculateAutoDelay(totalShards, shardIndex, maxDelay)
+	ctxLog.Infof("策略选择: auto - 自动判断延迟, total=%d, index=%d, delay=%v",
+		totalShards, shardIndex, delay)
+	return delay
 }
 
-// calculateAutoDelay 自动判断延迟策略
-func calculateAutoDelay(totalShards, shardIndex int, interval, maxDelay time.Duration) time.Duration {
-	// 场景1：单Pod或双Pod
-	if totalShards <= 2 {
-		// Pod数量少，立即采集即可
+// calculateAutoDelay 自动判断延迟策略（根据 Pod 数量）
+func calculateAutoDelay(totalShards, shardIndex int, maxDelay time.Duration) time.Duration {
+	ctxLog := logger.NewContextLogger("Collection", "resource_type", "AutoDelay")
+
+	// 场景 1：单 Pod
+	if totalShards == 1 {
+		ctxLog.Info("单 Pod 场景，立即采集")
 		return 0
 	}
 
-	// 场景2：中等规模（3-10个Pod）
+	// 场景 2：中等规模（2-10 个 Pod）
 	if totalShards <= 10 {
-		// 基础延迟5s + 索引*3s + 随机0-2s
+		// 基础延迟 5s + 索引*3s + 随机 0-2s
 		baseDelay := 5 * time.Second
 		indexDelay := time.Duration(shardIndex) * 3 * time.Second
 		randomDelay := time.Duration(rand.Intn(3)) * time.Second
@@ -297,21 +356,15 @@ func calculateAutoDelay(totalShards, shardIndex int, interval, maxDelay time.Dur
 			totalDelay = maxDelay
 		}
 
+		ctxLog.Infof("中等规模场景(%d个Pod): 线性延迟策略, base=%v, index_delay=%v, random=%v, total=%v",
+			totalShards, baseDelay, indexDelay, randomDelay, totalDelay)
+
 		return totalDelay
 	}
 
-	// 场景3：大规模（>10个Pod）- 指数退避策略
-	// 使用指数级增长，避免线性延迟导致最后一个Pod等待过久
-	// 公式：base * (1.5 ^ index)
-	//
-	// 示例（20个Pod，base=5s）：
-	//   Pod-0:  5s
-	//   Pod-1:  7.5s
-	//   Pod-5:  38s
-	//   Pod-10: 86s
-	//   Pod-15: 120s (封顶)
-	//   Pod-19: 120s (封顶)
-
+	// 场景 3：大规模（>10 个 Pod）- 指数退避策略
+	// 使用指数级增长，避免线性延迟导致最后一个 Pod 等待过久
+	// 公式：base * (1.5 ^ index) + random
 	base := 5 * time.Second
 	multiplier := 1.5
 	indexDelay := time.Duration(float64(base) * pow(multiplier, shardIndex))
@@ -324,11 +377,8 @@ func calculateAutoDelay(totalShards, shardIndex int, interval, maxDelay time.Dur
 		totalDelay = maxDelay
 	}
 
-	// 大规模场景警告
-	if totalShards > 10 {
-		ctxLog := logger.NewContextLogger("Collection", "resource_type", "Scale")
-		ctxLog.Warnf("大规模部署检测: %d个Pod，建议监控云API限流情况", totalShards)
-	}
+	ctxLog.Warnf("大规模场景(%d个Pod): 指数退避策略, index_delay=%v, random=%v, total=%v, 建议监控云API限流情况",
+		totalShards, indexDelay, randomDelay, totalDelay)
 
 	return totalDelay
 }
@@ -339,7 +389,7 @@ func calculateStaggeredDelay(totalShards, shardIndex int, maxDelay time.Duration
 		return 0
 	}
 
-	// 线性分布：将maxDelay均匀分配给所有Pod
+	// 线性分布：将 maxDelay 均匀分配给所有 Pod
 	delayPerShard := maxDelay / time.Duration(totalShards)
 	return time.Duration(shardIndex) * delayPerShard
 }
@@ -347,7 +397,7 @@ func calculateStaggeredDelay(totalShards, shardIndex int, maxDelay time.Duration
 // pow 计算指数（用于大规模场景的指数退避）
 func pow(base float64, exp int) float64 {
 	result := 1.0
-	for i := 0; i < exp; i++ {
+	for range exp {
 		result *= base
 	}
 	return result
@@ -366,6 +416,16 @@ func getEnvIntOrDefault(key string, defaultValue int) int {
 	if value := os.Getenv(key); value != "" {
 		if intVal, err := strconv.Atoi(value); err == nil {
 			return intVal
+		}
+	}
+	return defaultValue
+}
+
+// getEnvBoolOrDefault 获取环境变量布尔值或返回默认值
+func getEnvBoolOrDefault(key string, defaultValue bool) bool {
+	if value := os.Getenv(key); value != "" {
+		if boolVal, err := strconv.ParseBool(value); err == nil {
+			return boolVal
 		}
 	}
 	return defaultValue
