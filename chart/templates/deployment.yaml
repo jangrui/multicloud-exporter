@@ -122,13 +122,6 @@ spec:
             - name: SERVER_PATH
               value: "/app/configs/server.yaml"
 {{- end }}
-{{- if and .Values.server .Values.server.regionDiscovery .Values.server.regionDiscovery.enabled }}
-            - name: REGION_DATA_DIR
-              value: /app/data
-{{- else if .Values.regionDiscovery.enabled }}
-            - name: REGION_DATA_DIR
-              value: {{ .Values.regionDiscovery.dataDir | default "/app/data" | quote }}
-{{- end }}
 {{- if and .Values.accounts .Values.accounts.grouped }}
             - name: ACCOUNTS_PATH
               value: "/app/configs/accounts.yaml"
