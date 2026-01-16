@@ -16,8 +16,8 @@ import (
 )
 
 func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []string {
-	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region)
-	ctxLog.Infof("枚举共享带宽包开始")
+	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "resource_type", "CBWP")
+	ctxLog.Infof("枚举共享带宽包 - 调用 API: DescribeCommonBandwidthPackages")
 	client, err := a.clientFactory.NewVPCClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
 		return []string{}
@@ -144,9 +144,9 @@ func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []st
 			max = len(ids)
 		}
 		preview := ids[:max]
-		ctxLog.Debugf("枚举共享带宽包完成 数量=%d 预览=%v", len(ids), preview)
+		ctxLog.Debugf("CBWP 枚举共享带宽包完成 - API: DescribeCommonBandwidthPackages - 数量=%d 预览=%v", len(ids), preview)
 	} else {
-		ctxLog.Debugf("枚举共享带宽包完成 数量=%d", len(ids))
+		ctxLog.Debugf("CBWP 枚举共享带宽包完成 - API: DescribeCommonBandwidthPackages - 数量=%d", len(ids))
 	}
 
 	// 更新区域状态
@@ -279,11 +279,11 @@ func (a *Collector) fetchCBWPTags(account config.CloudAccount, region string, id
 				time.Sleep(sleep)
 			}
 			if callErr != nil {
-				ctxLog.Warnf("批次 %d 获取 CodeName 标签失败 error=%v batch=%v", batchCount, callErr, batch)
+				ctxLog.Warnf("CBWP 获取 CodeName 标签失败 - API: ListTagResources - 批次=%d error=%v batch=%v", batchCount, callErr, batch)
 				break
 			}
 			if len(resp.TagResources.TagResource) == 0 {
-				ctxLog.Debugf("批次 %d 无标签资源返回，可能资源未配置 CodeName 标签", batchCount)
+				ctxLog.Debugf("CBWP 获取 CodeName 标签 - API: ListTagResources - 批次=%d 无标签资源返回，可能资源未配置 CodeName 标签", batchCount)
 				break
 			}
 			batchSuccess = true
@@ -295,7 +295,7 @@ func (a *Collector) fetchCBWPTags(account config.CloudAccount, region string, id
 				}
 				if tr.TagKey == "CodeName" {
 					out[rid] = tr.TagValue
-					ctxLog.Debugf("找到 CodeName 标签 resource_id=%s code_name=%s", rid, tr.TagValue)
+					ctxLog.Debugf("CBWP 获取 CodeName 标签 - 找到 CodeName resource_id=%s code_name=%s", rid, tr.TagValue)
 				}
 			}
 			if resp.NextToken == "" {
@@ -305,7 +305,7 @@ func (a *Collector) fetchCBWPTags(account config.CloudAccount, region string, id
 			time.Sleep(25 * time.Millisecond)
 		}
 		if !batchSuccess {
-			ctxLog.Warnf("批次 %d 完全失败，这些 ID 的 code_name 将为空: %v", batchCount, batch)
+			ctxLog.Warnf("CBWP 获取 CodeName 标签 - API: ListTagResources - 批次=%d 完全失败，这些 ID 的 code_name 将为空: %v", batchCount, batch)
 		}
 		time.Sleep(25 * time.Millisecond)
 	}

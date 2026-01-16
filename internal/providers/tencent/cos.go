@@ -31,7 +31,7 @@ func (t *Collector) collectCOS(account config.CloudAccount, region string) {
 		return
 	}
 
-	ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "rtype", "cos")
+	ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "COS")
 
 	// 产品级分片：获取集群配置用于产品级分片判断
 	wTotal, wIndex := utils.ClusterConfig()
@@ -43,7 +43,7 @@ func (t *Collector) collectCOS(account config.CloudAccount, region string) {
 		// 分片键格式：AccountID|Region|Namespace
 		productKey := account.AccountID + "|" + region + "|" + p.Namespace
 		if !utils.ShouldProcess(productKey, wTotal, wIndex) {
-			ctxLog.Debugf("COS 产品跳过（分片不匹配）")
+			ctxLog.Debugf("COS 枚举存储桶 - 产品跳过（分片不匹配）")
 			continue
 		}
 		buckets := t.listCOSBuckets(account, region)
@@ -74,7 +74,7 @@ func isCOSCapacityMetric(metricName string) bool {
 }
 
 func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) []string {
-	ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "rtype", "cos")
+	ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "COS")
 
 	if ids, hit := t.getCachedIDs(account, region, "QCE/COS", "cos"); hit {
 		return ids
@@ -90,11 +90,12 @@ func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) [
 	// We use the factory now.
 	client, err := t.clientFactory.NewCOSClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
-		ctxLog.Errorf("COS 客户端创建失败，错误=%v", err)
+		ctxLog.Errorf("COS 枚举存储桶 - 客户端创建失败 - 错误=%v", err)
 		return []string{}
 	}
 
 	start := time.Now()
+	ctxLog.Debugf("COS 枚举存储桶 - API: GetService - 开始枚举")
 	// Get Service lists all buckets
 	// 注意：腾讯云 COS GetService API 遵循 S3 兼容协议，一次性返回所有 bucket，不支持分页
 	// 通常一个账号的 bucket 数量不会太多（通常 < 1000），所以单次返回是合理的
@@ -116,7 +117,7 @@ func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) [
 			metrics.RateLimitTotal.WithLabelValues("tencent", "ListBuckets").Inc()
 		}
 		if status == "auth_error" {
-			ctxLog.Errorf("ListBuckets 认证错误: %v", callErr)
+			ctxLog.Errorf("COS 枚举存储桶 - API: GetService - 认证错误: %v", callErr)
 			return []string{}
 		}
 		// 指数退避重试
@@ -127,7 +128,7 @@ func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) [
 		time.Sleep(sleep)
 	}
 	if callErr != nil {
-		ctxLog.Errorf("ListBuckets API调用错误: %v", callErr)
+		ctxLog.Errorf("COS 枚举存储桶 - API: GetService - 失败: %v", callErr)
 		return []string{}
 	}
 
@@ -161,7 +162,7 @@ func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) [
 			status = providerscommon.RegionStatusActive
 		}
 		t.regionManager.UpdateRegionStatus(account.AccountID, region, len(buckets), status)
-		ctxLog.Debugf("更新区域状态，status=%s，count=%d", status, len(buckets))
+		ctxLog.Debugf("COS 枚举存储桶 - API: GetService - 更新区域状态, status=%s，count=%d", status, len(buckets))
 	}
 
 	if len(buckets) > 0 {
@@ -170,9 +171,9 @@ func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) [
 			max = len(buckets)
 		}
 		preview := buckets[:max]
-		ctxLog.Debugf("COS 存储桶已枚举，数量=%d 预览=%v", len(buckets), preview)
+		ctxLog.Debugf("COS 枚举存储桶 - API: GetService - 已枚举, 数量=%d 预览=%v", len(buckets), preview)
 	} else {
-		ctxLog.Debugf("COS 存储桶已枚举，数量=%d", len(buckets))
+		ctxLog.Debugf("COS 枚举存储桶 - API: GetService - 已枚举, 数量=%d", len(buckets))
 	}
 	return buckets
 }

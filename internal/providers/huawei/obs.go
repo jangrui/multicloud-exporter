@@ -60,25 +60,25 @@ func (h *Collector) collectOBS(account config.CloudAccount, region string) {
 
 // listOBSBuckets 枚举 OBS 存储桶
 func (h *Collector) listOBSBuckets(account config.CloudAccount, region string) []obsInfo {
-	ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "rtype", "obs")
+	ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "resource_type", "OBS")
 
 	if ids, hit := h.getCachedIDs(account, region, "SYS.OBS", "obs"); hit {
 		var buckets []obsInfo
 		for _, id := range ids {
 			buckets = append(buckets, obsInfo{Name: id, Location: region})
 		}
-		ctxLog.Debugf("OBS 缓存命中，数量=%d", len(ids))
+		ctxLog.Debugf("OBS 枚举存储桶 - 缓存命中 - 数量=%d", len(ids))
 		return buckets
 	}
 
 	client, err := h.clientFactory.NewOBSClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
-		ctxLog.Errorf("OBS 客户端创建失败，错误=%v", err)
+		ctxLog.Errorf("OBS 枚举存储桶 - 客户端创建失败 - 错误=%v", err)
 		return nil
 	}
 	defer client.Close()
 
-	ctxLog.Debugf("开始枚举 OBS 存储桶")
+	ctxLog.Debugf("OBS 枚举存储桶 - API: ListBuckets - 开始枚举")
 
 	start := time.Now()
 	var output *obs.ListBucketsOutput
@@ -98,7 +98,7 @@ func (h *Collector) listOBSBuckets(account config.CloudAccount, region string) [
 			metrics.RecordRequest("huawei", "ListBuckets", status)
 			if status == providerscommon.ErrorStatusLimit {
 				metrics.RateLimitTotal.WithLabelValues("huawei", "ListBuckets").Inc()
-				ctxLog.Warnf("OBS ListBuckets 限流，将重试")
+				ctxLog.Warnf("OBS 枚举存储桶 - API: ListBuckets - 限流，将重试")
 			}
 			return err
 		}
@@ -110,7 +110,7 @@ func (h *Collector) listOBSBuckets(account config.CloudAccount, region string) [
 	}, shouldRetry)
 
 	if callErr != nil {
-		ctxLog.Warnf("OBS ListBuckets 失败: %v", callErr)
+		ctxLog.Warnf("OBS 枚举存储桶 - API: ListBuckets - 失败: %v", callErr)
 		return nil
 	}
 

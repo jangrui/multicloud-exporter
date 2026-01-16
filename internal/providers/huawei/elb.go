@@ -59,24 +59,24 @@ func (h *Collector) collectELB(account config.CloudAccount, region string) {
 
 // listELBInstances 枚举 ELB 实例
 func (h *Collector) listELBInstances(account config.CloudAccount, region string) []elbInfo {
-	ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "rtype", "elb")
+	ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "resource_type", "ELB")
 
 	if ids, hit := h.getCachedIDs(account, region, "SYS.ELB", "elb"); hit {
 		var elbs []elbInfo
 		for _, id := range ids {
 			elbs = append(elbs, elbInfo{ID: id, Name: id})
 		}
-		ctxLog.Debugf("ELB 缓存命中，数量=%d", len(ids))
+		ctxLog.Debugf("ELB 枚举实例 - 缓存命中 - 数量=%d", len(ids))
 		return elbs
 	}
 
 	client, err := h.clientFactory.NewELBClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
-		ctxLog.Errorf("ELB 客户端创建失败，错误=%v", err)
+		ctxLog.Errorf("ELB 枚举实例 - 客户端创建失败 - 错误=%v", err)
 		return nil
 	}
 
-	ctxLog.Debugf("开始枚举 ELB 实例")
+	ctxLog.Debugf("ELB 枚举实例 - API: ListLoadBalancers - 开始枚举")
 
 	var elbs []elbInfo
 	limit := int32(100)
@@ -106,7 +106,7 @@ func (h *Collector) listELBInstances(account config.CloudAccount, region string)
 				metrics.RecordRequest("huawei", "ListLoadBalancers", status)
 				if status == providerscommon.ErrorStatusLimit {
 					metrics.RateLimitTotal.WithLabelValues("huawei", "ListLoadBalancers").Inc()
-					ctxLog.Warnf("ELB ListLoadBalancers 限流，将重试")
+					ctxLog.Warnf("ELB 枚举实例 - API: ListLoadBalancers - 限流，将重试")
 				}
 				return err
 			}
@@ -118,7 +118,7 @@ func (h *Collector) listELBInstances(account config.CloudAccount, region string)
 		}, shouldRetry)
 
 		if callErr != nil {
-			ctxLog.Warnf("ELB ListLoadBalancers 失败: %v", callErr)
+			ctxLog.Warnf("ELB 枚举实例 - API: ListLoadBalancers - 失败: %v", callErr)
 			break
 		}
 

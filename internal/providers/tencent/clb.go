@@ -15,10 +15,10 @@ import (
 )
 
 func (t *Collector) listCLBVips(account config.CloudAccount, region string) []string {
-	ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "rtype", "clb")
+	ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "CLB")
 
 	if ids, hit := t.getCachedIDs(account, region, "QCE/LB", "clb"); hit {
-		ctxLog.Debugf("CLB VIPs 缓存命中，数量=%d", len(ids))
+		ctxLog.Debugf("CLB 枚举 VIP - 缓存命中 - 数量=%d", len(ids))
 		return ids
 	}
 
@@ -27,7 +27,7 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 		return []string{}
 	}
 
-	ctxLog.Debugf("开始枚举 CLB VIPs")
+	ctxLog.Debugf("CLB 枚举 VIP - API: DescribeLoadBalancers - 开始枚举")
 
 	var vips []string
 	limit := int64(100) // 腾讯云 CLB API 默认单次最多返回 100 条
@@ -67,7 +67,7 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 			time.Sleep(sleep)
 		}
 		if callErr != nil {
-			ctxLog.Warnf("CLB DescribeLoadBalancers 失败 offset=%d: %v", offset, callErr)
+			ctxLog.Warnf("CLB 枚举 VIP - API: DescribeLoadBalancers - 失败 offset=%d: %v", offset, callErr)
 			break
 		}
 

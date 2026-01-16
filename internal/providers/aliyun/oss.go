@@ -15,21 +15,21 @@ import (
 )
 
 func (a *Collector) listOSSIDs(account config.CloudAccount, region string) []string {
-	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region)
+	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "resource_type", "OSS")
 
 	// Check region-level cache first (consistent with other resources)
 	ids, _, hit := a.getCachedIDs(account, region, "acs_oss_dashboard", "oss")
 	if hit {
-		ctxLog.Debugf("OSS 资源缓存命中 region=%s 数量=%d", region, len(ids))
+		ctxLog.Debugf("OSS 枚举存储桶 - 缓存命中 - API: ListBuckets - region=%s 数量=%d", region, len(ids))
 		if len(ids) > 0 {
 			max := 5
 			if len(ids) < max {
 				max = len(ids)
 			}
 			preview := ids[:max]
-			ctxLog.Debugf("枚举OSS存储桶完成（缓存） 数量=%d 预览=%v", len(ids), preview)
+			ctxLog.Debugf("OSS 枚举存储桶 - 缓存命中 - API: ListBuckets - 已枚举 数量=%d 预览=%v", len(ids), preview)
 		} else {
-			ctxLog.Debugf("枚举OSS存储桶完成（缓存） 数量=%d", len(ids))
+			ctxLog.Debugf("OSS 枚举存储桶 - 缓存命中 - API: ListBuckets - 已枚举 数量=%d", len(ids))
 		}
 		return ids
 	}
@@ -62,7 +62,7 @@ func (a *Collector) listOSSIDs(account config.CloudAccount, region string) []str
 	if valid {
 		allBuckets = entry.Buckets
 		cachedFromAccountLevel = true
-		ctxLog.Debugf("OSS 账号级缓存命中 account=%s total_buckets=%d", account.AccountID, len(allBuckets))
+		ctxLog.Debugf("OSS 枚举存储桶 - 账号级缓存命中 - API: ListBuckets - account=%s total_buckets=%d", account.AccountID, len(allBuckets))
 	} else {
 		// Use singleflight to prevent concurrent ListBuckets calls for the same account
 		// regardless of which region triggered the call.
@@ -200,7 +200,7 @@ func (a *Collector) listOSSIDs(account config.CloudAccount, region string) []str
 			account.AccountID, region, status, len(regionBuckets))
 	}
 
-	ctxLog.Debugf("OSS 资源枚举完成 account=%s region=%s total_buckets=%d region_buckets=%d (account_cache=%v)",
+	ctxLog.Debugf("OSS 枚举存储桶 - API: ListBuckets - 资源枚举完成 account=%s region=%s total_buckets=%d region_buckets=%d (account_cache=%v)",
 		account.AccountID, region, len(allBuckets), len(regionBuckets), cachedFromAccountLevel)
 
 	if len(regionBuckets) > 0 {
@@ -209,9 +209,9 @@ func (a *Collector) listOSSIDs(account config.CloudAccount, region string) []str
 			max = len(regionBuckets)
 		}
 		preview := regionBuckets[:max]
-		ctxLog.Debugf("枚举OSS存储桶完成 数量=%d 预览=%v", len(regionBuckets), preview)
+		ctxLog.Debugf("OSS 枚举存储桶 - API: ListBuckets - 已枚举 数量=%d 预览=%v", len(regionBuckets), preview)
 	} else {
-		ctxLog.Debugf("枚举OSS存储桶完成 数量=%d (该区域无存储桶)", len(regionBuckets))
+		ctxLog.Debugf("OSS 枚举存储桶 - API: ListBuckets - 已枚举 数量=%d (该区域无存储桶)", len(regionBuckets))
 	}
 	return regionBuckets
 }

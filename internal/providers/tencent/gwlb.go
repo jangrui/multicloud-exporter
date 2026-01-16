@@ -14,11 +14,11 @@ import (
 )
 
 func (t *Collector) listGWLBIDs(account config.CloudAccount, region string) []string {
-	ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "rtype", "gwlb")
-	ctxLog.Debugf("开始枚举 GWLB IDs")
+	ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "GWLB")
+	ctxLog.Debugf("GWLB 枚举实例 - API: GetMonitorData - 开始枚举")
 
 	if ids, hit := t.getCachedIDs(account, region, "qce/gwlb", "gwlb"); hit {
-		ctxLog.Debugf("GWLB IDs 缓存命中，数量=%d", len(ids))
+		ctxLog.Debugf("GWLB 枚举实例 - 缓存命中 - 数量=%d", len(ids))
 		return ids
 	}
 	client, err := t.clientFactory.NewMonitorClient(region, account.AccessKeyID, account.AccessKeySecret)
@@ -86,7 +86,7 @@ func (t *Collector) listGWLBIDs(account config.CloudAccount, region string) []st
 			status = providerscommon.RegionStatusActive
 		}
 		t.regionManager.UpdateRegionStatus(account.AccountID, region, len(ids), status)
-		ctxLog.Debugf("更新区域状态, status=%s, count=%d", status, len(ids))
+		ctxLog.Debugf("GWLB 枚举实例 - API: GetMonitorData - 更新区域状态, status=%s, count=%d", status, len(ids))
 	}
 
 	if len(ids) > 0 {
@@ -96,10 +96,10 @@ func (t *Collector) listGWLBIDs(account config.CloudAccount, region string) []st
 		}
 		preview := ids[:max]
 		ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "GWLB")
-		ctxLog.Debugf("GWLB已枚举，数量=%d 预览=%v", len(ids), preview)
+		ctxLog.Debugf("GWLB 枚举实例 - API: GetMonitorData - 已枚举, 数量=%d 预览=%v", len(ids), preview)
 	} else {
 		ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "GWLB")
-		ctxLog.Debugf("GWLB已枚举，数量=%d", len(ids))
+		ctxLog.Debugf("GWLB 枚举实例 - API: GetMonitorData - 已枚举, 数量=%d", len(ids))
 	}
 	return ids
 }

@@ -19,7 +19,7 @@ import (
 )
 
 func (a *Collector) listSLBIDs(account config.CloudAccount, region string) ([]string, map[string]interface{}) {
-	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region)
+	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "resource_type", "SLB")
 	client, err := a.clientFactory.NewSLBClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
 		return []string{}, nil
@@ -61,7 +61,7 @@ func (a *Collector) listSLBIDs(account config.CloudAccount, region string) ([]st
 				metrics.RateLimitTotal.WithLabelValues("aliyun", "DescribeLoadBalancers").Inc()
 			}
 			if status == "region_skip" || status == "auth_error" {
-				ctxLog.Warnf("SLB describe error page=%d status=%s: %v", page, status, callErr)
+				ctxLog.Warnf("SLB 枚举实例 - API: DescribeLoadBalancers - 错误 page=%d status=%s: %v", page, status, callErr)
 				break
 			}
 			// 指数退避重试
@@ -99,7 +99,7 @@ func (a *Collector) listSLBIDs(account config.CloudAccount, region string) ([]st
 			totalCollected := len(ids)
 			if totalCollected >= resp.TotalCount {
 				// 已收集的数量达到总数，停止分页
-				ctxLog.Debugf("SLB 分页采集完成 page=%d current_count=%d total_collected=%d total_count=%d",
+				ctxLog.Debugf("SLB 枚举实例 - API: DescribeLoadBalancers - 分页完成 page=%d current_count=%d total_collected=%d total_count=%d",
 					page, currentCount, totalCollected, resp.TotalCount)
 				break
 			}
@@ -112,13 +112,13 @@ func (a *Collector) listSLBIDs(account config.CloudAccount, region string) ([]st
 
 		// 继续下一页
 		page++
-		ctxLog.Debugf("SLB 分页采集 page=%d current_count=%d total_collected=%d", page, currentCount, len(ids))
+		ctxLog.Debugf("SLB 枚举实例 - API: DescribeLoadBalancers - 分页 page=%d current_count=%d total_collected=%d", page, currentCount, len(ids))
 		time.Sleep(50 * time.Millisecond)
 	}
 
 	// 并发获取每个实例的监听器详情（用于补充 port/protocol 维度）
 	if len(ids) > 0 {
-		ctxLog.Debugf("开始获取SLB监听器详情 count=%d", len(ids))
+		ctxLog.Debugf("SLB 枚举实例 - API: DescribeLoadBalancerAttribute - 开始获取监听器详情 count=%d", len(ids))
 		var wg sync.WaitGroup
 		sem := make(chan struct{}, 5) // 控制并发度
 		var mu sync.Mutex
@@ -158,7 +158,7 @@ func (a *Collector) listSLBIDs(account config.CloudAccount, region string) ([]st
 				}
 
 				if err != nil {
-					ctxLog.Warnf("fetch SLB attribute failed id=%s: %v", lbId, err)
+					ctxLog.Warnf("SLB 枚举实例 - API: DescribeLoadBalancerAttribute - 获取监听器详情失败 id=%s: %v", lbId, err)
 					return
 				}
 
