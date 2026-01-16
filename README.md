@@ -56,10 +56,35 @@ server:
   page_size: 1000
 
   # 日志配置
-  log:
-    level: info
-    format: console
-    output: stdout
+  level: info
+  format: console
+  output: stdout
+
+  # 日志格式
+
+为了提升可观测性和问题诊断能力，所有云产品采集日志遵循统一的格式规范：
+
+**日志格式**：
+```
+<云平台> <产品> <操作> - API: <API名称> - <状态/详情>
+```
+
+**日志示例**：
+```
+阿里云 CBWP 枚举共享带宽包 - API: DescribeCommonBandwidthPackages - 开始枚举
+阿里云 CBWP 获取 CodeName 标签 - API: ListTagResources - 批次 1 完全失败，这些 ID 的 code_name 将为空: [...]
+阿里云 SLB 枚举实例 - API: DescribeLoadBalancers - 分页完成 page=1
+阿里云 SLB 枚举实例 - API: DescribeLoadBalancerAttribute - 获取监听器详情失败 id=lb-xxx
+华为云 OBS 枚举存储桶 - API: ListBuckets - 缓存命中 - 数量=5
+腾讯云 CLB 枚举 VIP - API: DescribeLoadBalancers - 限流，将重试
+```
+
+**改进说明**：
+- 统一使用 `resource_type` 标签替代 `rtype`，更符合语义
+- 所有日志消息明确标识云平台、产品名称和 API 名称
+- 便于通过日志快速定位问题和分析 API 调用情况
+
+---
 ```
 
 #### 2. 配置云账号
