@@ -396,6 +396,8 @@ type ServerConf struct {
 	DiscoveryTTL     string `yaml:"discovery_ttl"`
 	DiscoveryRefresh string `yaml:"discovery_refresh"`
 	ScrapeInterval   string `yaml:"scrape_interval"`
+	// TagCacheTTL 控制标签缓存的 TTL（分钟），默认 30
+	TagCacheTTL int `yaml:"tag_cache_ttl"`
 	// PeriodFallback 当无法从元数据获取 Period 时的默认值（秒），默认 60
 	PeriodFallback int `yaml:"period_fallback"`
 	// 区域级并发：同一账号下并行采集的地域数量，建议 1-8。

@@ -13,6 +13,12 @@ func (h *Collector) GetDefaultResources() []string {
 	return []string{"clb", "s3"}
 }
 
+// SupportsInternalSharding 返回是否支持内部分片
+// 华为云在 collectELB 等方法中实现了产品级分片（使用 utils.ShouldProcess）
+func (h *Collector) SupportsInternalSharding() bool {
+	return true
+}
+
 func init() {
 	providers.Register("huawei", func(cfg *config.Config, mgr *discovery.Manager, clusterMgr *cluster.SyncManager) providers.Provider {
 		return NewCollector(cfg, mgr, clusterMgr)

@@ -12,6 +12,7 @@ import (
 type Provider interface {
 	Collect(account config.CloudAccount)
 	GetDefaultResources() []string
+	SupportsInternalSharding() bool
 }
 
 // Factory 创建 Provider 实例的工厂函数

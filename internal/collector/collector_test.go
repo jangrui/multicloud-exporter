@@ -28,6 +28,10 @@ func (m *MockProvider) GetDefaultResources() []string {
 	return []string{"mock_res"}
 }
 
+func (m *MockProvider) SupportsInternalSharding() bool {
+	return true
+}
+
 func TestCollector_Collect(t *testing.T) {
 	// 1. Setup Mock Provider
 	mockP := &MockProvider{}

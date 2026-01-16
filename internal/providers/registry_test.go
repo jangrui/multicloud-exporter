@@ -15,6 +15,7 @@ type mockProvider struct{}
 
 func (m *mockProvider) Collect(account config.CloudAccount) {}
 func (m *mockProvider) GetDefaultResources() []string       { return []string{} }
+func (m *mockProvider) SupportsInternalSharding() bool      { return true }
 
 func TestRegistry(t *testing.T) {
 	// Backup original registry

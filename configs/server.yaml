@@ -25,6 +25,8 @@ server:
   metric_concurrency: ${METRIC_CONCURRENCY:-5}
   # 产品级并发：同一地域下并行处理的命名空间数量（建议 1-4）
   product_concurrency: ${PRODUCT_CONCURRENCY:-2}
+  # 标签缓存 TTL：缓存资源标签的有效期（分钟，默认 30）
+  tag_cache_ttl: ${TAG_CACHE_TTL:-30}
   # 智能区域发现配置
   region_discovery:
     enabled: ${REGION_DISCOVERY_ENABLED:-true}

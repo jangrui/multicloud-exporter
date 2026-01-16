@@ -41,8 +41,8 @@ type Collector struct {
 	uidMu         sync.RWMutex
 	ossCache      map[string]ossCacheEntry
 	ossMu         sync.Mutex
-	tagCache      map[string]map[string]string // 标签缓存：key -> resourceID -> codeName
-	tagMu         sync.RWMutex                 // 标签缓存锁
+	tagCache      map[string]tagCacheEntry // 标签缓存：key -> tags + expiry
+	tagMu         sync.RWMutex             // 标签缓存锁
 	clientFactory ClientFactory
 	sf            singleflight.Group
 	regionManager common.RegionManager
@@ -61,6 +61,12 @@ type ossCacheEntry struct {
 	UpdatedAt time.Time
 }
 
+// tagCacheEntry 缓存标签数据及过期时间
+type tagCacheEntry struct {
+	Tags      map[string]string
+	ExpiresAt time.Time
+}
+
 type ossBucketInfo struct {
 	Name     string
 	Location string
@@ -75,7 +81,7 @@ func NewCollector(cfg *config.Config, mgr *discovery.Manager, clusterMgr *cluste
 		resCache:      make(map[string]resCacheEntry),
 		uidCache:      make(map[string]string),
 		ossCache:      make(map[string]ossCacheEntry),
-		tagCache:      make(map[string]map[string]string), // 初始化标签缓存
+		tagCache:      make(map[string]tagCacheEntry), // 初始化标签缓存
 		clientFactory: &defaultClientFactory{},
 	}
 
@@ -186,15 +192,25 @@ func (a *Collector) getOrFetchTags(account config.CloudAccount, region string, r
 		return map[string]string{}
 	}
 
+	// 获取标签缓存 TTL（默认 30 分钟）
+	tagCacheTTL := 30 * time.Minute
+	if a.cfg != nil && a.cfg.GetServer() != nil && a.cfg.GetServer().TagCacheTTL > 0 {
+		tagCacheTTL = time.Duration(a.cfg.GetServer().TagCacheTTL) * time.Minute
+	}
+
 	// 生成缓存键：accountID:region:rtype
 	cacheKey := account.AccountID + ":" + region + ":" + rtype
 
 	// 尝试从缓存读取
 	a.tagMu.RLock()
-	if tags, ok := a.tagCache[cacheKey]; ok {
+	if entry, ok := a.tagCache[cacheKey]; ok {
 		a.tagMu.RUnlock()
-		logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", rtype).Debugf("标签缓存命中 数量=%d", len(tags))
-		return tags
+		// 检查是否过期
+		if time.Now().Before(entry.ExpiresAt) {
+			logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", rtype).Debugf("标签缓存命中 数量=%d", len(entry.Tags))
+			return entry.Tags
+		}
+		logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", rtype).Debugf("标签缓存已过期，将重新获取")
 	}
 	a.tagMu.RUnlock()
 
@@ -217,15 +233,37 @@ func (a *Collector) getOrFetchTags(account config.CloudAccount, region string, r
 		tags = map[string]string{}
 	}
 
-	// 存入缓存
+	// 存入缓存（带过期时间）
 	if len(tags) > 0 {
 		a.tagMu.Lock()
-		a.tagCache[cacheKey] = tags
+		a.tagCache[cacheKey] = tagCacheEntry{
+			Tags:      tags,
+			ExpiresAt: time.Now().Add(tagCacheTTL),
+		}
 		a.tagMu.Unlock()
-		logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", rtype).Debugf("标签已缓存 数量=%d", len(tags))
+		logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", rtype).Debugf("标签已缓存 数量=%d TTL=%v", len(tags), tagCacheTTL)
 	}
 
+	// 记录标签缓存指标
+	a.recordTagCacheMetrics()
+
 	return tags
+}
+
+// recordTagCacheMetrics 记录标签缓存大小指标
+func (a *Collector) recordTagCacheMetrics() {
+	a.tagMu.RLock()
+	defer a.tagMu.RUnlock()
+
+	entryCount := len(a.tagCache)
+	var totalSize int
+	for _, entry := range a.tagCache {
+		// 估算每个条目的大小（每个标签平均 50 字节）
+		totalSize += len(entry.Tags) * 50
+	}
+
+	metrics.CacheEntriesTotal.WithLabelValues("aliyun_tag").Set(float64(entryCount))
+	metrics.CacheSizeBytes.WithLabelValues("aliyun_tag").Set(float64(totalSize))
 }
 
 // Collect 根据账号配置遍历区域与资源类型并采集

@@ -118,6 +118,17 @@ func (c *Collector) collectInternal(filterProvider, filterResource string) {
 	// 获取当前分片配置
 	wTotal, wIndex := utils.ClusterConfig()
 
+	// 验证各云厂商的内部分片支持情况
+	for providerName, provider := range c.providers {
+		supportsSharding := provider.SupportsInternalSharding()
+		providerLog := logger.NewContextLogger("Collector", "provider", providerName)
+		if wTotal > 1 && !supportsSharding {
+			providerLog.Warnf("多副本部署但该云厂商不支持内部分片，可能导致数据重复采集或遗漏")
+		} else if supportsSharding {
+			providerLog.Debugf("云厂商支持产品级内部分片，分片配置: total=%d, index=%d", wTotal, wIndex)
+		}
+	}
+
 	// 统计账号信息
 	accountInfo := buildAccountInfo(accounts)
 	ctxLog := logger.NewContextLogger("Collector", "resource_type", "Collection")
