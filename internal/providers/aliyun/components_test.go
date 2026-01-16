@@ -19,7 +19,7 @@ import (
 )
 
 func TestListOSSIDs_Pagination(t *testing.T) {
-	c := NewCollector(&config.Config{}, nil)
+	c := NewCollector(&config.Config{}, nil, nil)
 	c.ossCache = make(map[string]ossCacheEntry)
 
 	mockOSS := &mockOSSClient{}
@@ -52,7 +52,7 @@ func TestListCBWPIDs(t *testing.T) {
 		ServerConf: &config.ServerConf{
 			PageSize: 1,
 		},
-	}, nil)
+	}, nil, nil)
 
 	callCount := 0
 	mockVPC := &mockVPCClient{
@@ -91,7 +91,7 @@ func TestListCBWPIDs(t *testing.T) {
 }
 
 func TestFetchCBWPTags(t *testing.T) {
-	c := NewCollector(&config.Config{}, nil)
+	c := NewCollector(&config.Config{}, nil, nil)
 	mockVPC := &mockVPCClient{}
 	c.clientFactory = &mockClientFactory{vpc: mockVPC}
 
@@ -121,7 +121,7 @@ func TestFetchCBWPTags(t *testing.T) {
 }
 
 func TestListSLBIDs(t *testing.T) {
-	c := NewCollector(&config.Config{}, nil)
+	c := NewCollector(&config.Config{}, nil, nil)
 
 	mockSLB := &mockSLBClient{
 		DescribeLoadBalancersFunc: func(request *slb.DescribeLoadBalancersRequest) (*slb.DescribeLoadBalancersResponse, error) {
@@ -159,7 +159,7 @@ func TestListSLBIDs_Pagination(t *testing.T) {
 		ServerConf: &config.ServerConf{
 			PageSize: 1,
 		},
-	}, nil)
+	}, nil, nil)
 
 	callCount := 0
 	mockSLB := &mockSLBClient{
@@ -204,7 +204,7 @@ func TestListSLBIDs_Pagination(t *testing.T) {
 }
 
 func TestFetchSLBTags(t *testing.T) {
-	c := NewCollector(&config.Config{}, nil)
+	c := NewCollector(&config.Config{}, nil, nil)
 
 	mockTag := &mockTagClient{
 		ListTagResourcesFunc: func(request *tag.ListTagResourcesRequest) (*tag.ListTagResourcesResponse, error) {
@@ -246,7 +246,7 @@ func TestParseSLBTagsContent(t *testing.T) {
 }
 
 func TestBuildMetricDimensions(t *testing.T) {
-	c := NewCollector(&config.Config{}, nil)
+	c := NewCollector(&config.Config{}, nil, nil)
 
 	// Case 1: Simple
 	dims, dyn := c.buildMetricDimensions("acct1", "ns1", []string{"id1"}, "instanceId", []string{"instanceId", "region"}, nil)
@@ -271,7 +271,7 @@ func TestBuildMetricDimensions(t *testing.T) {
 }
 
 func TestCheckRequiredDimensions(t *testing.T) {
-	c := NewCollector(&config.Config{}, nil)
+	c := NewCollector(&config.Config{}, nil, nil)
 	assert.True(t, c.checkRequiredDimensions("ns", []string{"instanceId"}))
 	// Test default mapping logic (hasAnyDim check)
 	// Since "ns" is not in default map, it falls through to instanceId check
@@ -280,7 +280,7 @@ func TestCheckRequiredDimensions(t *testing.T) {
 }
 
 func TestProcessMetricBatch(t *testing.T) {
-	c := NewCollector(&config.Config{}, nil)
+	c := NewCollector(&config.Config{}, nil, nil)
 	ctxLog := logger.NewContextLogger("Aliyun", "account_id", "test-acc", "region", "cn-hangzhou")
 
 	mockCMS := &mockCMSClient{}
@@ -332,7 +332,7 @@ func TestChooseStatistics(t *testing.T) {
 }
 
 func TestGetAccountUID(t *testing.T) {
-	c := NewCollector(&config.Config{}, nil)
+	c := NewCollector(&config.Config{}, nil, nil)
 	mockSTS := &mockSTSClient{}
 	c.clientFactory = &mockClientFactory{sts: mockSTS}
 	acc := config.CloudAccount{AccountID: "acc1", AccessKeyID: "ak1"}
@@ -361,7 +361,7 @@ func TestGetAccountUID(t *testing.T) {
 }
 
 func TestGetAllRegions(t *testing.T) {
-	c := NewCollector(&config.Config{}, nil)
+	c := NewCollector(&config.Config{}, nil, nil)
 	mockECS := &mockECSClient{}
 	c.clientFactory = &mockClientFactory{ecs: mockECS}
 	acc := config.CloudAccount{AccountID: "acc1"}

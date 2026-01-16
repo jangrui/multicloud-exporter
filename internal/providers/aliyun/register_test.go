@@ -10,7 +10,7 @@ import (
 )
 
 func TestGetDefaultResources(t *testing.T) {
-	c := NewCollector(&config.Config{}, nil)
+	c := NewCollector(&config.Config{}, nil, nil)
 	resources := c.GetDefaultResources()
 	assert.Contains(t, resources, "bwp")
 	assert.Contains(t, resources, "clb")
@@ -26,7 +26,7 @@ func TestRegister(t *testing.T) {
 	assert.NotNil(t, factory)
 
 	if factory != nil {
-		p := factory(&config.Config{}, &discovery.Manager{})
+		p := factory(&config.Config{}, &discovery.Manager{}, nil)
 		assert.NotNil(t, p)
 		_, ok := p.(*Collector)
 		assert.True(t, ok, "factory should return *aliyun.Collector")

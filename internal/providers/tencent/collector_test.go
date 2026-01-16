@@ -143,7 +143,7 @@ func TestCollector_Collect(t *testing.T) {
 		},
 	})
 
-	c := NewCollector(cfg, mgr)
+	c := NewCollector(cfg, mgr, nil)
 	c.clientFactory = factory
 
 	// Execute Collect for CLB

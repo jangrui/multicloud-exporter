@@ -9,7 +9,7 @@ import (
 )
 
 func TestHuaweiDefaultResources(t *testing.T) {
-	c := NewCollector(&config.Config{}, nil)
+	c := NewCollector(&config.Config{}, nil, nil)
 	resources := c.GetDefaultResources()
 	// Should return clb and s3
 	assert.Contains(t, resources, "clb")

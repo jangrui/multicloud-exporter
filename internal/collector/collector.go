@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"multicloud-exporter/internal/cluster"
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/discovery"
 	"multicloud-exporter/internal/logger"
@@ -45,7 +46,7 @@ type Collector struct {
 }
 
 // NewCollector 创建调度器并初始化各云采集器
-func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
+func NewCollector(cfg *config.Config, mgr *discovery.Manager, clusterMgr *cluster.SyncManager) *Collector {
 	c := &Collector{
 		cfg:       cfg,
 		disc:      mgr,
@@ -57,7 +58,7 @@ func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
 
 	for _, name := range providers.GetAllProviders() {
 		if factory, ok := providers.GetFactory(name); ok {
-			c.providers[name] = factory(cfg, mgr)
+			c.providers[name] = factory(cfg, mgr, clusterMgr)
 		}
 	}
 	return c

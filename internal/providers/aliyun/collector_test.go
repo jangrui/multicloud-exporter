@@ -33,7 +33,7 @@ func TestCollector_getAccountUID(t *testing.T) {
 		},
 	}
 	factory := &mockClientFactory{sts: mockSTS}
-	c := NewCollector(&config.Config{}, nil)
+	c := NewCollector(&config.Config{}, nil, nil)
 	c.clientFactory = factory
 
 	uid := c.getAccountUID(config.CloudAccount{
@@ -63,7 +63,7 @@ func TestCollector_getAccountUID_Error(t *testing.T) {
 		},
 	}
 	factory := &mockClientFactory{sts: mockSTS}
-	c := NewCollector(&config.Config{}, nil)
+	c := NewCollector(&config.Config{}, nil, nil)
 	c.clientFactory = factory
 
 	uid := c.getAccountUID(config.CloudAccount{
@@ -89,7 +89,7 @@ func TestCollector_getAllRegions(t *testing.T) {
 		},
 	}
 	factory := &mockClientFactory{ecs: mockECS}
-	c := NewCollector(&config.Config{}, nil)
+	c := NewCollector(&config.Config{}, nil, nil)
 	c.clientFactory = factory
 
 	regions := c.getAllRegions(config.CloudAccount{
@@ -107,7 +107,7 @@ func TestCollector_getAllRegions_Error(t *testing.T) {
 		},
 	}
 	factory := &mockClientFactory{ecs: mockECS}
-	c := NewCollector(&config.Config{}, nil)
+	c := NewCollector(&config.Config{}, nil, nil)
 	c.clientFactory = factory
 
 	regions := c.getAllRegions(config.CloudAccount{
@@ -286,7 +286,7 @@ func TestCollector_Collect(t *testing.T) {
 		},
 	})
 
-	c := NewCollector(cfg, mgr)
+	c := NewCollector(cfg, mgr, nil)
 	c.clientFactory = factory
 
 	// Execute Collect
@@ -395,7 +395,7 @@ func TestCollector_ALIYUN_CLB_Utilization_Estimate(t *testing.T) {
 			}},
 		}},
 	})
-	c := NewCollector(cfg, mgr)
+	c := NewCollector(cfg, mgr, nil)
 	c.clientFactory = factory
 	c.Collect(config.CloudAccount{
 		AccountID:       "test-acc",

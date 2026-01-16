@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"multicloud-exporter/internal/cluster"
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/discovery"
 	"multicloud-exporter/internal/logger"
@@ -66,7 +67,7 @@ type ossBucketInfo struct {
 }
 
 // NewCollector 创建阿里云采集器实例
-func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
+func NewCollector(cfg *config.Config, mgr *discovery.Manager, clusterMgr *cluster.SyncManager) *Collector {
 	c := &Collector{
 		cfg:           cfg,
 		disc:          mgr,
@@ -84,14 +85,12 @@ func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
 			Enabled:           cfg.GetServer().RegionDiscovery.Enabled,
 			DiscoveryInterval: parseDuration(cfg.GetServer().RegionDiscovery.DiscoveryInterval),
 			EmptyThreshold:    cfg.GetServer().RegionDiscovery.EmptyThreshold,
-			DataDir:           cfg.GetServer().RegionDiscovery.DataDir,
-			PersistFile:       cfg.GetServer().RegionDiscovery.PersistFile,
 		})
 
-		// 加载持久化的区域状态
-		if err := c.regionManager.Load(); err != nil {
-			ctxLog := logger.NewContextLogger("Aliyun", "resource_type", "RegionManager")
-			ctxLog.Warnf("加载区域状态失败: %v", err)
+		// 设置集群同步
+		if clusterMgr != nil {
+			c.regionManager.SetBroadcaster(clusterMgr, "aliyun")
+			clusterMgr.RegisterRegionManager("aliyun", c.regionManager)
 		}
 
 		// 启动定期重新发现调度器
@@ -1253,6 +1252,18 @@ func (a *Collector) listNLBIDs(account config.CloudAccount, region string) []str
 	// 只有在成功枚举到资源或确认该区域确实没有资源时才缓存
 	// 如果是因为 API 调用失败导致的空结果，不缓存，允许下次重新尝试
 	a.setCachedIDs(account, region, "acs_nlb", "nlb", out, meta)
+
+	// 更新区域状态
+	if a.regionManager != nil {
+		status := common.RegionStatusEmpty
+		if len(out) > 0 {
+			status = common.RegionStatusActive
+		}
+		a.regionManager.UpdateRegionStatus(account.AccountID, region, len(out), status)
+		ctxLog.Debugf("更新区域状态 account=%s region=%s status=%s count=%d",
+			account.AccountID, region, status, len(out))
+	}
+
 	return out
 }
 

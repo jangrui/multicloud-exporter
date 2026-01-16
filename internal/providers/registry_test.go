@@ -4,6 +4,7 @@ import (
 	"sort"
 	"testing"
 
+	"multicloud-exporter/internal/cluster"
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/discovery"
 
@@ -33,7 +34,7 @@ func TestRegistry(t *testing.T) {
 		mu.Unlock()
 	}()
 
-	mockFactory := func(cfg *config.Config, mgr *discovery.Manager) Provider {
+	mockFactory := func(cfg *config.Config, mgr *discovery.Manager, clusterMgr *cluster.SyncManager) Provider {
 		return &mockProvider{}
 	}
 
@@ -44,7 +45,7 @@ func TestRegistry(t *testing.T) {
 	f, ok := GetFactory("mock")
 	assert.True(t, ok)
 	assert.NotNil(t, f)
-	p := f(nil, nil)
+	p := f(nil, nil, nil)
 	assert.NotNil(t, p)
 
 	_, ok = GetFactory("non-existent")

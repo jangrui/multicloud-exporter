@@ -4,6 +4,7 @@ import (
 	"sync"
 	"testing"
 
+	"multicloud-exporter/internal/cluster"
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/discovery"
 	"multicloud-exporter/internal/providers"
@@ -30,7 +31,7 @@ func (m *MockProvider) GetDefaultResources() []string {
 func TestCollector_Collect(t *testing.T) {
 	// 1. Setup Mock Provider
 	mockP := &MockProvider{}
-	providers.Register("mock_cloud", func(cfg *config.Config, mgr *discovery.Manager) providers.Provider {
+	providers.Register("mock_cloud", func(cfg *config.Config, mgr *discovery.Manager, clusterMgr *cluster.SyncManager) providers.Provider {
 		return mockP
 	})
 
@@ -56,7 +57,7 @@ func TestCollector_Collect(t *testing.T) {
 	mgr := discovery.NewManager(cfg)
 
 	// 3. Create Collector
-	c := NewCollector(cfg, mgr)
+	c := NewCollector(cfg, mgr, nil)
 
 	// 4. Run Collect
 	c.Collect()
@@ -76,7 +77,7 @@ func TestCollector_Collect(t *testing.T) {
 func TestCollector_CollectFiltered(t *testing.T) {
 	// 1. Setup Mock Provider
 	mockP := &MockProvider{}
-	providers.Register("mock_cloud_filter", func(cfg *config.Config, mgr *discovery.Manager) providers.Provider {
+	providers.Register("mock_cloud_filter", func(cfg *config.Config, mgr *discovery.Manager, clusterMgr *cluster.SyncManager) providers.Provider {
 		return mockP
 	})
 
@@ -99,7 +100,7 @@ func TestCollector_CollectFiltered(t *testing.T) {
 	}
 	mgr := discovery.NewManager(cfg)
 
-	c := NewCollector(cfg, mgr)
+	c := NewCollector(cfg, mgr, nil)
 
 	// 3. Collect Filtered (should match)
 	c.CollectFiltered("mock_cloud_filter", "")
@@ -127,7 +128,7 @@ func TestCollector_CollectFiltered(t *testing.T) {
 func BenchmarkCollector_Collect(b *testing.B) {
 	// Setup Mock Provider
 	mockP := &MockProvider{}
-	providers.Register("mock_cloud_bench", func(cfg *config.Config, mgr *discovery.Manager) providers.Provider {
+	providers.Register("mock_cloud_bench", func(cfg *config.Config, mgr *discovery.Manager, clusterMgr *cluster.SyncManager) providers.Provider {
 		return mockP
 	})
 
@@ -155,7 +156,7 @@ func BenchmarkCollector_Collect(b *testing.B) {
 	}
 	mgr := discovery.NewManager(cfg)
 
-	c := NewCollector(cfg, mgr)
+	c := NewCollector(cfg, mgr, nil)
 
 	// Reset timer before actual benchmarking
 	b.ResetTimer()
@@ -168,7 +169,7 @@ func BenchmarkCollector_Collect(b *testing.B) {
 // BenchmarkCollector_CollectFiltered measures the performance of filtered collection
 func BenchmarkCollector_CollectFiltered(b *testing.B) {
 	mockP := &MockProvider{}
-	providers.Register("mock_cloud_filtered_bench", func(cfg *config.Config, mgr *discovery.Manager) providers.Provider {
+	providers.Register("mock_cloud_filtered_bench", func(cfg *config.Config, mgr *discovery.Manager, clusterMgr *cluster.SyncManager) providers.Provider {
 		return mockP
 	})
 
@@ -184,7 +185,7 @@ func BenchmarkCollector_CollectFiltered(b *testing.B) {
 	}
 	mgr := discovery.NewManager(cfg)
 
-	c := NewCollector(cfg, mgr)
+	c := NewCollector(cfg, mgr, nil)
 
 	b.ResetTimer()
 
@@ -196,7 +197,7 @@ func BenchmarkCollector_CollectFiltered(b *testing.B) {
 // BenchmarkCollector_ConcurrentCollect measures performance under concurrent collections
 func BenchmarkCollector_ConcurrentCollect(b *testing.B) {
 	mockP := &MockProvider{}
-	providers.Register("mock_cloud_concurrent", func(cfg *config.Config, mgr *discovery.Manager) providers.Provider {
+	providers.Register("mock_cloud_concurrent", func(cfg *config.Config, mgr *discovery.Manager, clusterMgr *cluster.SyncManager) providers.Provider {
 		return mockP
 	})
 
@@ -223,7 +224,7 @@ func BenchmarkCollector_ConcurrentCollect(b *testing.B) {
 	}
 	mgr := discovery.NewManager(cfg)
 
-	c := NewCollector(cfg, mgr)
+	c := NewCollector(cfg, mgr, nil)
 
 	b.ResetTimer()
 

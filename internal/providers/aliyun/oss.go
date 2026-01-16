@@ -189,6 +189,17 @@ func (a *Collector) listOSSIDs(account config.CloudAccount, region string) []str
 	// Cache the filtered result at region level (consistent with other resources)
 	a.setCachedIDs(account, region, "acs_oss_dashboard", "oss", regionBuckets, nil)
 
+	// 更新区域状态
+	if a.regionManager != nil {
+		status := common.RegionStatusEmpty
+		if len(regionBuckets) > 0 {
+			status = common.RegionStatusActive
+		}
+		a.regionManager.UpdateRegionStatus(account.AccountID, region, len(regionBuckets), status)
+		ctxLog.Debugf("更新区域状态 account=%s region=%s status=%s count=%d",
+			account.AccountID, region, status, len(regionBuckets))
+	}
+
 	ctxLog.Debugf("OSS 资源枚举完成 account=%s region=%s total_buckets=%d region_buckets=%d (account_cache=%v)",
 		account.AccountID, region, len(allBuckets), len(regionBuckets), cachedFromAccountLevel)
 

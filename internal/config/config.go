@@ -153,16 +153,6 @@ func (c *Config) Validate() error {
 				errs = append(errs, fmt.Sprintf("invalid region_discovery.empty_threshold: %d (must be 0-100)", rd.EmptyThreshold))
 			}
 
-			// 验证 data_dir 不为空（如果启用了持久化）
-			if rd.Enabled && rd.DataDir == "" {
-				errs = append(errs, "region_discovery.data_dir is required when region_discovery is enabled")
-			}
-
-			// 验证 persist_file 不为空（如果启用了持久化）
-			if rd.Enabled && rd.PersistFile == "" {
-				errs = append(errs, "region_discovery.persist_file is required when region_discovery is enabled")
-			}
-
 			// 验证 discovery_interval 格式（如果设置了）
 			if rd.DiscoveryInterval != "" {
 				discoveryDuration, err := parseDuration(rd.DiscoveryInterval)
@@ -418,6 +408,9 @@ type ServerConf struct {
 	// RegionDiscovery 定义智能区域发现配置
 	RegionDiscovery *RegionDiscoveryConf `yaml:"region_discovery"`
 
+	// Cluster 定义集群同步配置
+	Cluster *ClusterConf `yaml:"cluster"`
+
 	// HuaweiCache 定义华为云缓存配置
 	HuaweiCache *HuaweiCacheConf `yaml:"huawei_cache"`
 
@@ -443,8 +436,14 @@ type RegionDiscoveryConf struct {
 	Enabled           bool   `yaml:"enabled"`            // 是否启用智能区域发现，默认 true
 	DiscoveryInterval string `yaml:"discovery_interval"` // 重新发现周期，如 "1h"
 	EmptyThreshold    int    `yaml:"empty_threshold"`    // 连续空次数阈值，默认 3
-	DataDir           string `yaml:"data_dir"`           // 数据目录路径，如 "/app/data"
-	PersistFile       string `yaml:"persist_file"`       // 持久化文件名，如 "region_status.json"（相对于 data_dir）
+}
+
+// ClusterConf 定义集群同步配置
+type ClusterConf struct {
+	Enabled     bool   `yaml:"enabled"`      // 是否启用集群同步，默认 true
+	ServiceName string `yaml:"service_name"` // Kubernetes Service 名称，用于自动发现，默认 "multicloud-exporter"
+	Port        string `yaml:"port"`         // 同步端口，默认使用服务端口
+	Secret      string `yaml:"secret"`       // 集群共享密钥，用于验证请求
 }
 
 // HuaweiCacheConf 定义华为云缓存配置

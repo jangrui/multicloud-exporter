@@ -8,12 +8,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"multicloud-exporter/internal/cluster"
 	"multicloud-exporter/internal/collector"
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/discovery"
 	"multicloud-exporter/internal/logger"
 	"multicloud-exporter/internal/metrics"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const (
@@ -24,7 +26,7 @@ const (
 )
 
 // setupHTTPHandlers 设置所有 HTTP 处理器
-func setupHTTPHandlers(cfg *config.Config, coll *collector.Collector, mgr *discovery.Manager) {
+func setupHTTPHandlers(cfg *config.Config, coll *collector.Collector, mgr *discovery.Manager, clusterMgr *cluster.SyncManager) {
 	// Prometheus 指标端点
 	http.Handle("/metrics", promhttp.Handler())
 
@@ -40,6 +42,12 @@ func setupHTTPHandlers(cfg *config.Config, coll *collector.Collector, mgr *disco
 	http.HandleFunc("/api/discovery/config", authWrapper(handleDiscoveryConfig(mgr)))
 	http.HandleFunc("/api/discovery/stream", authWrapper(handleDiscoveryStream(mgr)))
 	http.HandleFunc("/api/discovery/status", authWrapper(handleDiscoveryStatus(mgr)))
+
+	// 集群同步端点（仅当启用集群模式时注册）
+	if clusterMgr != nil {
+		// SyncManager 内部已实现 Secret 校验
+		http.HandleFunc("/api/v1/cluster/sync", clusterMgr.HandleSync)
+	}
 }
 
 // handleHealthz 健康检查处理器（深度检查）

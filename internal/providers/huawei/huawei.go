@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"multicloud-exporter/internal/cluster"
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/discovery"
 	"multicloud-exporter/internal/logger"
@@ -42,13 +43,32 @@ type resCacheEntry struct {
 }
 
 // NewCollector 创建华为云采集器实例
-func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
-	return &Collector{
+func NewCollector(cfg *config.Config, mgr *discovery.Manager, clusterMgr *cluster.SyncManager) *Collector {
+	c := &Collector{
 		cfg:           cfg,
 		disc:          mgr,
 		resCache:      make(map[string]resCacheEntry),
 		clientFactory: &defaultClientFactory{},
 	}
+
+	// 初始化区域管理器
+	if cfg != nil && cfg.GetServer() != nil && cfg.GetServer().RegionDiscovery != nil {
+		c.regionManager = providerscommon.NewRegionManager(providerscommon.RegionDiscoveryConfig{
+			Enabled:           cfg.GetServer().RegionDiscovery.Enabled,
+			DiscoveryInterval: parseDuration(cfg.GetServer().RegionDiscovery.DiscoveryInterval),
+			EmptyThreshold:    cfg.GetServer().RegionDiscovery.EmptyThreshold,
+		})
+
+		if clusterMgr != nil {
+			c.regionManager.SetBroadcaster(clusterMgr, "huawei")
+			clusterMgr.RegisterRegionManager("huawei", c.regionManager)
+		}
+
+		// 启动定期重新发现调度器
+		c.regionManager.StartRediscoveryScheduler()
+	}
+
+	return c
 }
 
 // Collect 根据账号配置遍历区域与资源类型并采集
@@ -141,4 +161,15 @@ func (h *Collector) setCachedIDs(account config.CloudAccount, region, namespace,
 	h.cacheMu.Lock()
 	h.resCache[h.cacheKey(account, region, namespace, rtype)] = resCacheEntry{IDs: ids, UpdatedAt: time.Now()}
 	h.cacheMu.Unlock()
+}
+
+// parseDuration 解析时长字符串为 time.Duration
+func parseDuration(s string) time.Duration {
+	if s == "" {
+		return 0
+	}
+	if d, err := time.ParseDuration(s); err == nil {
+		return d
+	}
+	return 0
 }

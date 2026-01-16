@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"multicloud-exporter/internal/cluster"
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/discovery"
 	"multicloud-exporter/internal/logger"
@@ -35,7 +36,7 @@ type resCacheEntry struct {
 	UpdatedAt time.Time
 }
 
-func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
+func NewCollector(cfg *config.Config, mgr *discovery.Manager, clusterMgr *cluster.SyncManager) *Collector {
 	c := &Collector{
 		cfg:           cfg,
 		disc:          mgr,
@@ -49,14 +50,11 @@ func NewCollector(cfg *config.Config, mgr *discovery.Manager) *Collector {
 			Enabled:           cfg.GetServer().RegionDiscovery.Enabled,
 			DiscoveryInterval: parseDuration(cfg.GetServer().RegionDiscovery.DiscoveryInterval),
 			EmptyThreshold:    cfg.GetServer().RegionDiscovery.EmptyThreshold,
-			DataDir:           cfg.GetServer().RegionDiscovery.DataDir,
-			PersistFile:       cfg.GetServer().RegionDiscovery.PersistFile,
 		})
 
-		// 加载持久化的区域状态
-		if err := c.regionManager.Load(); err != nil {
-			ctxLog := logger.NewContextLogger("Tencent", "resource_type", "RegionManager")
-			ctxLog.Warnf("加载区域状态失败: %v", err)
+		if clusterMgr != nil {
+			c.regionManager.SetBroadcaster(clusterMgr, "tencent")
+			clusterMgr.RegisterRegionManager("tencent", c.regionManager)
 		}
 
 		// 启动定期重新发现调度器

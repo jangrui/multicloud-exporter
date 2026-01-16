@@ -14,7 +14,7 @@ import (
 func TestNewCollector(t *testing.T) {
 	cfg := &config.Config{}
 
-	c := NewCollector(cfg, nil)
+	c := NewCollector(cfg, nil, nil)
 
 	assert.NotNil(t, c)
 	assert.Equal(t, cfg, c.cfg)
@@ -37,7 +37,7 @@ func TestCollector_CacheOperations(t *testing.T) {
 			DiscoveryTTL: "1h",
 		},
 	}
-	c := NewCollector(cfg, nil)
+	c := NewCollector(cfg, nil, nil)
 
 	account := config.CloudAccount{
 		AccountID: "test-account",
@@ -67,7 +67,7 @@ func TestCollector_CacheExpiry(t *testing.T) {
 			DiscoveryTTL: "1ms", // 极短的 TTL 用于测试过期
 		},
 	}
-	c := NewCollector(cfg, nil)
+	c := NewCollector(cfg, nil, nil)
 
 	account := config.CloudAccount{
 		AccountID: "test-account",
@@ -105,7 +105,7 @@ func TestResCacheEntry(t *testing.T) {
 
 func TestCollector_CollectWithEmptyAccount(t *testing.T) {
 	cfg := &config.Config{}
-	c := NewCollector(cfg, nil)
+	c := NewCollector(cfg, nil, nil)
 
 	// 测试空账号不会 panic
 	account := config.CloudAccount{}
@@ -168,7 +168,7 @@ func TestDefaultHuaweiRegions(t *testing.T) {
 }
 
 func TestCollector_CacheKey(t *testing.T) {
-	c := NewCollector(&config.Config{}, nil)
+	c := NewCollector(&config.Config{}, nil, nil)
 	account := config.CloudAccount{AccountID: "acc-123"}
 
 	key := c.cacheKey(account, "cn-north-4", "SYS.ELB", "elb")

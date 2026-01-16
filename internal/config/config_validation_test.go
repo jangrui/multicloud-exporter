@@ -16,8 +16,6 @@ func TestValidate_RegionDiscoveryIntervalWarning(t *testing.T) {
 				Enabled:           true,
 				DiscoveryInterval: "1m", // 1分钟，小于采集周期
 				EmptyThreshold:    3,
-				DataDir:           "/tmp",
-				PersistFile:       "test.json",
 			},
 		},
 		AccountsByProvider: map[string][]CloudAccount{
@@ -166,8 +164,6 @@ func TestValidate_ValidConfig(t *testing.T) {
 				Enabled:           true,
 				DiscoveryInterval: "1h", // 大于采集周期，不会警告
 				EmptyThreshold:    3,
-				DataDir:           "/app/data",
-				PersistFile:       "region_status.json",
 			},
 			ClusterStabilityCheck: &ClusterStabilityCheckConf{
 				Enabled:        true,

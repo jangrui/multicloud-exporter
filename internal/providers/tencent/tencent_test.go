@@ -27,7 +27,7 @@ func (m *mockDiscoverer) Discover(ctx context.Context, cfg *config.Config) []con
 func TestGetAllRegions(t *testing.T) {
 	cfg := &config.Config{}
 	mgr := discovery.NewManager(cfg)
-	collector := NewCollector(cfg, mgr)
+	collector := NewCollector(cfg, mgr, nil)
 
 	// Mock factory
 	factory := &mockClientFactory{}
@@ -98,7 +98,7 @@ func TestGetAllRegions(t *testing.T) {
 func TestCollectRegion(t *testing.T) {
 	cfg := &config.Config{}
 	mgr := discovery.NewManager(cfg)
-	collector := NewCollector(cfg, mgr)
+	collector := NewCollector(cfg, mgr, nil)
 
 	// Mock factory
 	factory := &mockClientFactory{
@@ -158,7 +158,7 @@ func TestCollectRegion(t *testing.T) {
 func TestCollect(t *testing.T) {
 	cfg := &config.Config{}
 	mgr := discovery.NewManager(cfg)
-	collector := NewCollector(cfg, mgr)
+	collector := NewCollector(cfg, mgr, nil)
 	factory := &mockClientFactory{
 		cvm: &mockCVMClient{
 			DescribeRegionsFunc: func(request *cvm.DescribeRegionsRequest) (*cvm.DescribeRegionsResponse, error) {
@@ -187,7 +187,7 @@ func TestCollect(t *testing.T) {
 func TestCollectRegion_MoreResources(t *testing.T) {
 	cfg := &config.Config{}
 	mgr := discovery.NewManager(cfg)
-	collector := NewCollector(cfg, mgr)
+	collector := NewCollector(cfg, mgr, nil)
 	factory := &mockClientFactory{
 		cvm:     &mockCVMClient{},
 		clb:     &mockCLBClient{},
@@ -224,7 +224,7 @@ func TestCollectRegion_MoreResources(t *testing.T) {
 func TestGetCachedIDs(t *testing.T) {
 	cfg := &config.Config{}
 	mgr := discovery.NewManager(cfg)
-	collector := NewCollector(cfg, mgr)
+	collector := NewCollector(cfg, mgr, nil)
 
 	account := config.CloudAccount{AccountID: "acc1"}
 	region := "r1"

@@ -3,6 +3,7 @@ package providers
 import (
 	"sync"
 
+	"multicloud-exporter/internal/cluster"
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/discovery"
 )
@@ -14,7 +15,7 @@ type Provider interface {
 }
 
 // Factory 创建 Provider 实例的工厂函数
-type Factory func(cfg *config.Config, mgr *discovery.Manager) Provider
+type Factory func(cfg *config.Config, mgr *discovery.Manager, clusterMgr *cluster.SyncManager) Provider
 
 var (
 	registry = make(map[string]Factory)

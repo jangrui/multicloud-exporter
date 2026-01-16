@@ -229,8 +229,6 @@ func TestValidateRegionDiscoveryConfig(t *testing.T) {
 						Enabled:           true,
 						DiscoveryInterval: "1h",
 						EmptyThreshold:    3,
-						DataDir:           "/app/data",
-						PersistFile:       "region_status.json",
 					},
 				},
 				AccountsByProvider: map[string][]CloudAccount{
@@ -255,8 +253,6 @@ func TestValidateRegionDiscoveryConfig(t *testing.T) {
 						Enabled:           true,
 						DiscoveryInterval: "1h",
 						EmptyThreshold:    -1,
-						DataDir:           "/app/data",
-						PersistFile:       "region_status.json",
 					},
 				},
 				AccountsByProvider: map[string][]CloudAccount{
@@ -275,8 +271,6 @@ func TestValidateRegionDiscoveryConfig(t *testing.T) {
 						Enabled:           true,
 						DiscoveryInterval: "1h",
 						EmptyThreshold:    101,
-						DataDir:           "/app/data",
-						PersistFile:       "region_status.json",
 					},
 				},
 				AccountsByProvider: map[string][]CloudAccount{
@@ -287,46 +281,6 @@ func TestValidateRegionDiscoveryConfig(t *testing.T) {
 			errMsg:  "empty_threshold",
 		},
 		{
-			name: "missing data_dir when enabled",
-			config: &Config{
-				Server: &ServerConf{
-					Port: 9101,
-					RegionDiscovery: &RegionDiscoveryConf{
-						Enabled:           true,
-						DiscoveryInterval: "1h",
-						EmptyThreshold:    3,
-						DataDir:           "",
-						PersistFile:       "region_status.json",
-					},
-				},
-				AccountsByProvider: map[string][]CloudAccount{
-					"aliyun": {{AccountID: "test", AccessKeyID: "ak", AccessKeySecret: "sk", Regions: []string{"cn-hangzhou"}}},
-				},
-			},
-			wantErr: true,
-			errMsg:  "data_dir is required",
-		},
-		{
-			name: "missing persist_file when enabled",
-			config: &Config{
-				Server: &ServerConf{
-					Port: 9101,
-					RegionDiscovery: &RegionDiscoveryConf{
-						Enabled:           true,
-						DiscoveryInterval: "1h",
-						EmptyThreshold:    3,
-						DataDir:           "/app/data",
-						PersistFile:       "",
-					},
-				},
-				AccountsByProvider: map[string][]CloudAccount{
-					"aliyun": {{AccountID: "test", AccessKeyID: "ak", AccessKeySecret: "sk", Regions: []string{"cn-hangzhou"}}},
-				},
-			},
-			wantErr: true,
-			errMsg:  "persist_file is required",
-		},
-		{
 			name: "invalid discovery_interval format",
 			config: &Config{
 				Server: &ServerConf{
@@ -335,8 +289,6 @@ func TestValidateRegionDiscoveryConfig(t *testing.T) {
 						Enabled:           true,
 						DiscoveryInterval: "invalid",
 						EmptyThreshold:    3,
-						DataDir:           "/app/data",
-						PersistFile:       "region_status.json",
 					},
 				},
 				AccountsByProvider: map[string][]CloudAccount{
@@ -355,8 +307,6 @@ func TestValidateRegionDiscoveryConfig(t *testing.T) {
 						Enabled:           false,
 						DiscoveryInterval: "",
 						EmptyThreshold:    0,
-						DataDir:           "",
-						PersistFile:       "",
 					},
 				},
 				AccountsByProvider: map[string][]CloudAccount{

@@ -2,6 +2,7 @@
 package huawei
 
 import (
+	"multicloud-exporter/internal/cluster"
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/discovery"
 	"multicloud-exporter/internal/providers"
@@ -13,7 +14,7 @@ func (h *Collector) GetDefaultResources() []string {
 }
 
 func init() {
-	providers.Register("huawei", func(cfg *config.Config, mgr *discovery.Manager) providers.Provider {
-		return NewCollector(cfg, mgr)
+	providers.Register("huawei", func(cfg *config.Config, mgr *discovery.Manager, clusterMgr *cluster.SyncManager) providers.Provider {
+		return NewCollector(cfg, mgr, clusterMgr)
 	})
 }

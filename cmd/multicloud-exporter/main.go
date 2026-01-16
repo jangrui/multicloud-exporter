@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"multicloud-exporter/internal/cluster"
 	"multicloud-exporter/internal/collector"
 	"multicloud-exporter/internal/logger"
 	"multicloud-exporter/internal/utils"
@@ -74,19 +75,33 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 6. 创建采集器
-	coll := collector.NewCollector(cfg, mgr)
+	// 6. 初始化集群同步管理器（如果启用）
+	var clusterMgr *cluster.SyncManager
+	if cfg.GetServer() != nil && cfg.GetServer().Cluster != nil && cfg.GetServer().Cluster.Enabled {
+		ctxLog := logger.NewContextLogger("Main", "resource_type", "Cluster")
+		ctxLog.Info("初始化集群同步管理器...")
+		clusterMgr = cluster.NewSyncManager(
+			cfg.GetServer().Cluster.ServiceName,
+			cfg.GetServer().Cluster.Port,
+			cfg.GetServer().Cluster.Secret,
+		)
+		// 启动自动发现（后台协程）
+		go clusterMgr.Start(shutdownCtx)
+	}
 
-	// 7. 注册 Prometheus 指标
+	// 7. 创建采集器
+	coll := collector.NewCollector(cfg, mgr, clusterMgr)
+
+	// 8. 注册 Prometheus 指标
 	registerPrometheusMetrics()
 
-	// 8. 启动周期性采集（支持优雅停止）
+	// 9. 启动周期性采集（支持优雅停止）
 	startCollectionLoop(shutdownCtx, cfg, coll, mgr, interval)
 
-	// 9. 设置 HTTP 路由
-	setupHTTPHandlers(cfg, coll, mgr)
+	// 10. 设置 HTTP 路由
+	setupHTTPHandlers(cfg, coll, mgr, clusterMgr)
 
-	// 10. 启动 HTTP 服务器
+	// 11. 启动 HTTP 服务器
 	ctxLog = logger.NewContextLogger("Main", "resource_type", "HTTPServer")
 	ctxLog.Infof("HTTP 服务启动，监听端口=%s", port)
 

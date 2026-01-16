@@ -8,7 +8,7 @@ import (
 
 func TestCacheTTL(t *testing.T) {
 	cfg := &config.Config{ServerConf: &config.ServerConf{DiscoveryTTL: "1s"}}
-	a := NewCollector(cfg, nil)
+	a := NewCollector(cfg, nil, nil)
 	acc := config.CloudAccount{AccountID: "a"}
 	a.setCachedIDs(acc, "cn", "acs_ecs_dashboard", "ecs", []string{"i-1"}, map[string]interface{}{"i-1": nil})
 	ids, _, ok := a.getCachedIDs(acc, "cn", "acs_ecs_dashboard", "ecs")

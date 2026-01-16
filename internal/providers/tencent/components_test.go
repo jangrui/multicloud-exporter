@@ -40,7 +40,7 @@ func TestListCLBVips(t *testing.T) {
 	}
 
 	factory := &mockClientFactory{clb: mockCLB}
-	c := NewCollector(&config.Config{}, nil)
+	c := NewCollector(&config.Config{}, nil, nil)
 	c.clientFactory = factory
 
 	// Case 1: Success
@@ -84,7 +84,7 @@ func TestListBWPIDs(t *testing.T) {
 	}
 
 	factory := &mockClientFactory{vpc: mockVPC}
-	c := NewCollector(&config.Config{}, nil)
+	c := NewCollector(&config.Config{}, nil, nil)
 	c.clientFactory = factory
 
 	// Case 1: Success
@@ -124,7 +124,7 @@ func TestListCOSBuckets(t *testing.T) {
 	}
 
 	factory := &mockClientFactory{cos: mockCOS}
-	c := NewCollector(&config.Config{}, nil)
+	c := NewCollector(&config.Config{}, nil, nil)
 	c.clientFactory = factory
 
 	// Case 1: Success (Filter by region)
@@ -159,7 +159,7 @@ func TestFetchCLBMonitor_Error(t *testing.T) {
 	}
 
 	factory := &mockClientFactory{monitor: mockMonitor}
-	c := NewCollector(&config.Config{}, nil)
+	c := NewCollector(&config.Config{}, nil, nil)
 	c.clientFactory = factory
 
 	// Should not panic or crash
@@ -179,7 +179,7 @@ func TestFetchBWPMonitor_Error(t *testing.T) {
 	}
 
 	factory := &mockClientFactory{monitor: mockMonitor}
-	c := NewCollector(&config.Config{}, nil)
+	c := NewCollector(&config.Config{}, nil, nil)
 	c.clientFactory = factory
 
 	prod := config.Product{
@@ -198,7 +198,7 @@ func TestFetchCOSMonitor_Error(t *testing.T) {
 	}
 
 	factory := &mockClientFactory{monitor: mockMonitor}
-	c := NewCollector(&config.Config{}, nil)
+	c := NewCollector(&config.Config{}, nil, nil)
 	c.clientFactory = factory
 
 	prod := config.Product{

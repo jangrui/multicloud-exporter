@@ -2,17 +2,13 @@
 // 特性：
 // - 智能区域选择（优先活跃区域，跳过空区域）
 // - 自动内存管理和清理
-// - 持久化支持
+// - 集群状态同步
 // - 并发安全
 // - 性能监控
 // - 优雅停止
 package common
 
 import (
-	"encoding/json"
-	"fmt"
-	"os"
-	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -45,8 +41,6 @@ type RegionDiscoveryConfig struct {
 	Enabled              bool          `json:"enabled"`                 // 是否启用
 	DiscoveryInterval    time.Duration `json:"discovery_interval"`      // 重新发现周期
 	EmptyThreshold       int           `json:"empty_threshold"`         // 空区域跳过阈值
-	DataDir              string        `json:"data_dir"`                // 数据目录
-	PersistFile          string        `json:"persist_file"`            // 持久化文件
 	MaxAccounts          int           `json:"max_accounts"`            // 最大账号数（0=无限制）
 	CleanupInterval      time.Duration `json:"cleanup_interval"`        // 清理间隔
 	MaxRegionsPerAccount int           `json:"max_regions_per_account"` // 每账号最大区域数
@@ -62,12 +56,14 @@ type RegionManagerStats struct {
 	SkippedRegions      int       `json:"skipped_regions"`
 	LastCleanupTime     time.Time `json:"last_cleanup_time"`
 	LastRediscoveryTime time.Time `json:"last_rediscovery_time"`
-	LastSaveTime        time.Time `json:"last_save_time"`
-	LastLoadTime        time.Time `json:"last_load_time"`
-	SaveCount           int64     `json:"save_count"`
-	LoadCount           int64     `json:"load_count"`
 	UpdateCount         int64     `json:"update_count"`
 	RediscoveryCount    int64     `json:"rediscovery_count"`
+	RemoteUpdateCount   int64     `json:"remote_update_count"`
+}
+
+// Broadcaster 定义集群广播接口
+type Broadcaster interface {
+	BroadcastRegionStatus(provider, accountID, region, status string, resourceCount int)
 }
 
 // RegionManager 区域管理器接口
@@ -75,8 +71,14 @@ type RegionManager interface {
 	// GetActiveRegions 获取活跃区域列表
 	GetActiveRegions(accountID string, allRegions []string) []string
 
-	// UpdateRegionStatus 更新区域状态
+	// UpdateRegionStatus 更新区域状态（本地更新，触发广播）
 	UpdateRegionStatus(accountID, region string, resourceCount int, status RegionStatus)
+
+	// UpdateFromPeer 更新区域状态（来自 Peer，不触发广播）
+	UpdateFromPeer(accountID, region string, resourceCount int, status string)
+
+	// SetBroadcaster 设置广播器
+	SetBroadcaster(b Broadcaster, provider string)
 
 	// MarkRegionForRediscovery 标记区域为需重新发现
 	MarkRegionForRediscovery(accountID, region string)
@@ -86,12 +88,6 @@ type RegionManager interface {
 
 	// ShouldSkipRegion 判断是否跳过该区域
 	ShouldSkipRegion(accountID, region string) bool
-
-	// Load 加载持久化状态
-	Load() error
-
-	// Save 保存状态
-	Save() error
 
 	// StartRediscoveryScheduler 启动调度器
 	StartRediscoveryScheduler()
@@ -115,6 +111,9 @@ type SmartRegionManager struct {
 	stopped       atomic.Bool
 	schedulerOnce sync.Once
 
+	broadcaster  Broadcaster
+	providerName string
+
 	// 统计信息
 	stats   RegionManagerStats
 	statsMu sync.RWMutex
@@ -128,12 +127,6 @@ func NewRegionManager(config RegionDiscoveryConfig) RegionManager {
 	}
 	if config.EmptyThreshold <= 0 {
 		config.EmptyThreshold = 10
-	}
-	if config.DataDir == "" {
-		config.DataDir = "/app/data"
-	}
-	if config.PersistFile == "" {
-		config.PersistFile = "region_status.json"
 	}
 	if config.MaxAccounts < 0 {
 		config.MaxAccounts = 0
@@ -155,13 +148,15 @@ func NewRegionManager(config RegionDiscoveryConfig) RegionManager {
 		},
 	}
 
-	// 创建数据目录
-	if err := os.MkdirAll(config.DataDir, 0755); err != nil {
-		ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Initialization")
-		ctxLog.Warnf("创建区域状态目录失败: %v", err)
-	}
-
 	return rm
+}
+
+// SetBroadcaster 设置广播器
+func (rm *SmartRegionManager) SetBroadcaster(b Broadcaster, provider string) {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+	rm.broadcaster = b
+	rm.providerName = provider
 }
 
 // GetActiveRegions 获取活跃区域列表
@@ -226,8 +221,30 @@ func (rm *SmartRegionManager) GetActiveRegions(accountID string, allRegions []st
 	return result
 }
 
-// UpdateRegionStatus 更新区域状态
+// UpdateRegionStatus 更新区域状态（本地更新，触发广播）
 func (rm *SmartRegionManager) UpdateRegionStatus(accountID, region string, resourceCount int, status RegionStatus) {
+	rm.updateRegionStatusInternal(accountID, region, resourceCount, status)
+
+	// 触发广播
+	rm.mu.RLock()
+	b := rm.broadcaster
+	p := rm.providerName
+	rm.mu.RUnlock()
+
+	if b != nil && p != "" {
+		b.BroadcastRegionStatus(p, accountID, region, string(status), resourceCount)
+	}
+}
+
+// UpdateFromPeer 更新区域状态（来自 Peer，不触发广播）
+func (rm *SmartRegionManager) UpdateFromPeer(accountID, region string, resourceCount int, statusStr string) {
+	status := RegionStatus(statusStr)
+	rm.updateRegionStatusInternal(accountID, region, resourceCount, status)
+	atomic.AddInt64(&rm.stats.RemoteUpdateCount, 1)
+}
+
+// updateRegionStatusInternal 内部更新逻辑
+func (rm *SmartRegionManager) updateRegionStatusInternal(accountID, region string, resourceCount int, status RegionStatus) {
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 
@@ -247,6 +264,11 @@ func (rm *SmartRegionManager) UpdateRegionStatus(accountID, region string, resou
 		}
 	}
 
+	// 如果状态没有变化且非 unknown，且已有记录，则不需要重置 EmptyCount
+	// 但如果是 active，EmptyCount 总是 0
+	// 如果是 empty，EmptyCount 增加
+	// 这里的逻辑需要保持与原有一致
+
 	info.Status = status
 	info.LastSeen = now
 	info.ResourceCount = resourceCount
@@ -257,6 +279,10 @@ func (rm *SmartRegionManager) UpdateRegionStatus(accountID, region string, resou
 		info.EmptyCount = 0
 		info.Priority = 100 // 活跃区域优先级最高
 	case RegionStatusEmpty:
+		// 如果是 Peer 更新，我们可能不知道之前的 EmptyCount
+		// 简单的做法是：如果是 Peer 告诉我们是 Empty，我们增加 EmptyCount？
+		// 或者 Peer 传递的应该包含 EmptyCount？
+		// 简化处理：每次 Empty 都 +1，如果 Peer 也是 Empty，说明它也没找到
 		info.EmptyCount++
 		info.Priority = 10 // 空区域优先级降低
 	case RegionStatusUnknown:
@@ -266,8 +292,6 @@ func (rm *SmartRegionManager) UpdateRegionStatus(accountID, region string, resou
 
 	// 限制每账号区域数量
 	if len(rm.regionMap[accountID]) >= rm.config.MaxRegionsPerAccount {
-		// 清理最旧的低优先级区域
-		// 注意：此方法在持锁状态下调用，不会导致锁重入
 		rm.evictLowPriorityRegionsLocked(accountID)
 	}
 
@@ -353,187 +377,6 @@ func (rm *SmartRegionManager) ShouldSkipRegion(accountID, region string) bool {
 	return info.Status == RegionStatusEmpty && info.EmptyCount >= rm.config.EmptyThreshold
 }
 
-// Load 加载持久化状态
-// 容错策略：
-// - 文件不存在：初始化为空 map（所有区域将被视为 unknown）
-// - 文件损坏：重新初始化为空 map，记录错误但不返回错误
-// - 读取失败：记录错误但不返回错误，使用空 map 继续运行
-func (rm *SmartRegionManager) Load() error {
-	rm.mu.Lock()
-	defer rm.mu.Unlock()
-
-	atomic.AddInt64(&rm.stats.LoadCount, 1)
-
-	persistPath := filepath.Join(rm.config.DataDir, rm.config.PersistFile)
-	ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Persistence")
-
-	// 读取文件
-	data, err := os.ReadFile(persistPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			// 文件不存在是正常情况（首次运行）
-			ctxLog.Infof("区域状态文件不存在（首次运行），将初始化为空状态: %s", persistPath)
-			rm.regionMap = make(map[string]map[string]RegionInfo)
-			rm.statsMu.Lock()
-			rm.stats.LastLoadTime = time.Now()
-			rm.statsMu.Unlock()
-			return nil
-		}
-
-		// 其他读取错误（权限、IO 错误等）
-		ctxLog.Errorf("读取区域状态文件失败（路径=%s）: %v，将初始化为空状态", persistPath, err)
-		rm.regionMap = make(map[string]map[string]RegionInfo)
-		rm.statsMu.Lock()
-		rm.stats.LastLoadTime = time.Now()
-		rm.statsMu.Unlock()
-		// 不返回错误，允许程序继续运行
-		return nil
-	}
-
-	// 解析 JSON
-	var persisted struct {
-		RegionMap map[string]map[string]RegionInfo `json:"region_map"`
-		UpdatedAt time.Time                        `json:"updated_at"`
-	}
-
-	if err := json.Unmarshal(data, &persisted); err != nil {
-		// 文件损坏或格式错误
-		ctxLog.Errorf("解析区域状态文件失败（路径=%s，大小=%d 字节）: %v，将重新初始化为空状态",
-			persistPath, len(data), err)
-		rm.regionMap = make(map[string]map[string]RegionInfo)
-		rm.statsMu.Lock()
-		rm.stats.LastLoadTime = time.Now()
-		rm.statsMu.Unlock()
-		// 不返回错误，允许程序继续运行，下次保存时会覆盖损坏的文件
-		return nil
-	}
-
-	// 成功加载
-	if persisted.RegionMap != nil {
-		rm.regionMap = persisted.RegionMap
-		ctxLog.Infof("成功加载区域状态（路径=%s，账号数=%d，更新时间=%v）",
-			persistPath, len(rm.regionMap), persisted.UpdatedAt.Format("2006-01-02 15:04:05"))
-	} else {
-		// 文件存在但 region_map 为空
-		ctxLog.Warnf("区域状态文件存在但内容为空（路径=%s），将初始化为空状态", persistPath)
-		rm.regionMap = make(map[string]map[string]RegionInfo)
-	}
-
-	rm.statsMu.Lock()
-	rm.stats.LastLoadTime = time.Now()
-	rm.statsMu.Unlock()
-
-	return nil
-}
-
-// Save 保存状态（优化版本，带重试机制）
-func (rm *SmartRegionManager) Save() error {
-	const maxRetries = 3
-
-	var lastErr error
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		err := rm.trySave()
-		if err == nil {
-			return nil
-		}
-
-		lastErr = err
-		if attempt < maxRetries-1 {
-			backoff := time.Duration(attempt+1) * 100 * time.Millisecond
-			ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Persistence")
-			ctxLog.Warnf("保存区域状态失败（第 %d 次重试，%v 后重试）: %v", attempt+1, backoff, err)
-			time.Sleep(backoff)
-		}
-	}
-
-	return fmt.Errorf("保存失败（已重试 %d 次）: %w", maxRetries, lastErr)
-}
-
-// trySave 尝试保存状态（内部方法）
-func (rm *SmartRegionManager) trySave() error {
-	// 创建快照避免长时间持锁
-	rm.mu.RLock()
-	snapshot := rm.createSnapshot()
-	rm.mu.RUnlock()
-
-	if rm.config.PersistFile == "" || rm.config.DataDir == "" {
-		return nil
-	}
-
-	persistPath := filepath.Join(rm.config.DataDir, rm.config.PersistFile)
-
-	data, err := json.MarshalIndent(struct {
-		RegionMap map[string]map[string]RegionInfo `json:"region_map"`
-		UpdatedAt time.Time                        `json:"updated_at"`
-	}{
-		RegionMap: snapshot,
-		UpdatedAt: time.Now(),
-	}, "", "  ")
-
-	if err != nil {
-		ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Persistence")
-		ctxLog.Errorf("序列化区域状态失败: %v", err)
-		return err
-	}
-
-	if err := os.MkdirAll(rm.config.DataDir, 0755); err != nil {
-		ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Persistence")
-		ctxLog.Errorf("创建持久化目录失败: %v", err)
-		return err
-	}
-
-	// 原子写入
-	tmpFile := persistPath + ".tmp"
-	if err := os.WriteFile(tmpFile, data, 0644); err != nil {
-		// 清理失败的临时文件
-		_ = os.Remove(tmpFile)
-		ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Persistence")
-		ctxLog.Errorf("写入临时文件失败: %v", err)
-		return err
-	}
-
-	if err := os.Rename(tmpFile, persistPath); err != nil {
-		// 清理临时文件
-		_ = os.Remove(tmpFile)
-		ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Persistence")
-		ctxLog.Errorf("重命名文件失败: %v", err)
-		return err
-	}
-
-	atomic.AddInt64(&rm.stats.SaveCount, 1)
-	rm.statsMu.Lock()
-	rm.stats.LastSaveTime = time.Now()
-	rm.statsMu.Unlock()
-
-	ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Persistence")
-	ctxLog.Debugf("成功保存区域状态，账号数=%d", len(snapshot))
-	return nil
-}
-
-// createSnapshot 创建快照（优化版本，限制大小防止性能问题）
-func (rm *SmartRegionManager) createSnapshot() map[string]map[string]RegionInfo {
-	const maxSnapshotSize = 5000 // 快照上限，防止 OOM 和性能问题
-
-	snapshot := make(map[string]map[string]RegionInfo, len(rm.regionMap))
-	count := 0
-
-	for accountID, regions := range rm.regionMap {
-		if count >= maxSnapshotSize {
-			ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Snapshot")
-			ctxLog.Warnf("快照达到上限 %d，停止拷贝", maxSnapshotSize)
-			break
-		}
-
-		snapshot[accountID] = make(map[string]RegionInfo, len(regions))
-		for region, info := range regions {
-			snapshot[accountID][region] = info
-			count++
-		}
-	}
-
-	return snapshot
-}
-
 // StartRediscoveryScheduler 启动调度器（优化版本，合并任务减少锁竞争）
 func (rm *SmartRegionManager) StartRediscoveryScheduler() {
 	rm.schedulerOnce.Do(func() {
@@ -608,31 +451,11 @@ func (rm *SmartRegionManager) Stop() {
 	}
 
 	close(rm.stopChan)
-
-	// 异步保存，避免阻塞程序退出
-	done := make(chan struct{})
-	go func() {
-		if err := rm.Save(); err != nil {
-			ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Persistence")
-			ctxLog.Errorf("停止时保存区域状态失败: %v", err)
-		}
-		close(done)
-	}()
-
-	// 等待保存完成或超时（1秒）
-	select {
-	case <-done:
-		ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Shutdown")
-		ctxLog.Infof("区域管理器已停止，状态已保存")
-	case <-time.After(1 * time.Second):
-		ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Shutdown")
-		ctxLog.Warnf("区域管理器停止超时，放弃保存状态")
-	}
+	ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Shutdown")
+	ctxLog.Infof("区域管理器已停止")
 }
 
 // triggerRediscovery 触发重新发现
-// 参数:
-//   - reason: 触发原因（如 "periodic", "manual", "config_change"）
 func (rm *SmartRegionManager) triggerRediscovery(reason string) {
 	startTime := time.Now()
 
@@ -707,15 +530,12 @@ func (rm *SmartRegionManager) GetStats() RegionManagerStats {
 		ActiveRegions:       activeCount,
 		EmptyRegions:        emptyCount,
 		UnknownRegions:      unknownCount,
-		SkippedRegions:      skippedCount, // 实时计算，不累积
+		SkippedRegions:      skippedCount,
 		LastCleanupTime:     rm.stats.LastCleanupTime,
 		LastRediscoveryTime: rm.stats.LastRediscoveryTime,
-		LastSaveTime:        rm.stats.LastSaveTime,
-		LastLoadTime:        rm.stats.LastLoadTime,
-		SaveCount:           atomic.LoadInt64(&rm.stats.SaveCount),
-		LoadCount:           atomic.LoadInt64(&rm.stats.LoadCount),
 		UpdateCount:         atomic.LoadInt64(&rm.stats.UpdateCount),
 		RediscoveryCount:    atomic.LoadInt64(&rm.stats.RediscoveryCount),
+		RemoteUpdateCount:   atomic.LoadInt64(&rm.stats.RemoteUpdateCount),
 	}
 }
 
