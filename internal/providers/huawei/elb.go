@@ -61,6 +61,12 @@ func (h *Collector) collectELB(account config.CloudAccount, region string) {
 func (h *Collector) listELBInstances(account config.CloudAccount, region string) []elbInfo {
 	ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "resource_type", "ELB")
 
+	regionKey := account.Provider + ":" + account.AccountID + ":" + region
+	if h.degradeMgr != nil && h.degradeMgr.IsDisabled(regionKey, providerscommon.ResourceTypeRegion) {
+		ctxLog.Debugf("ELB 枚举实例 - 区域已降级，跳过")
+		return []elbInfo{}
+	}
+
 	if ids, hit := h.getCachedIDs(account, region, "SYS.ELB", "elb"); hit {
 		var elbs []elbInfo
 		for _, id := range ids {
@@ -72,6 +78,9 @@ func (h *Collector) listELBInstances(account config.CloudAccount, region string)
 
 	client, err := h.clientFactory.NewELBClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
+		if h.degradeMgr != nil {
+			h.degradeMgr.RecordFailure(regionKey, providerscommon.ResourceTypeRegion, err.Error())
+		}
 		ctxLog.Errorf("ELB 枚举实例 - 客户端创建失败 - 错误=%v", err)
 		return nil
 	}
@@ -114,10 +123,23 @@ func (h *Collector) listELBInstances(account config.CloudAccount, region string)
 			metrics.RequestTotal.WithLabelValues("huawei", "ListLoadBalancers", "success").Inc()
 			metrics.RecordRequest("huawei", "ListLoadBalancers", "success")
 			metrics.RequestDuration.WithLabelValues("huawei", "ListLoadBalancers").Observe(time.Since(start).Seconds())
+			if h.degradeMgr != nil {
+				h.degradeMgr.RecordSuccess(regionKey, providerscommon.ResourceTypeRegion)
+			}
 			return nil
 		}, shouldRetry)
 
 		if callErr != nil {
+			if h.degradeMgr != nil {
+				if providerscommon.ClassifyHuaweiError(callErr) == providerscommon.ErrorStatusAuth {
+					disabled := h.degradeMgr.RecordFailure(regionKey, providerscommon.ResourceTypeRegion, callErr.Error())
+					if disabled {
+						ctxLog.Warn("区域已降级")
+					}
+				} else {
+					h.degradeMgr.RecordFailure(regionKey, providerscommon.ResourceTypeRegion, callErr.Error())
+				}
+			}
 			ctxLog.Warnf("ELB 枚举实例 - API: ListLoadBalancers - 失败: %v", callErr)
 			break
 		}
@@ -202,8 +224,17 @@ func (h *Collector) listELBInstances(account config.CloudAccount, region string)
 func (h *Collector) fetchELBMonitor(account config.CloudAccount, region string, prod config.Product, elbs []elbInfo) {
 	ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "rtype", "elb")
 
+	regionKey := account.Provider + ":" + account.AccountID + ":" + region
+	if h.degradeMgr != nil && h.degradeMgr.IsDisabled(regionKey, providerscommon.ResourceTypeRegion) {
+		ctxLog.Debugf("ELB 监控采集 - 区域已降级，跳过")
+		return
+	}
+
 	client, err := h.clientFactory.NewCESClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
+		if h.degradeMgr != nil {
+			h.degradeMgr.RecordFailure(regionKey, providerscommon.ResourceTypeRegion, err.Error())
+		}
 		ctxLog.Errorf("CES 客户端创建失败，错误=%v", err)
 		return
 	}
@@ -289,10 +320,23 @@ func (h *Collector) fetchELBMonitor(account config.CloudAccount, region string, 
 					metrics.RequestTotal.WithLabelValues("huawei", "BatchListMetricData", "success").Inc()
 					metrics.RecordRequest("huawei", "BatchListMetricData", "success")
 					metrics.RequestDuration.WithLabelValues("huawei", "BatchListMetricData").Observe(time.Since(reqStart).Seconds())
+					if h.degradeMgr != nil {
+						h.degradeMgr.RecordSuccess(regionKey, providerscommon.ResourceTypeRegion)
+					}
 					return nil
 				}, shouldRetry)
 
 				if err != nil {
+					if h.degradeMgr != nil {
+						if providerscommon.ClassifyHuaweiError(err) == providerscommon.ErrorStatusAuth {
+							disabled := h.degradeMgr.RecordFailure(regionKey, providerscommon.ResourceTypeRegion, err.Error())
+							if disabled {
+								ctxLog.Warn("区域已降级")
+							}
+						} else {
+							h.degradeMgr.RecordFailure(regionKey, providerscommon.ResourceTypeRegion, err.Error())
+						}
+					}
 					ctxLog.Warnf("BatchListMetricData 错误，指标=%s 错误=%v", metricName, err)
 					continue
 				}

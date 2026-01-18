@@ -16,6 +16,8 @@ type RetryConfig struct {
 	MaxDelay time.Duration
 	// BackoffFactor 退避因子，默认 2.0（指数退避）
 	BackoffFactor float64
+	// TotalTimeout 总超时时间，默认 30 秒（整个重试过程的最长时间）
+	TotalTimeout time.Duration
 }
 
 // DefaultRetryConfig 返回默认重试配置（符合项目规范）
@@ -25,6 +27,7 @@ func DefaultRetryConfig() RetryConfig {
 		InitialDelay:  200 * time.Millisecond,
 		MaxDelay:      5 * time.Second,
 		BackoffFactor: 2.0,
+		TotalTimeout:  30 * time.Second,
 	}
 }
 
@@ -63,10 +66,23 @@ func RetryWithBackoff(ctx context.Context, cfg RetryConfig, fn func() error, sho
 	if cfg.BackoffFactor <= 0 {
 		cfg.BackoffFactor = 2.0
 	}
+	if cfg.TotalTimeout <= 0 {
+		cfg.TotalTimeout = 30 * time.Second
+	}
 
+	// 如果传入的 context 没有超时，则添加默认超时
+	if ctx != nil {
+		if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(ctx, cfg.TotalTimeout)
+			defer cancel()
+		}
+	}
+
+	startTime := time.Now()
 	var lastErr error
 	for attempt := 0; attempt <= cfg.MaxAttempts; attempt++ {
-		// 检查上下文是否已取消
+		// 检查上下文是否已取消或超时
 		if ctx != nil {
 			select {
 			case <-ctx.Done():
@@ -90,6 +106,11 @@ func RetryWithBackoff(ctx context.Context, cfg RetryConfig, fn func() error, sho
 		// 如果已经是最后一次尝试，不再等待
 		if attempt >= cfg.MaxAttempts {
 			break
+		}
+
+		// 检查是否已超过总超时时间
+		if time.Since(startTime) > cfg.TotalTimeout {
+			return lastErr
 		}
 
 		// 计算延迟时间（指数退避）

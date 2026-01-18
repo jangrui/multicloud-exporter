@@ -161,6 +161,38 @@ var (
 		},
 		[]string{"cache_type"},
 	)
+	// SampleCountTotal 样本计数指标（维度化，支持多副本并发）
+	SampleCountTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "multicloud_sample_count_total",
+			Help: " - 采集样本总数（按账号、区域、资源类型、命名空间维度统计）",
+		},
+		[]string{"account_id", "region", "resource_type", "namespace"},
+	)
+	// CacheHitTotal 缓存命中次数统计
+	CacheHitTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "multicloud_cache_hit_total",
+			Help: " - 缓存命中次数统计",
+		},
+		[]string{"cache_type"},
+	)
+	// CacheMissTotal 缓存未命中次数统计
+	CacheMissTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "multicloud_cache_miss_total",
+			Help: " - 缓存未命中次数统计",
+		},
+		[]string{"cache_type"},
+	)
+	// BroadcastFailedTotal 集群广播失败次数统计
+	BroadcastFailedTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "multicloud_broadcast_failed_total",
+			Help: " - 集群广播失败次数统计",
+		},
+		[]string{"peer"},
+	)
 )
 
 var (
@@ -355,6 +387,14 @@ func IncSampleCount(namespace string, n int) {
 	sampleCountsMu.Unlock()
 }
 
+// IncSampleCountWithLabels 增加维度化的样本计数（推荐使用，支持多副本并发）
+func IncSampleCountWithLabels(accountID, region, resourceType, namespace string, n int) {
+	if n <= 0 {
+		return
+	}
+	SampleCountTotal.WithLabelValues(accountID, region, resourceType, namespace).Add(float64(n))
+}
+
 func ResetSampleCounts() {
 	sampleCountsMu.Lock()
 	sampleCounts = make(map[string]int)
@@ -405,4 +445,14 @@ func Reset() {
 func UpdateCacheMetrics(cacheType string, sizeBytes int64, entries int) {
 	CacheSizeBytes.WithLabelValues(cacheType).Set(float64(sizeBytes))
 	CacheEntriesTotal.WithLabelValues(cacheType).Set(float64(entries))
+}
+
+// RecordCacheHit 记录缓存命中
+func RecordCacheHit(cacheType string) {
+	CacheHitTotal.WithLabelValues(cacheType).Inc()
+}
+
+// RecordCacheMiss 记录缓存未命中
+func RecordCacheMiss(cacheType string) {
+	CacheMissTotal.WithLabelValues(cacheType).Inc()
 }

@@ -20,6 +20,7 @@ type Collector struct {
 	disc          *discovery.Manager
 	clientFactory ClientFactory
 	regionManager providerscommon.RegionManager
+	degradeMgr    *providerscommon.Manager
 }
 
 func NewCollector(cfg *config.Config, mgr *discovery.Manager, clusterMgr *cluster.SyncManager) *Collector {

@@ -89,10 +89,6 @@ spec:
               value: {{ .Values.regionDiscovery.discoveryInterval | default "1h" | quote }}
             - name: REGION_EMPTY_THRESHOLD
               value: {{ .Values.regionDiscovery.emptyThreshold | default 3 | quote }}
-            - name: REGION_DATA_DIR
-              value: {{ .Values.regionDiscovery.dataDir | default "/app/data" | quote }}
-            - name: REGION_PERSIST_FILE
-              value: {{ .Values.regionDiscovery.persistFile | default "region_status.json" | quote }}
 {{- end }}
 {{- if .Values.huaweiCache }}
             - name: HUAWEI_CACHE_ENABLED
@@ -242,13 +238,6 @@ spec:
               mountPath: "/app/configs/accounts.yaml"
               subPath: accounts.yaml
 {{- end }}
-{{- if and .Values.server .Values.server.regionDiscovery .Values.server.regionDiscovery.enabled }}
-            - name: region-data
-              mountPath: /app/data
-{{- else if .Values.regionDiscovery.enabled }}
-            - name: region-data
-              mountPath: {{ .Values.regionDiscovery.dataDir | default "/app/data" }}
-{{- end }}
           resources: {{- toYaml .Values.resources | nindent 12 }}
       volumes:
 {{- if .Values.server }}
@@ -260,23 +249,6 @@ spec:
         - name: accounts
           configMap:
             name: {{ default "multicloud-exporter" .Values.fullname }}-accounts
-{{- end }}
-{{- if and .Values.server .Values.server.regionDiscovery .Values.server.regionDiscovery.enabled }}
-        - name: region-data
-{{- if .Values.regionData.persistence.enabled }}
-          persistentVolumeClaim:
-            claimName: {{ .Values.regionData.persistence.existingClaim | default (printf "%s-region-data" (default "multicloud-exporter" .Values.fullname)) }}
-{{- else }}
-          emptyDir: {}
-{{- end }}
-{{- else if .Values.regionDiscovery.enabled }}
-        - name: region-data
-{{- if .Values.regionData.persistence.enabled }}
-          persistentVolumeClaim:
-            claimName: {{ .Values.regionData.persistence.existingClaim | default (printf "%s-region-data" (default "multicloud-exporter" .Values.fullname)) }}
-{{- else }}
-          emptyDir: {}
-{{- end }}
 {{- end }}
       nodeSelector: {{- toYaml .Values.nodeSelector | nindent 8 }}
       tolerations: {{- toYaml .Values.tolerations | nindent 8 }}

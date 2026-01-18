@@ -6,6 +6,7 @@ import (
 	"multicloud-exporter/internal/cluster"
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/discovery"
+	"multicloud-exporter/internal/providers/common"
 )
 
 // Provider 定义云厂商采集接口
@@ -13,6 +14,12 @@ type Provider interface {
 	Collect(account config.CloudAccount)
 	GetDefaultResources() []string
 	SupportsInternalSharding() bool
+}
+
+// DegradableProvider 支持降级管理的 Provider 接口
+type DegradableProvider interface {
+	Provider
+	SetDegradationManager(mgr *common.Manager)
 }
 
 // Factory 创建 Provider 实例的工厂函数

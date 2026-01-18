@@ -2,6 +2,7 @@
 package aliyun
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"sort"
@@ -46,6 +47,7 @@ type Collector struct {
 	clientFactory ClientFactory
 	sf            singleflight.Group
 	regionManager common.RegionManager
+	degradeMgr    *common.Manager
 }
 
 // resCacheEntry 缓存资源ID及元数据
@@ -204,15 +206,17 @@ func (a *Collector) getOrFetchTags(account config.CloudAccount, region string, r
 	// 尝试从缓存读取
 	a.tagMu.RLock()
 	if entry, ok := a.tagCache[cacheKey]; ok {
-		a.tagMu.RUnlock()
 		// 检查是否过期
 		if time.Now().Before(entry.ExpiresAt) {
+			a.tagMu.RUnlock()
 			logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", rtype).Debugf("标签缓存命中 数量=%d", len(entry.Tags))
 			return entry.Tags
 		}
+		a.tagMu.RUnlock()
 		logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", rtype).Debugf("标签缓存已过期，将重新获取")
+	} else {
+		a.tagMu.RUnlock()
 	}
-	a.tagMu.RUnlock()
 
 	// 缓存未命中，获取标签
 	logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", rtype).Debugf("标签缓存未命中，开始获取 数量=%d", len(ids))
@@ -264,6 +268,19 @@ func (a *Collector) recordTagCacheMetrics() {
 
 	metrics.CacheEntriesTotal.WithLabelValues("aliyun_tag").Set(float64(entryCount))
 	metrics.CacheSizeBytes.WithLabelValues("aliyun_tag").Set(float64(totalSize))
+}
+
+// clearTagCache 清理指定账号和区域的标签缓存
+func (a *Collector) clearTagCache(account config.CloudAccount, region string, rtype string) {
+	cacheKey := account.AccountID + ":" + region + ":" + rtype
+	a.tagMu.Lock()
+	defer a.tagMu.Unlock()
+
+	if _, ok := a.tagCache[cacheKey]; ok {
+		delete(a.tagCache, cacheKey)
+		logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", rtype).Debugf("标签缓存已清理")
+		a.recordTagCacheMetrics()
+	}
 }
 
 // Collect 根据账号配置遍历区域与资源类型并采集
@@ -396,20 +413,59 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 	}
 	// Endpoint 使用地域默认配置，如需自定义可在此处扩展
 
-	// 不预先限定 ECS 维度，按具体指标的维度键枚举对应资源
 	// 并发层级说明：
-	// 1) 区域级并发：在 Collect 中控制（同账号多 region 并行）
-	// 2) 产品级并发：在本函数内控制（同 region 下多个命名空间并行）
-	// 3) 指标级并发：在每个产品 goroutine 内控制（同命名空间下多个指标批次并行）
+	//1) 区域级并发：在 Collect 中控制（同账号多 region 并行）
+	//2) 产品级并发：在本函数内控制（同 region 下多个命名空间并行）
+	//3) 指标级并发：在每个产品 goroutine 内控制（同命名空间下多个指标批次并行）
 	// 其中 mlimit 控制第 3 层并发，plimit 控制第 2 层并发。
 
-	// 指标并发控制（命名空间/指标级）
+	// 获取并发配置并计算实际并发度
+	// 限制最大并发度为 20，避免超过云 API 限流阈值
+	maxTotalConcurrency := 20
 	mlimit := getMetricConcurrency(a.cfg)
+	plimit := getProductConcurrency(a.cfg)
+
+	// 计算实际并发度并限制最大值
+	// 实际并发度 = region_concurrency × product_concurrency × metric_concurrency
+	// 为保守起见，假设 region_concurrency = 4（默认值）
+	estimatedMaxConcurrency := 4 * plimit * mlimit
+	if estimatedMaxConcurrency > maxTotalConcurrency {
+		// 自动降级配置，确保并发度不超过最大值
+		if plimit > 1 && mlimit > 1 {
+			// 同时降低产品和指标并发
+			ratio := float64(maxTotalConcurrency) / float64(estimatedMaxConcurrency)
+			plimit = int(float64(plimit) * ratio)
+			mlimit = int(float64(mlimit) * ratio)
+			if plimit < 1 {
+				plimit = 1
+			}
+			if mlimit < 1 {
+				mlimit = 1
+			}
+		} else if plimit > mlimit {
+			plimit = maxTotalConcurrency / (4 * mlimit)
+			if plimit < 1 {
+				plimit = 1
+			}
+		} else {
+			mlimit = maxTotalConcurrency / (4 * plimit)
+			if mlimit < 1 {
+				mlimit = 1
+			}
+		}
+		baseLog.Warnf("并发配置过高，已自动降级：product_concurrency=%d, metric_concurrency=%d, 预估最大并发=%d（限制=%d）",
+			plimit, mlimit, 4*plimit*mlimit, maxTotalConcurrency)
+	} else if plimit > 2 || mlimit > 5 {
+		// 如果配置值高于推荐值但未超过最大值，记录警告
+		baseLog.Warnf("并发配置高于推荐值：product_concurrency=%d (推荐≤1), metric_concurrency=%d (推荐≤2), 预估最大并发=%d",
+			plimit, mlimit, 4*plimit*mlimit)
+	}
+
+	// 指标并发控制（命名空间/指标级）
 	msem := make(chan struct{}, mlimit)
 	var mwg sync.WaitGroup
 
 	// 产品并发控制（命名空间级）：控制同一地域内不同命名空间（如 ECS/BWP）并行度，避免串行导致总时长过长。
-	plimit := getProductConcurrency(a.cfg)
 	psem := make(chan struct{}, plimit)
 	var pwg sync.WaitGroup
 
@@ -600,28 +656,19 @@ func (a *Collector) getMetricMeta(client CMSClient, accountID, namespace, metric
 		req.MetricName = metric
 		start := time.Now()
 		var resp *cms.DescribeMetricMetaListResponse
-		var apiErr error
 
-		// 重试机制：最多重试 5 次
-		for attempt := 0; attempt < 5; attempt++ {
-			resp, apiErr = client.DescribeMetricMetaList(req)
-			if apiErr == nil {
-				break
-			}
-			status := common.ClassifyAliyunError(apiErr)
-			if status == "limit_error" {
-				// 记录限流指标
-				metrics.RateLimitTotal.WithLabelValues("aliyun", "DescribeMetricMetaList").Inc()
-				sleep := time.Duration(200*(1<<attempt)) * time.Millisecond
-				if sleep > 5*time.Second {
-					sleep = 5 * time.Second
+		apiErr := common.RetryWithBackoff(context.Background(), common.DefaultRetryConfig(), func() error {
+			var err error
+			resp, err = client.DescribeMetricMetaList(req)
+			if err != nil {
+				status := common.ClassifyAliyunError(err)
+				if status == "limit_error" {
+					metrics.RateLimitTotal.WithLabelValues("aliyun", "DescribeMetricMetaList").Inc()
 				}
-				ctxLog.Debugf("getMetricMeta 限流重试，命名空间=%s 指标=%s 重试次数=%d/%d 延迟=%v", namespace, metric, attempt+1, 5, sleep)
-				time.Sleep(sleep)
-				continue
+				return err
 			}
-			break
-		}
+			return nil
+		}, common.ShouldRetryForLimitError(common.AliyunClassifier))
 
 		if apiErr != nil {
 			st := common.ClassifyAliyunError(apiErr)
@@ -632,11 +679,24 @@ func (a *Collector) getMetricMeta(client CMSClient, accountID, namespace, metric
 			}
 			metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricMetaList", st).Inc()
 			metrics.RecordRequest("aliyun", "DescribeMetricMetaList", st)
+
+			if a.degradeMgr != nil {
+				accountKey := accountID
+				disabled := a.degradeMgr.RecordFailure(accountKey, common.ResourceTypeAccount, apiErr.Error())
+				if disabled {
+					ctxLog.With("error", apiErr).Warn("账号因元数据 API 失败已降级")
+				}
+			}
 			// 错误时仍尝试使用默认维度，不返回空维度
 		} else {
 			metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricMetaList", "success").Inc()
 			metrics.RequestDuration.WithLabelValues("aliyun", "DescribeMetricMetaList").Observe(time.Since(start).Seconds())
 			metrics.RecordRequest("aliyun", "DescribeMetricMetaList", "success")
+
+			if a.degradeMgr != nil {
+				accountKey := accountID
+				a.degradeMgr.RecordSuccess(accountKey, common.ResourceTypeAccount)
+			}
 
 			// 【诊断日志】API 返回结果的详细信息
 			if len(resp.Resources.Resource) == 0 {
@@ -886,28 +946,28 @@ func containsResource(list []string, r string) bool {
 
 //
 
-// getMetricConcurrency 获取指标并发数配置，默认值为 5
+// getMetricConcurrency 获取指标并发数配置，默认值为 2（降低以避免限流）
 func getMetricConcurrency(cfg *config.Config) int {
 	if cfg == nil {
-		return 5
+		return 2
 	}
 	server := cfg.GetServer()
 	if server != nil && server.MetricConcurrency > 0 {
 		return server.MetricConcurrency
 	}
-	return 5
+	return 2
 }
 
-// getProductConcurrency 获取产品并发数配置，默认值为 2
+// getProductConcurrency 获取产品并发数配置，默认值为 1（降低以避免限流）
 func getProductConcurrency(cfg *config.Config) int {
 	if cfg == nil {
-		return 2
+		return 1
 	}
 	server := cfg.GetServer()
 	if server != nil && server.ProductConcurrency > 0 {
 		return server.ProductConcurrency
 	}
-	return 2
+	return 1
 }
 
 // isResourceAllowed 检查账号是否允许采集指定命名空间的资源
@@ -975,6 +1035,8 @@ func (a *Collector) cacheKey(account config.CloudAccount, region, namespace, rty
 
 func (a *Collector) listALBIDs(account config.CloudAccount, region string) []string {
 	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccessKeyID, "region", region, "rtype", "alb")
+	// 记录当前方法名，用于在 clearTagCache 中标识资源类型
+	_ = "alb"
 
 	if ids, _, hit := a.getCachedIDs(account, region, "acs_alb", "alb"); hit {
 		return ids
@@ -1035,6 +1097,7 @@ func (a *Collector) listALBIDs(account config.CloudAccount, region string) []str
 						metrics.RateLimitTotal.WithLabelValues("aliyun", "ListLoadBalancers").Inc()
 					}
 					if status == "auth_error" || status == "region_skip" {
+						a.clearTagCache(account, region, "alb")
 						out = []string{}
 						break
 					}
@@ -1097,6 +1160,7 @@ func (a *Collector) listALBIDs(account config.CloudAccount, region string) []str
 		cmsClient, cmsErr := a.clientFactory.NewCMSClient(region, account.AccessKeyID, account.AccessKeySecret)
 		if cmsErr != nil {
 			ctxLog.Warnf("ALB CMS 客户端创建失败，无法回退到 CMS 枚举: %v", cmsErr)
+			a.clearTagCache(account, region, "alb")
 			// 不缓存空结果，允许下次重新尝试
 			return []string{}
 		}
@@ -1195,6 +1259,7 @@ func (a *Collector) listNLBIDs(account config.CloudAccount, region string) []str
 						metrics.RateLimitTotal.WithLabelValues("aliyun", "ListLoadBalancers").Inc()
 					}
 					if status == "auth_error" || status == "region_skip" {
+						a.clearTagCache(account, region, "nlb")
 						out = []string{}
 						break
 					}
@@ -1257,6 +1322,7 @@ func (a *Collector) listNLBIDs(account config.CloudAccount, region string) []str
 		cmsClient, cmsErr := a.clientFactory.NewCMSClient(region, account.AccessKeyID, account.AccessKeySecret)
 		if cmsErr != nil {
 			ctxLog.Warnf("NLB CMS 客户端创建失败，无法回退到 CMS 枚举: %v", cmsErr)
+			a.clearTagCache(account, region, "nlb")
 			// 不缓存空结果，允许下次重新尝试
 			return []string{}
 		}
@@ -1398,6 +1464,7 @@ func (a *Collector) getCachedIDs(account config.CloudAccount, region, namespace,
 	entry, ok := a.resCache[a.cacheKey(account, region, namespace, rtype)]
 	a.cacheMu.RUnlock()
 	if !ok {
+		metrics.RecordCacheMiss("resource_discovery")
 		return nil, nil, false
 	}
 	ttlDur := time.Hour
@@ -1415,16 +1482,25 @@ func (a *Collector) getCachedIDs(account config.CloudAccount, region, namespace,
 		}
 	}
 	if time.Since(entry.UpdatedAt) > ttlDur {
+		metrics.RecordCacheMiss("resource_discovery")
 		return nil, nil, false
 	}
+	metrics.RecordCacheHit("resource_discovery")
 	return entry.IDs, entry.Meta, true
 }
 
 func (a *Collector) setCachedIDs(account config.CloudAccount, region, namespace, rtype string, ids []string, meta map[string]interface{}) {
+	// 不缓存空结果，避免 API 临时故障导致资源永久不可见
+	if len(ids) == 0 {
+		ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "namespace", namespace, "rtype", rtype)
+		ctxLog.Debugf("资源列表为空，跳过缓存（允许下次重新尝试）")
+		return
+	}
 	a.cacheMu.Lock()
 	a.resCache[a.cacheKey(account, region, namespace, rtype)] = resCacheEntry{IDs: ids, Meta: meta, UpdatedAt: time.Now()}
 	a.cacheMu.Unlock()
 }
+
 func (a *Collector) buildALBMetaByCMS(client CMSClient, region string, ids []string) map[string]interface{} {
 	// region 参数保留用于未来可能的日志记录或错误处理
 	_ = region
@@ -2003,40 +2079,45 @@ func (a *Collector) processMetricBatch(client CMSClient, req *cms.DescribeMetric
 			req.NextToken = nextToken
 		}
 		var resp *cms.DescribeMetricLastResponse
-		var callErr error
-		for attempt := 0; attempt < 5; attempt++ {
-			startReq := time.Now()
-			resp, callErr = client.DescribeMetricLast(req)
-			if callErr == nil {
-				metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricLast", "success").Inc()
-				metrics.RequestDuration.WithLabelValues("aliyun", "DescribeMetricLast").Observe(time.Since(startReq).Seconds())
-				metrics.RecordRequest("aliyun", "DescribeMetricLast", "success")
-				break
+		startReq := time.Now()
+		callErr := common.RetryWithBackoff(context.Background(), common.DefaultRetryConfig(), func() error {
+			var err error
+			resp, err = client.DescribeMetricLast(req)
+			if err != nil {
+				status := common.ClassifyAliyunError(err)
+				metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricLast", status).Inc()
+				metrics.RecordRequest("aliyun", "DescribeMetricLast", status)
+				if status == "limit_error" {
+					metrics.RateLimitTotal.WithLabelValues("aliyun", "DescribeMetricLast").Inc()
+				}
+				return err
 			}
-			status := common.ClassifyAliyunError(callErr)
-			metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricLast", status).Inc()
-			metrics.RecordRequest("aliyun", "DescribeMetricLast", status)
-			if status == "auth_error" || status == "region_skip" {
-				ctxLog.Warnf("CMS DescribeMetricLast error status=%s: %v", status, callErr)
-				break
-			}
-			if status == "limit_error" {
-				// 记录限流指标
-				metrics.RateLimitTotal.WithLabelValues("aliyun", "DescribeMetricLast").Inc()
-			}
+			return nil
+		}, common.ShouldRetryForLimitError(common.AliyunClassifier))
 
-			// 指数退避重试
-			sleep := time.Duration(200*(1<<attempt)) * time.Millisecond
-			if sleep > 5*time.Second {
-				sleep = 5 * time.Second
-			}
-			time.Sleep(sleep)
-		}
-		if callErr != nil {
+		if callErr == nil {
+			metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricLast", "success").Inc()
+			metrics.RequestDuration.WithLabelValues("aliyun", "DescribeMetricLast").Observe(time.Since(startReq).Seconds())
+			metrics.RecordRequest("aliyun", "DescribeMetricLast", "success")
+		} else {
 			ctxLog.Errorf("拉取指标失败 error=%v", callErr)
+			if a.degradeMgr != nil {
+				accountKey := account.Provider + ":" + account.AccountID
+				disabled := a.degradeMgr.RecordFailure(accountKey, common.ResourceTypeAccount, callErr.Error())
+				if disabled {
+					ctxLog.With("error", callErr).Warn("账号因指标 API 失败已降级")
+				}
+			}
 			// API 调用失败时，不暴露指标（而不是设置 0 值）
 			// 根据 Prometheus 最佳实践：API 调用失败时，不应该暴露指标
 			break
+		}
+
+		if callErr == nil {
+			if a.degradeMgr != nil {
+				accountKey := account.Provider + ":" + account.AccountID
+				a.degradeMgr.RecordSuccess(accountKey, common.ResourceTypeAccount)
+			}
 		}
 
 		var points []map[string]interface{}
@@ -2091,7 +2172,7 @@ func (a *Collector) processMetricBatch(client CMSClient, req *cms.DescribeMetric
 					}
 				}
 				vec.WithLabelValues(labels...).Set(0)
-				metrics.IncSampleCount(ns, 1)
+				metrics.IncSampleCountWithLabels(account.AccountID, region, rtype, ns, 1)
 			}
 			continue
 		}
@@ -2197,7 +2278,7 @@ func (a *Collector) processMetricBatch(client CMSClient, req *cms.DescribeMetric
 						}
 					}
 					uvec.WithLabelValues(ulabels...).Set(util)
-					metrics.IncSampleCount(ns, 1)
+					metrics.IncSampleCountWithLabels(account.AccountID, region, rtype, ns, 1)
 				}
 			}
 		nextPoint:

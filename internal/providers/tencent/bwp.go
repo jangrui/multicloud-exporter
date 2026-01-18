@@ -17,6 +17,12 @@ import (
 func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []string {
 	ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "BWP")
 
+	regionKey := account.Provider + ":" + account.AccountID + ":" + region
+	if t.degradeMgr != nil && t.degradeMgr.IsDisabled(regionKey, providerscommon.ResourceTypeRegion) {
+		ctxLog.Debugf("BWP 枚举带宽包 - 区域已降级，跳过")
+		return []string{}
+	}
+
 	if ids, hit := t.getCachedIDs(account, region, "QCE/BWP", "bwp"); hit {
 		ctxLog.Debugf("BWP 枚举带宽包 - 缓存命中 - 数量=%d", len(ids))
 		return ids
@@ -24,6 +30,9 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 
 	client, err := t.clientFactory.NewVPCClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
+		if t.degradeMgr != nil {
+			t.degradeMgr.RecordFailure(regionKey, providerscommon.ResourceTypeRegion, err.Error())
+		}
 		return []string{}
 	}
 
@@ -47,6 +56,9 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 				metrics.RequestTotal.WithLabelValues("tencent", "DescribeBandwidthPackages", "success").Inc()
 				metrics.RecordRequest("tencent", "DescribeBandwidthPackages", "success")
 				metrics.RequestDuration.WithLabelValues("tencent", "DescribeBandwidthPackages").Observe(time.Since(start).Seconds())
+				if t.degradeMgr != nil {
+					t.degradeMgr.RecordSuccess(regionKey, providerscommon.ResourceTypeRegion)
+				}
 				break
 			}
 			status := providerscommon.ClassifyTencentError(callErr)
@@ -57,6 +69,12 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 				metrics.RateLimitTotal.WithLabelValues("tencent", "DescribeBandwidthPackages").Inc()
 			}
 			if status == "auth_error" {
+				if t.degradeMgr != nil {
+					disabled := t.degradeMgr.RecordFailure(regionKey, providerscommon.ResourceTypeRegion, callErr.Error())
+					if disabled {
+						ctxLog.Warn("区域已降级")
+					}
+				}
 				return []string{}
 			}
 			// 指数退避重试
@@ -68,6 +86,12 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 		}
 		if callErr != nil {
 			ctxLog.Errorf("BWP 枚举带宽包 - API: DescribeBandwidthPackages - 失败 offset=%d: %v", offset, callErr)
+			if t.degradeMgr != nil {
+				disabled := t.degradeMgr.RecordFailure(regionKey, providerscommon.ResourceTypeRegion, callErr.Error())
+				if disabled {
+					ctxLog.Warn("区域已降级")
+				}
+			}
 			break
 		}
 
@@ -223,12 +247,13 @@ func (t *Collector) fetchBWPMonitor(account config.CloudAccount, region string, 
 				val := *v
 				alias, count := metrics.NamespaceGauge("QCE/BWP", m)
 				scaled := scaleBWPMetric(m, val)
+				metrics.IncSampleCountWithLabels(account.AccountID, region, "bwp", "QCE/BWP", 1)
 				labels := []string{"tencent", account.AccountID, region, "bwp", rid, "QCE/BWP", m, ""}
 				for len(labels) < count {
 					labels = append(labels, "")
 				}
 				alias.WithLabelValues(labels...).Set(scaled)
-				metrics.IncSampleCount("QCE/BWP", 1)
+				metrics.IncSampleCountWithLabels(account.AccountID, region, "bwp", "QCE/BWP", 1)
 			}
 		}
 	}

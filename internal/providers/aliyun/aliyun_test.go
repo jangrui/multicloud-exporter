@@ -2,6 +2,7 @@ package aliyun
 
 import (
 	"encoding/json"
+	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/providers/common"
 	"multicloud-exporter/internal/utils"
 	"testing"
@@ -149,5 +150,104 @@ func TestAssignRegion(t *testing.T) {
 	}
 	if hits != 1 {
 		t.Fatalf("assign single shard")
+	}
+}
+
+func TestContainsResource(t *testing.T) {
+	tests := []struct {
+		name string
+		list []string
+		r    string
+		want bool
+	}{
+		{"通配符匹配所有", []string{"*"}, "ecs", true},
+		{"精确匹配", []string{"ecs", "oss"}, "ecs", true},
+		{"不匹配", []string{"ecs", "oss"}, "slb", false},
+		{"空列表", []string{}, "ecs", false},
+		{"大小写不敏感", []string{"ECS"}, "ecs", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := containsResource(tt.list, tt.r)
+			if got != tt.want {
+				t.Errorf("containsResource() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetMetricConcurrency(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  *config.Config
+		want int
+	}{
+		{"nil配置返回默认值", nil, 2},
+		{"空配置返回默认值", &config.Config{}, 2},
+		{"配置 MetricConcurrency", &config.Config{
+			Server: &config.ServerConf{
+				MetricConcurrency: 5,
+			},
+		}, 5},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := getMetricConcurrency(tt.cfg)
+			if got != tt.want {
+				t.Errorf("getMetricConcurrency() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGetProductConcurrency(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  *config.Config
+		want int
+	}{
+		{"nil配置返回默认值", nil, 1},
+		{"空配置返回默认值", &config.Config{}, 1},
+		{"配置 ProductConcurrency", &config.Config{
+			Server: &config.ServerConf{
+				ProductConcurrency: 3,
+			},
+		}, 3},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := getProductConcurrency(tt.cfg)
+			if got != tt.want {
+				t.Errorf("getProductConcurrency() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsResourceAllowed(t *testing.T) {
+	tests := []struct {
+		name      string
+		account   config.CloudAccount
+		namespace string
+		want      bool
+	}{
+		{"通配符允许所有", config.CloudAccount{Resources: []string{"*"}}, "acs_oss_dashboard", true},
+		{"精确匹配", config.CloudAccount{Resources: []string{"oss"}}, "acs_oss_dashboard", true},
+		{"不匹配", config.CloudAccount{Resources: []string{"ecs"}}, "acs_oss_dashboard", false},
+		{"s3别名映射到oss", config.CloudAccount{Resources: []string{"s3"}}, "acs_oss_dashboard", true},
+		{"bwp别名映射到cbwp", config.CloudAccount{Resources: []string{"bwp"}}, "acs_bandwidth_package", true},
+		{"未知命名空间", config.CloudAccount{Resources: []string{"*"}}, "unknown", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isResourceAllowed(tt.account, tt.namespace)
+			if got != tt.want {
+				t.Errorf("isResourceAllowed() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }

@@ -9,6 +9,7 @@
 package common
 
 import (
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -292,36 +293,53 @@ func (rm *SmartRegionManager) updateRegionStatusInternal(accountID, region strin
 
 	// 限制每账号区域数量
 	if len(rm.regionMap[accountID]) >= rm.config.MaxRegionsPerAccount {
-		rm.evictLowPriorityRegionsLocked(accountID)
-	}
+		// 在持写锁状态下找到要删除的区域列表
+		var regionsToDelete []string
+		accountRegions := rm.regionMap[accountID]
+		for region, info := range accountRegions {
+			if info.Status == RegionStatusEmpty && info.EmptyCount >= rm.config.EmptyThreshold {
+				regionsToDelete = append(regionsToDelete, region)
+			}
+		}
 
-	rm.regionMap[accountID][region] = info
-}
+		// 按时间排序，删除最旧的（直到满足数量限制）
+		if len(regionsToDelete) > 0 {
+			type regionTime struct {
+				region string
+				time   time.Time
+			}
+			// 构建时间列表
+			var regionTimes []regionTime
+			for _, region := range regionsToDelete {
+				if info, ok := accountRegions[region]; ok {
+					regionTimes = append(regionTimes, regionTime{region: region, time: info.LastSeen})
+				}
+			}
+			// 按时间排序（最旧的在前）
+			sort.Slice(regionTimes, func(i, j int) bool {
+				return regionTimes[i].time.Before(regionTimes[j].time)
+			})
 
-// evictLowPriorityRegionsLocked 驱逐低优先级区域（必须在持锁状态下调用）
-func (rm *SmartRegionManager) evictLowPriorityRegionsLocked(accountID string) {
-	regions := rm.regionMap[accountID]
-	if len(regions) <= rm.config.MaxRegionsPerAccount {
-		return
-	}
+			// 计算需要删除的数量
+			currentCount := len(accountRegions)
+			deleteCount := currentCount - rm.config.MaxRegionsPerAccount + 1
+			if deleteCount > len(regionTimes) {
+				deleteCount = len(regionTimes)
+			}
 
-	// 找出最旧的空区域
-	var oldestRegion string
-	var oldestTime time.Time
-	for region, info := range regions {
-		if info.Status == RegionStatusEmpty && info.EmptyCount >= rm.config.EmptyThreshold {
-			if oldestRegion == "" || info.LastSeen.Before(oldestTime) {
-				oldestRegion = region
-				oldestTime = info.LastSeen
+			// 记录删除的区域（在锁内）
+			for i := 0; i < deleteCount; i++ {
+				region := regionTimes[i].region
+				ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Eviction", "account_id", accountID, "region", region)
+				ctxLog.Infof("驱逐旧区域（当前=%d, 最大=%d）", currentCount, rm.config.MaxRegionsPerAccount)
+
+				// 在锁内删除
+				delete(accountRegions, region)
 			}
 		}
 	}
 
-	if oldestRegion != "" {
-		delete(regions, oldestRegion)
-		ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Eviction", "account_id", accountID, "region", oldestRegion)
-		ctxLog.Infof("驱逐旧区域")
-	}
+	rm.regionMap[accountID][region] = info
 }
 
 // MarkRegionForRediscovery 标记区域为需重新发现

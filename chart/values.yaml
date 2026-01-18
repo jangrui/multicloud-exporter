@@ -86,11 +86,11 @@ cluster:
 # 控制多个 Pod 启动时的首次采集时机，避免同时向云厂商 API 发起大量请求导致限流
 firstRun:
   strategy: auto         # 首次采集策略：auto（自动）| immediate（立即）| staggered（强制错峰）；默认 auto
-                         # - auto: 单 Pod 立即采集，2-10 个 Pod 线性延迟，>10 个 Pod 指数退避延迟
-                         # - immediate: 强制所有 Pod 立即采集（适合小规模或云 API 限流宽松的场景）
-                         # - staggered: 强制线性延迟，均匀分布（适合对云 API 限流极度敏感的场景）
+                          # - auto: 单 Pod 立即采集，2-10 个 Pod 线性延迟，>10 个 Pod 指数退避延迟
+                          # - immediate: 强制所有 Pod 立即采集（适合小规模或云 API 限流宽松的场景）
+                          # - staggered: 强制线性延迟，均匀分布（适合对云 API 限流极度敏感的场景）
   maxDelay: 180          # 首次采集最大延迟秒数；默认 180 秒
-                         # 示例：20 个 Pod，maxDelay=180s，Pod-0 立即，Pod-19 延迟约 170 秒
+                          # 示例：20 个 Pod，maxDelay=180s，Pod-0 立即，Pod-19 延迟约 170 秒
 
 # 区域发现配置（智能区域选择）
 # 自动识别有资源的区域并优先采集，跳过连续多次无资源的区域
@@ -98,8 +98,6 @@ regionDiscovery:
   enabled: true                # 是否启用智能区域发现；默认 true
   discoveryInterval: 1h        # 重新发现周期；支持 s/m/h/d；默认 1h（从 24h 改为 1h）
   emptyThreshold: 3            # 连续空次数阈值；默认 3
-  dataDir: /app/data           # 数据目录路径；默认 /app/data
-  persistFile: region_status.json  # 持久化文件名（相对于 dataDir）；默认 region_status.json
 
 # 华为云缓存配置（限流优化）
 # 针对华为云的严格限流策略，通过缓存减少 API 调用次数
@@ -121,17 +119,8 @@ server: {}
 #  metric_concurrency: 5              # 指标级并发：同一地域、同一产品下并行处理的指标批次（建议 1-10）；默认 5
 #  # 注意：region_discovery、huawei_cache、first_run 等配置已移至顶层独立配置组
 #  # 如需在 server.yaml 中配置，请参考 configs/server.yaml 模板
-
-# 区域数据持久化配置（可选）：启用后使用 PVC 保存区域状态，跨 Pod 重启保留
-# 默认使用 emptyDir，仅在 Pod 生命周期内保留状态
-regionData:
-  persistence:
-    enabled: false                # 是否启用 PVC 持久化存储；默认 false（使用 emptyDir）
-    storageClass: ""              # StorageClass 名称；留空使用集群默认 StorageClass
-    size: 1Gi                   # PVC 大小；默认 1Gi（区域状态文件很小，1Gi 已足够）
-    accessMode: ReadWriteOnce      # 访问模式；默认 ReadWriteOnce
-    existingClaim: ""            # 使用已存在的 PVC 名称；可选（留空时创建新 PVC）
-
+#  # 区域数据持久化功能已移除，现在使用纯内存设计，通过定期刷新和集群同步保证数据新鲜度
+# 
 # 环境变量覆盖（按需）：如果设置将覆盖 server.yaml 中的对应配置
 # 所有环境变量都会传递给容器，支持覆盖 server.yaml 中的配置
 env: {}
@@ -171,8 +160,6 @@ env: {}
 #  REGION_DISCOVERY_ENABLED: "true"         # 是否启用智能区域发现；默认 true
 #  REGION_DISCOVERY_INTERVAL: "1h"          # 重新发现周期；支持 s/m/h/d；默认 1h（从 24h 改为 1h）
 #  REGION_EMPTY_THRESHOLD: "3"              # 连续空次数阈值；默认 3
-#  REGION_DATA_DIR: "/app/data"             # 数据目录路径；默认 /app/data
-#  REGION_PERSIST_FILE: "region_status.json"  # 持久化文件名；默认 region_status.json
 #
 #  # 华为云缓存配置 - 对应 huaweiCache 配置组
 #  HUAWEI_CACHE_ENABLED: "true"       # 是否启用华为云缓存；默认 true
@@ -208,7 +195,7 @@ accounts:
     #     resources: ["bwp"]
     aws: []
     #   - name: aws-acc-0
-    #     # AWS 的 S3 采集使用全局接口（ListBuckets），regions 可留空或使用 ["*"]
+    #     AWS 的 S3 采集使用全局接口（ListBuckets），regions 可留空或使用 ["*"]
     #     regions: ["*"]
     #     resources: ["s3"]
 

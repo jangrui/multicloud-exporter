@@ -17,9 +17,12 @@ import (
 	"multicloud-exporter/internal/providers"
 	_ "multicloud-exporter/internal/providers/aliyun"
 	_ "multicloud-exporter/internal/providers/aws"
+	"multicloud-exporter/internal/providers/common"
 	_ "multicloud-exporter/internal/providers/huawei"
 	_ "multicloud-exporter/internal/providers/tencent"
 	"multicloud-exporter/internal/utils"
+
+	"go.uber.org/zap"
 )
 
 // Status 定义采集器状态
@@ -43,14 +46,22 @@ type Collector struct {
 	providers  map[string]providers.Provider
 	status     Status
 	statusLock sync.RWMutex
+	degradeMgr *common.Manager
 }
 
 // NewCollector 创建调度器并初始化各云采集器
 func NewCollector(cfg *config.Config, mgr *discovery.Manager, clusterMgr *cluster.SyncManager) *Collector {
+	ctxLog := logger.NewContextLogger("Collector", "resource_type", "Init")
+
+	degradeCfg := common.DefaultDegradationConfig()
+	degradeLogger := zap.NewNop()
+	degradeMgr := common.NewManager(degradeCfg, degradeLogger)
+
 	c := &Collector{
-		cfg:       cfg,
-		disc:      mgr,
-		providers: make(map[string]providers.Provider),
+		cfg:        cfg,
+		disc:       mgr,
+		providers:  make(map[string]providers.Provider),
+		degradeMgr: degradeMgr,
 		status: Status{
 			LastResults: make(map[string]AccountStat),
 		},
@@ -58,10 +69,47 @@ func NewCollector(cfg *config.Config, mgr *discovery.Manager, clusterMgr *cluste
 
 	for _, name := range providers.GetAllProviders() {
 		if factory, ok := providers.GetFactory(name); ok {
-			c.providers[name] = factory(cfg, mgr, clusterMgr)
+			provider := factory(cfg, mgr, clusterMgr)
+
+			if degradeable, ok := provider.(providers.DegradableProvider); ok {
+				degradeable.SetDegradationManager(degradeMgr)
+			}
+
+			c.providers[name] = provider
 		}
 	}
+
+	c.checkAndWarnConcurrency()
+
+	ctxLog.Info("采集器初始化完成，降级管理器已启用")
+
 	return c
+}
+
+// checkAndWarnConcurrency 检查并发配置并警告
+const maxTotalConcurrency = 20
+
+func (c *Collector) checkAndWarnConcurrency() {
+	if c.cfg == nil || c.cfg.GetServer() == nil {
+		return
+	}
+
+	server := c.cfg.GetServer()
+	region := server.RegionConcurrency
+	product := server.ProductConcurrency
+	metric := server.MetricConcurrency
+
+	if region == 0 || product == 0 || metric == 0 {
+		return
+	}
+
+	total := region * product * metric
+
+	if total > maxTotalConcurrency {
+		ctxLog := logger.NewContextLogger("Collector", "resource_type", "Init")
+		ctxLog.Warnf("并发配置过高，自动调整：%d × %d × %d = %d > %d，建议降低配置值",
+			region, product, metric, total, maxTotalConcurrency)
+	}
 }
 
 // GetStatus 返回当前采集状态
@@ -79,6 +127,11 @@ func (c *Collector) GetStatus() Status {
 		Duration:    c.status.Duration,
 		LastResults: res,
 	}
+}
+
+// GetDegradationManager 返回降级管理器
+func (c *Collector) GetDegradationManager() *common.Manager {
+	return c.degradeMgr
 }
 
 // CollectFiltered 执行带过滤条件的采集
@@ -142,7 +195,9 @@ func (c *Collector) collectInternal(filterProvider, filterResource string) {
 	}
 
 	// 重置命名空间样本计数
-	metrics.ResetSampleCounts()
+	// 注意：多副本环境下不应重置样本计数，因为会导致其他 Pod 的计数被覆盖
+	// 改为增量计数，每个采集周期累加
+	// metrics.ResetSampleCounts()
 	c.statusLock.Lock()
 	c.status.LastStart = time.Now()
 	c.statusLock.Unlock()
@@ -234,8 +289,15 @@ func (c *Collector) collectAccount(account config.CloudAccount, filterResource s
 		return
 	}
 
+	accountKey := fmt.Sprintf("%s:%s", account.Provider, account.AccountID)
+
+	if c.degradeMgr != nil && c.degradeMgr.IsDisabled(accountKey, common.ResourceTypeAccount) {
+		ctxLog := logger.NewContextLogger("Collector", "provider", account.Provider, "account_id", account.AccountID)
+		ctxLog.Warn("账号已降级，跳过采集")
+		return
+	}
+
 	if filterResource != "" {
-		// Only collect specified resource
 		account.Resources = []string{filterResource}
 	} else if len(account.Resources) == 0 || (len(account.Resources) == 1 && account.Resources[0] == "*") {
 		account.Resources = p.GetDefaultResources()

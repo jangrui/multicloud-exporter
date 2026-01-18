@@ -1,6 +1,7 @@
 package aliyun
 
 import (
+	"context"
 	"strings"
 	"sync"
 	"time"
@@ -89,40 +90,32 @@ func (a *Collector) listOSSIDs(account config.CloudAccount, region string) []str
 			marker := ""
 			for {
 				var lsRes oss.ListBucketsResult
-				var callErr error
 				start := time.Now()
 
-				// Retry logic with exponential backoff (consistent with AWS S3)
-				for attempt := 0; attempt < 5; attempt++ {
-					lsRes, callErr = client.ListBuckets(oss.Marker(marker), oss.MaxKeys(100))
-					if callErr == nil {
-						metrics.RequestTotal.WithLabelValues("aliyun", "ListBuckets", "success").Inc()
-						metrics.RecordRequest("aliyun", "ListBuckets", "success")
-						metrics.RequestDuration.WithLabelValues("aliyun", "ListBuckets").Observe(time.Since(start).Seconds())
-						break
+				callErr := common.RetryWithBackoff(context.Background(), common.DefaultRetryConfig(), func() error {
+					var err error
+					lsRes, err = client.ListBuckets(oss.Marker(marker), oss.MaxKeys(100))
+					if err != nil {
+						status := common.ClassifyAliyunError(err)
+						metrics.RequestTotal.WithLabelValues("aliyun", "ListBuckets", status).Inc()
+						metrics.RecordRequest("aliyun", "ListBuckets", status)
+						if status == "limit_error" {
+							metrics.RateLimitTotal.WithLabelValues("aliyun", "ListBuckets").Inc()
+						}
+						return err
 					}
+					return nil
+				}, common.ShouldRetryForLimitError(common.AliyunClassifier))
+
+				if callErr == nil {
+					metrics.RequestTotal.WithLabelValues("aliyun", "ListBuckets", "success").Inc()
+					metrics.RecordRequest("aliyun", "ListBuckets", "success")
+					metrics.RequestDuration.WithLabelValues("aliyun", "ListBuckets").Observe(time.Since(start).Seconds())
+				} else {
 					status := common.ClassifyAliyunError(callErr)
-					metrics.RequestTotal.WithLabelValues("aliyun", "ListBuckets", status).Inc()
-					metrics.RecordRequest("aliyun", "ListBuckets", status)
-					if status == "limit_error" {
-						metrics.RateLimitTotal.WithLabelValues("aliyun", "ListBuckets").Inc()
-					}
 					if status == "auth_error" {
 						ctxLog.Errorf("OSS ListBuckets 认证失败 account=%s region=%s: %v", account.AccountID, region, callErr)
-						return nil, callErr
 					}
-					if attempt < 4 {
-						sleep := time.Duration(200*(1<<attempt)) * time.Millisecond
-						if sleep > 5*time.Second {
-							sleep = 5 * time.Second
-						}
-						ctxLog.Debugf("OSS ListBuckets 重试 account=%s region=%s attempt=%d/%d sleep=%v",
-							account.AccountID, region, attempt+1, 5, sleep)
-						time.Sleep(sleep)
-					}
-				}
-
-				if callErr != nil {
 					ctxLog.Errorf("OSS ListBuckets 失败 account=%s region=%s: %v", account.AccountID, region, callErr)
 					return nil, callErr
 				}

@@ -186,7 +186,7 @@ func (t *Collector) fetchGWLBMonitor(account config.CloudAccount, region string,
 					labels = append(labels, "")
 				}
 				alias.WithLabelValues(labels...).Set(val)
-				metrics.IncSampleCount("qce/gwlb", 1)
+				metrics.IncSampleCountWithLabels(account.AccountID, region, "gwlb", "qce/gwlb", 1)
 			}
 		}
 	}

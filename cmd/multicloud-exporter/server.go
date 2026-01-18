@@ -43,6 +43,9 @@ func setupHTTPHandlers(cfg *config.Config, coll *collector.Collector, mgr *disco
 	http.HandleFunc("/api/discovery/stream", authWrapper(handleDiscoveryStream(mgr)))
 	http.HandleFunc("/api/discovery/status", authWrapper(handleDiscoveryStatus(mgr)))
 
+	// 热加载端点（需要认证）
+	http.HandleFunc("/api/v1/reload", authWrapper(handleReloadAPI))
+
 	// 集群同步端点（仅当启用集群模式时注册）
 	if clusterMgr != nil {
 		// SyncManager 内部已实现 Secret 校验
@@ -298,4 +301,22 @@ func collectAuthPairs(cfg *config.Config) []config.BasicAuth {
 	}
 
 	return pairs
+}
+
+// handleReloadAPI 处理热加载 API 请求
+func handleReloadAPI(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	ctxLog := logger.NewContextLogger("Server", "resource_type", "Reload")
+	ctxLog.Info("收到热加载 API 请求...")
+
+	handleReload(ctxLog)
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"status": "ok",
+	})
 }

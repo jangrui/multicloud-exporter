@@ -10,6 +10,7 @@ import (
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/discovery"
 	"multicloud-exporter/internal/logger"
+	"multicloud-exporter/internal/metrics"
 	providerscommon "multicloud-exporter/internal/providers/common"
 	"multicloud-exporter/internal/utils"
 )
@@ -35,6 +36,7 @@ type Collector struct {
 	cacheMu       sync.RWMutex
 	clientFactory ClientFactory
 	regionManager providerscommon.RegionManager
+	degradeMgr    *providerscommon.Manager
 }
 
 type resCacheEntry struct {
@@ -134,6 +136,7 @@ func (h *Collector) getCachedIDs(account config.CloudAccount, region, namespace,
 	entry, ok := h.resCache[h.cacheKey(account, region, namespace, rtype)]
 	h.cacheMu.RUnlock()
 	if !ok || len(entry.IDs) == 0 {
+		metrics.RecordCacheMiss("resource_discovery")
 		return nil, false
 	}
 	ttlDur := time.Hour
@@ -151,13 +154,20 @@ func (h *Collector) getCachedIDs(account config.CloudAccount, region, namespace,
 		}
 	}
 	if time.Since(entry.UpdatedAt) > ttlDur {
+		metrics.RecordCacheMiss("resource_discovery")
 		return nil, false
 	}
+	metrics.RecordCacheHit("resource_discovery")
 	return entry.IDs, true
 }
 
 // setCachedIDs 设置缓存的资源 ID 列表
 func (h *Collector) setCachedIDs(account config.CloudAccount, region, namespace, rtype string, ids []string) {
+	// 不缓存空结果，避免 API 临时故障导致资源永久不可见
+	if len(ids) == 0 {
+		logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "namespace", namespace, "rtype", rtype).Debugf("资源列表为空，跳过缓存（允许下次重新尝试）")
+		return
+	}
 	h.cacheMu.Lock()
 	h.resCache[h.cacheKey(account, region, namespace, rtype)] = resCacheEntry{IDs: ids, UpdatedAt: time.Now()}
 	h.cacheMu.Unlock()

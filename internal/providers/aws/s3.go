@@ -45,6 +45,13 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 		return
 	}
 
+	accountKey := account.Provider + ":" + account.AccountID + ":global"
+	if c.degradeMgr != nil && c.degradeMgr.IsDisabled(accountKey, common.ResourceTypeAccount) {
+		ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", "global", "namespace", s3Prod.Namespace)
+		ctxLog.Debugf("S3 采集 - 账号已降级，跳过")
+		return
+	}
+
 	// 产品级分片判断：S3 是全局的，不依赖 region，使用 "global" 作为 region
 	// 分片键格式：AccountID|Region|Namespace
 	wTotal, wIndex := utils.ClusterConfig()
@@ -61,6 +68,9 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 	// S3 ListBuckets 是全局接口，region 可用 us-east-1。
 	s3Client, err := c.clientFactory.NewS3Client(ctx, "us-east-1", account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
+		if c.degradeMgr != nil {
+			c.degradeMgr.RecordFailure(accountKey, common.ResourceTypeAccount, err.Error())
+		}
 		ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", "us-east-1", "namespace", s3Prod.Namespace)
 		ctxLog.Errorf("S3客户端创建失败: %v", err)
 		return
@@ -73,6 +83,9 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 			metrics.RequestTotal.WithLabelValues("aws", "ListBuckets", "success").Inc()
 			metrics.RecordRequest("aws", "ListBuckets", "success")
 			metrics.RequestDuration.WithLabelValues("aws", "ListBuckets").Observe(time.Since(start).Seconds())
+			if c.degradeMgr != nil {
+				c.degradeMgr.RecordSuccess(accountKey, common.ResourceTypeAccount)
+			}
 			break
 		}
 		status := common.ClassifyAWSError(err)
@@ -82,6 +95,13 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 			metrics.RateLimitTotal.WithLabelValues("aws", "ListBuckets").Inc()
 		}
 		if status == "auth_error" {
+			if c.degradeMgr != nil {
+				disabled := c.degradeMgr.RecordFailure(accountKey, common.ResourceTypeAccount, err.Error())
+				if disabled {
+					ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", "us-east-1", "namespace", s3Prod.Namespace)
+					ctxLog.Warn("S3 账号已降级")
+				}
+			}
 			ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", "us-east-1", "namespace", s3Prod.Namespace)
 			ctxLog.Errorf("S3 ListBuckets 认证失败: %v", err)
 			return
@@ -95,6 +115,13 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 		}
 	}
 	if err != nil {
+		if c.degradeMgr != nil {
+			disabled := c.degradeMgr.RecordFailure(accountKey, common.ResourceTypeAccount, err.Error())
+			if disabled {
+				ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", "us-east-1", "namespace", s3Prod.Namespace)
+				ctxLog.Warn("S3 账号已降级")
+			}
+		}
 		ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", "us-east-1", "namespace", s3Prod.Namespace)
 		ctxLog.Errorf("S3 ListBuckets API调用失败: %v", err)
 		return
@@ -262,6 +289,9 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 					metrics.RequestTotal.WithLabelValues("aws", "GetMetricData", "success").Inc()
 					metrics.RecordRequest("aws", "GetMetricData", "success")
 					metrics.RequestDuration.WithLabelValues("aws", "GetMetricData").Observe(time.Since(reqStart).Seconds())
+					if c.degradeMgr != nil {
+						c.degradeMgr.RecordSuccess(accountKey, common.ResourceTypeAccount)
+					}
 					break
 				}
 				status := common.ClassifyAWSError(err)
@@ -271,6 +301,13 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 					metrics.RateLimitTotal.WithLabelValues("aws", "GetMetricData").Inc()
 				}
 				if status == "auth_error" {
+					if c.degradeMgr != nil {
+						disabled := c.degradeMgr.RecordFailure(accountKey, common.ResourceTypeAccount, err.Error())
+						if disabled {
+							ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", "us-east-1", "namespace", s3Prod.Namespace)
+							ctxLog.Warn("S3 账号已降级")
+						}
+					}
 					ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", "us-east-1", "namespace", s3Prod.Namespace)
 					ctxLog.Errorf("CloudWatch GetMetricData 认证失败, 指标=%s: %v", metricName, err)
 					break
@@ -284,6 +321,9 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 				}
 			}
 			if err != nil {
+				if c.degradeMgr != nil {
+					c.degradeMgr.RecordFailure(accountKey, common.ResourceTypeAccount, err.Error())
+				}
 				ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", "us-east-1", "namespace", s3Prod.Namespace)
 				ctxLog.Warnf("CloudWatch GetMetricData API调用失败, 指标=%s, 批次=%d-%d: %v", metricName, batchStart, batchEnd, err)
 				continue

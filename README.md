@@ -697,6 +697,11 @@ docker run -d \
   multicloud-exporter
 ```
 
+### 监控指标
+- [监控指标使用指南](docs/metrics-guide.md)：说明所有基础指标的用途和标签，提供派生指标计算方法和 PromQL 查询示例
+- [错误处理和重试策略](docs/error-handling.md)：说明统一的错误分类体系、重试策略配置和限流处理机制
+- [故障排查指南](docs/troubleshooting.md)：提供日志排查方法和步骤，提供常见问题的排查和解决方案
+
 ## 指标格式
 
 ### 业务指标

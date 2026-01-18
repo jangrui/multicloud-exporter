@@ -382,7 +382,7 @@ func (h *Collector) fetchOBSMonitor(account config.CloudAccount, region string, 
 						labels = append(labels, "")
 					}
 					vec.WithLabelValues(labels...).Set(val)
-					metrics.IncSampleCount(prod.Namespace, 1)
+					metrics.IncSampleCountWithLabels(account.AccountID, region, "obs", prod.Namespace, 1)
 
 					ctxLog.Debugf("OBS 暴露指标，指标=%s bucket=%s period=%s 值=%.2f", metricName, resourceID, periodStr, val)
 				}

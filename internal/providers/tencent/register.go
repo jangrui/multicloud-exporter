@@ -5,6 +5,7 @@ import (
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/discovery"
 	"multicloud-exporter/internal/providers"
+	providerscommon "multicloud-exporter/internal/providers/common"
 )
 
 // GetDefaultResources 返回腾讯云默认采集的资源类型
@@ -16,6 +17,11 @@ func (t *Collector) GetDefaultResources() []string {
 // 腾讯云在 collectCLB/collectBWP 等方法中实现了产品级分片（使用 utils.ShouldProcess）
 func (t *Collector) SupportsInternalSharding() bool {
 	return true
+}
+
+// SetDegradationManager 设置降级管理器
+func (t *Collector) SetDegradationManager(mgr *providerscommon.Manager) {
+	t.degradeMgr = mgr
 }
 
 func init() {

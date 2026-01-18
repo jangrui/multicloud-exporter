@@ -21,3 +21,21 @@ func TestCacheTTL(t *testing.T) {
 		t.Fatalf("expired")
 	}
 }
+
+func TestCacheEmptyResult(t *testing.T) {
+	cfg := &config.Config{}
+	a := NewCollector(cfg, nil, nil)
+	acc := config.CloudAccount{AccountID: "test"}
+
+	// 第一次调用：尝试缓存空结果
+	a.setCachedIDs(acc, "cn-test", "acs_alb", "alb", []string{}, map[string]interface{}{})
+
+	// 第二次调用：应该缓存未命中（因为空结果不会被缓存）
+	ids, _, ok := a.getCachedIDs(acc, "cn-test", "acs_alb", "alb")
+	if ok {
+		t.Fatalf("空结果不应该被缓存")
+	}
+	if len(ids) != 0 {
+		t.Fatalf("空结果应该返回空列表")
+	}
+}

@@ -116,19 +116,27 @@ graph LR
     - `headless`: 解析 `CLUSTER_SVC` DNS 获取 Pod IP 列表，匹配 `POD_IP` 得到 `(wTotal,wIndex)`。
     - `file`: 读取 `CLUSTER_FILE` 列表，与 `POD_NAME`/`HOSTNAME` 匹配计算 `(wTotal,wIndex)`。
 
-- 分片与路由：
+  - 分片与路由：
   - 核心算法：集中于 `internal/utils/sharding.go`，提供 `ClusterConfig`（获取总分片数与当前索引）与 `ShouldProcess`（判断是否处理当前 Key）。
-  - 分片策略：
-    - **两级分片机制**：
-      1. **区域级分片**：由各 Provider 在 `Collect` 方法中调用 `ShouldProcess(AccountID|Region)`，决定是否处理该区域。
-      2. **产品级分片**：由各 Provider 在产品采集循环中调用 `ShouldProcess(AccountID|Region|Namespace)`，决定是否处理该产品。
+  - **三级分片机制**（v0.4.6+ 新增）：
+    - **账号级分片**：由 `Collector` 在启动时检查云厂商是否支持内部分片，仅对不支持内部分片的云厂商使用产品级分片。
+      - 实现位置：`internal/collector/collector.go:43-49`
+      - Provider 接口方法：`SupportsInternalSharding() bool`
+      - 判断逻辑：如果 `SupportsInternalSharding()` 返回 `true`，则使用云厂商内部分片（按资源）；否则使用产品级分片（按命名空间）
+    - **区域级分片**：由各 Provider 在 `Collect` 方法中调用 `ShouldProcess(AccountID|Region)`，决定是否处理该区域。
+    - **产品级分片**：由各 Provider 在产品采集循环中调用 `ShouldProcess(AccountID|Region|Namespace)`，决定是否处理该产品。
   - 分片键格式：
     - 区域级：`AccountID|Region`（例如：`acc-1|cn-hangzhou`）
     - 产品级：`AccountID|Region|Namespace`（例如：`acc-1|cn-hangzhou|acs_ecs_dashboard`）
   - 实现位置：
+    - 账号级分片：`internal/collector/collector.go:43-49`、`internal/providers/registry.go`
     - 区域级分片：`internal/providers/aliyun/aliyun.go:161-164`、`internal/providers/tencent/tencent.go:56-60`
     - 产品级分片：`internal/providers/aliyun/aliyun.go:277-283`、`internal/providers/tencent/tencent.go:175-183`、`internal/providers/aws/lb.go:217-235`
   - 哈希函数：`ShardIndex` 在 `internal/utils/sharding.go`，使用 FNV-32a 算法。
+  - **分片机制设计说明**：
+    - 阿里云、腾讯云、华为云、AWS 均在 Provider 层实现了内部分片（按资源维度分片），因此这些云厂商不会使用账号级分片。
+    - 账号级分片主要用于未来接入不支持内部分片的云厂商时，保证多副本环境下的分片正确性。
+    - 产品级分片仅在云厂商不支持内部分片时启用，默认情况下不使用。
 
 - 配置热更新：
   - K8s：使用 ConfigMap + `stakater/reloader` 注解已集成；Chart 已支持。
@@ -414,9 +422,87 @@ graph LR
 - `cluster.discovery`, `cluster.svcName`, `cluster.file`
 - `server.*`（采集并发、日志、周期）
 
-## 6. 智能区域发现机制
+ ## 6. 集群同步机制（v0.4.6+）
 
-### 6.1 架构设计
+ ### 6.1 架构设计
+
+ 集群同步机制通过 HTTP API 在多副本之间同步区域状态，确保各 Pod 对活跃区域的认识一致，避免重复采集或漏采。
+
+ ### 6.2 数据流图
+
+ ```mermaid
+ ---
+ config:
+   theme: mc
+   layout: elk
+ ---
+ graph LR
+   subgraph Pod1["Pod 1"]
+     RM1[RegionManager]
+     SM1[SyncManager]
+   end
+   
+   subgraph Pod2["Pod 2"]
+     RM2[RegionManager]
+     SM2[SyncManager]
+   end
+   
+   subgraph Pod3["Pod 3"]
+     RM3[RegionManager]
+     SM3[SyncManager]
+   end
+   
+   RM1 -->|UpdateStatus| RM1
+   RM1 -->|Broadcast| SM1
+   SM1 -->|HTTP POST /api/v1/cluster/sync| SM2
+   SM1 -->|HTTP POST /api/v1/cluster/sync| SM3
+   SM2 -->|UpdateLocal| RM2
+   SM3 -->|UpdateLocal| RM3
+ ```
+
+ ### 6.3 同步流程
+
+ 1. **状态更新**：某 Pod 采集完某个区域后，调用 `RegionManager.UpdateRegionStatus()` 更新本地状态
+ 2. **广播请求**：`RegionManager` 调用 `SyncManager.BroadcastRegionStatus()` 将状态广播给所有对等节点
+ 3. **超时控制**：每次 HTTP 请求设置 5 秒超时，避免长时间阻塞
+ 4. **重试机制**：每次广播最多重试 3 次，使用指数退避策略（初始 200ms，最大 1s）
+ 5. **失败记录**：如果 3 次重试均失败，记录警告日志并更新 `multicloud_region_sync_failure_total` 指标
+ 6. **异步执行**：所有对等节点的广播请求并发执行，不阻塞主采集流程
+
+ ### 6.4 实现位置
+
+ - **广播实现**：`internal/cluster/manager.go:62-123`
+ - **接收处理**：`cmd/multicloud-exporter/main.go` 中注册 `/api/v1/cluster/sync` 接口
+ - **调用点**：`internal/providers/common/region_manager.go:236`
+
+ ### 6.5 关键参数
+
+ | 参数 | 说明 | 默认值 | 配置位置 |
+ |------|------|--------|----------|
+ | 超时时间 | 每次广播请求的超时时间 | 5s | 代码硬编码（`internal/cluster/manager.go:93`） |
+ | 最大重试次数 | 每次对等节点广播的最大重试次数 | 3 | 代码硬编码（`internal/cluster/manager.go:89`） |
+ | 初始延迟 | 重试的初始延迟时间 | 200ms | 代码硬编码（`internal/cluster/manager.go:113`） |
+ | 最大延迟 | 重试的最大延迟时间 | 1s | 代码硬编码（`internal/cluster/manager.go:114`） |
+
+ ### 7.6 监控指标
+
+ - `multicloud_region_sync_failure_total{cloud_provider}`：集群同步失败次数（按云厂商分类）
+
+ ### 6.7 容错与优化
+
+ **容错机制**：
+ - 超时控制：避免因网络故障或对等节点响应慢导致采集阻塞
+ - 重试机制：在网络抖动时提高广播成功率
+ - 异步执行：不影响主采集流程，即使广播失败也能正常采集
+
+ **优化策略**：
+ - 指数退避：避免频繁重试加剧网络压力
+ - 并发广播：同时向所有对等节点发送，减少总延迟
+ - 失败指标：提供可观测性，便于及时发现同步问题
+
+ ## 7. 智能区域发现机制
+
+ ### 7.1 架构设计
 
 智能区域发现通过管理区域状态，智能选择有资源的区域进行采集，避免重复访问空区域，显著提升采集性能。
 
@@ -459,7 +545,7 @@ graph TB
   RESET --> STATUS
 ```
 
-### 6.3 区域状态定义
+ ### 7.3 区域状态定义
 
 | 状态 | 说明 | 行为 |
 |------|------|------|
@@ -467,7 +553,7 @@ graph TB
 | `active` | 有资源，最近发现到资源 | 优先采集 |
 | `empty` | 无资源，连续 N 次为空 | 达到阈值后跳过采集 |
 
-### 6.4 工作流程
+ ### 7.4 工作流程
 
 1. **初始化**：
    - 从持久化文件加载区域状态（如果存在）
@@ -493,7 +579,7 @@ graph TB
    - 将所有区域重置为 `unknown`
    - 下一轮采集时重新探测资源
 
-### 6.5 配置项
+ ### 7.5 配置项
 
 | 配置项 | 说明 | 默认值 | 环境变量 |
 |--------|------|--------|----------|
@@ -508,14 +594,189 @@ graph TB
 - `multicloud_region_discovery_duration_seconds{cloud_provider}`：区域发现耗时
 - `multicloud_region_skip_total{cloud_provider}`：跳过的空区域次数
 
-### 6.7 性能收益
+ ### 7.7 性能收益
 
 **典型场景**（阿里云 20 个区域，仅 3 个区域有资源）：
 - **API 调用减少**：减少约 85% 的区域枚举 API 调用
 - **采集延迟降低**：采集周期从 60 秒降低到约 15 秒
 - **云配额节省**：显著降低云厂商 API 配额消耗
 
-## 7. 实施清单
+ ## 8. 缓存策略（v0.4.6+）
+
+ ### 8.1 架构设计
+
+ 系统采用多层缓存策略，减少云 API 调用次数，提升采集性能。
+
+ ### 8.2 缓存类型
+
+ | 缓存类型 | 缓存内容 | TTL | 清理机制 | 实现位置 |
+ |----------|----------|-----|----------|----------|
+ | **资源 ID 缓存** | 资源 ID 列表（如 LB ID、Bucket ID） | 由 `discovery_ttl` 配置控制（默认 1h） | TTL 过期自动清理 | `internal/providers/aliyun/aliyun.go:1423-1433` |
+ | **标签缓存** | 资源标签（如 `code_name`） | 由 `tag_cache_ttl` 配置控制（默认 30m） | TTL 过期自动清理 | `internal/providers/aliyun/aliyun.go:196-244` |
+ | **元数据缓存** | 指标元数据（Period、Dimensions 等） | 1h（代码固定） | TTL 过期自动清理 | 各 Provider 内部实现 |
+ | **区域状态缓存** | 区域活跃状态（active/empty/unknown） | 持久化到内存，重启后加载 | 定期重置（默认 24h） | `internal/providers/common/region_manager.go` |
+
+ ### 8.3 空结果缓存策略（v0.4.6+ 新增）
+
+ **问题背景**：
+ - 云 API 临时故障或限流时，资源枚举返回空列表
+ - 如果缓存空结果，会导致资源永久不可见，直到缓存过期
+
+ **解决方案**：
+ - **不缓存空结果**：在 `setCachedIDs` 方法中，如果资源列表为空，直接返回，不写入缓存
+ - **下次重试**：下次采集时会重新调用云 API，提高资源可见性
+
+ **实现位置**：
+ - 阿里云：`internal/providers/aliyun/aliyun.go:1423-1429`
+ - 腾讯云、华为云、AWS：类似实现
+
+ **示例代码**：
+ ```go
+ func (a *Collector) setCachedIDs(account config.CloudAccount, region, namespace, rtype string, ids []string, meta map[string]interface{}) {
+     // 不缓存空结果，避免 API 临时故障导致资源永久不可见
+     if len(ids) == 0 {
+         ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "namespace", namespace, "rtype", rtype)
+         ctxLog.Debugf("资源列表为空，跳过缓存（允许下次重新尝试）")
+         return
+     }
+     a.cacheMu.Lock()
+     a.resCache[a.cacheKey(account, region, namespace, rtype)] = resCacheEntry{IDs: ids, Meta: meta, UpdatedAt: time.Now()}
+     a.cacheMu.Unlock()
+ }
+ ```
+
+ **优势**：
+ - 避免 API 临时故障导致资源永久不可见
+ - 提高系统容错性
+ - 不影响正常场景的性能（空结果场景较少）
+
+ ### 8.4 标签缓存 TTL 机制（v0.4.6+ 新增）
+
+ **问题背景**：
+ - 标签缓存键为 `accountID:region:rtype`，长期运行后会积累大量无用标签数据
+ - 资源删除后，标签缓存不会自动清理，导致内存持续增长
+
+ **解决方案**：
+ - **TTL 过期机制**：为每个标签缓存条目设置过期时间（`ExpiresAt`）
+ - **惰性清理**：在读取缓存时检查是否过期，过期则删除并重新获取
+ - **配置项**：`server.tag_cache_ttl`（默认 30 分钟）
+
+ **实现位置**：
+ - 阿里云：`internal/providers/aliyun/aliyun.go:64-84, 196-244`
+
+ **示例代码**：
+ ```go
+ type tagCacheEntry struct {
+     Tags      map[string]string
+     ExpiresAt time.Time
+ }
+
+ // 读取缓存时检查过期
+ a.tagMu.RLock()
+ if entry, ok := a.tagCache[cacheKey]; ok {
+     a.tagMu.RUnlock()
+     // 检查是否过期
+     if time.Now().Before(entry.ExpiresAt) {
+         return entry.Tags  // 缓存命中，未过期
+     }
+     logger.Debugf("标签缓存已过期，将重新获取")
+ }
+ a.tagMu.RUnlock()
+
+ // 写入缓存时设置过期时间
+ a.tagCache[cacheKey] = tagCacheEntry{
+     Tags:      tags,
+     ExpiresAt: time.Now().Add(tagCacheTTL),
+ }
+ ```
+
+ **优势**：
+ - 避免内存泄漏，长期运行后内存稳定
+ - 减少无效的 VPC API 调用
+ - 可通过配置调整 TTL，平衡性能和内存使用
+
+ **待优化**（待办任务）：
+ - 在资源枚举失败时，主动清理相关标签缓存（目前未实现）
+ - 添加缓存大小监控指标（已实现部分）
+
+ ### 8.5 缓存命中/未命中监控指标（v0.4.6+ 待实现）
+
+ **目标**：添加缓存命中率和未命中率的监控指标，便于观察缓存效果。
+
+ **建议指标**：
+ - `multicloud_cache_hit_total{cache_type, cloud_provider, account_id, region, resource_type}`：缓存命中次数
+ - `multicloud_cache_miss_total{cache_type, cloud_provider, account_id, region, resource_type}`：缓存未命中次数
+ - `multicloud_cache_hit_ratio{cache_type}`：缓存命中率（Gauge）
+
+ **缓存类型（cache_type）**：
+ - `resource_id`：资源 ID 缓存
+ - `tag`：标签缓存
+ - `metadata`：元数据缓存
+
+ **实现位置**：
+ - 在 `getCachedIDs` 和 `setCachedIDs` 方法中添加指标记录
+ - 在 `getTags` 方法中添加指标记录
+ - 在 `getMetricMeta` 方法中添加指标记录
+
+ **示例代码**：
+ ```go
+ func (a *Collector) getCachedIDs(...) ([]string, map[string]interface{}, bool) {
+     a.cacheMu.RLock()
+     entry, ok := a.resCache[key]
+     a.cacheMu.RUnlock()
+     
+     if ok {
+         // 记录缓存命中
+         metrics.CacheHitTotal.WithLabelValues("resource_id", "aliyun", account.AccountID, region, rtype).Inc()
+         return entry.IDs, entry.Meta, true
+     }
+     
+     // 记录缓存未命中
+     metrics.CacheMissTotal.WithLabelValues("resource_id", "aliyun", account.AccountID, region, rtype).Inc()
+     return nil, nil, false
+ }
+ ```
+
+ ### 8.6 资源枚举失败时清理标签缓存（v0.4.6+ 待实现）
+
+ **目标**：当资源枚举失败（如 API 错误、网络故障）时，主动清理相关标签缓存，避免使用过期的标签数据。
+
+ **实现方案**：
+
+ 1. **在枚举失败时清理缓存**：
+    ```go
+    func (a *Collector) listALBIDs(...) ([]string, map[string]interface{}, error) {
+        ids, err := client.DescribeLoadBalancers(...)
+        if err != nil {
+            // 清理相关标签缓存
+            a.clearTagCache(account.AccountID, region, "alb")
+            return nil, nil, err
+        }
+        return ids, nil, nil
+    }
+    ```
+
+ 2. **添加清理方法**：
+    ```go
+    func (a *Collector) clearTagCache(accountID, region, rtype string) {
+        prefix := accountID + ":" + region + ":"
+        a.tagMu.Lock()
+        defer a.tagMu.Unlock()
+        for key := range a.tagCache {
+            if strings.HasPrefix(key, prefix) {
+                delete(a.tagCache, key)
+            }
+        }
+        logger.Debugf("清理标签缓存，前缀=%s", prefix)
+    }
+    ```
+
+ **优势**：
+ - 避免使用过期的标签数据
+ - 提高数据准确性
+ - 减少无效的标签缓存占用内存
+
+ ## 9. 实施清单
 
 - 部署前校验：`helm lint chart/`；`go build`；`go vet`。
 - 监控接入：配置 `ServiceMonitor` 或抓取注解；加载 Grafana Dashboard。

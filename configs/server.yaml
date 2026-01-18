@@ -13,21 +13,31 @@ server:
       max_age: ${LOG_MAX_AGE:-28} # days
       compress: ${LOG_COMPRESS:-true}
   # 资源发现缓存生命周期
-  # 支持单位：s(秒), m(分), h(时), d(天, 1d=24h)
-  discovery_ttl: ${DISCOVERY_TTL:-1d}
+  # 支持单位：s(秒), m(分), h(时), d(天, 1d=24h=1440m=86400s)
+  # 若未指定单位，默认单位为纳秒（ns，Go time.ParseDuration 行为），因此建议始终显式指定单位。
+  # 示例：
+  #   - "1d": 缓存 1 天
+  #   - "60m": 缓存 60 分钟
+  #   - "24h": 缓存 24 小时
+  # 注意：分片配置缓存 TTL 建议设置为采集间隔的一半，以便在滚动更新期间及时刷新配置
+  discovery_ttl: ${DISCOVERY_TTL:-30m}
   # 采集间隔：主循环执行云资源指标采集的频率（默认 60s）
   scrape_interval: ${SCRAPE_INTERVAL:-60s}
   # Period Fallback：当无法从元数据获取 Period 时的默认值（秒），默认 60
   period_fallback: ${PERIOD_FALLBACK:-60}
   # 区域级并发：同一账号下并行采集的地域数量（建议 1-8）
   region_concurrency: ${REGION_CONCURRENCY:-4}
-  # 指标级并发：同一地域、同一产品下并行处理的指标批次（建议 1-10）
-  metric_concurrency: ${METRIC_CONCURRENCY:-5}
-  # 产品级并发：同一地域下并行处理的命名空间数量（建议 1-4）
-  product_concurrency: ${PRODUCT_CONCURRENCY:-2}
-  # 标签缓存 TTL：缓存资源标签的有效期（分钟，默认 30）
+  # 指标级并发：同一地域、同一产品下并行处理的指标批次（建议 1-3，默认 2）
+  # 注意：实际并发度 = region_concurrency × product_concurrency × metric_concurrency
+  # 为避免触发云 API 限流，总并发度建议不超过 20
+  metric_concurrency: ${METRIC_CONCURRENCY:-2}
+  # 产品级并发：同一地域下并行处理的命名空间数量（建议 1-2，默认 1）
+  # 注意：实际并发度 = region_concurrency × product_concurrency × metric_concurrency
+  # 为避免触发云 API 限流，总并发度建议不超过 20
+  product_concurrency: ${PRODUCT_CONCURRENCY:-1}
+   # 标签缓存 TTL：缓存资源标签的有效期（分钟，默认 30）
   tag_cache_ttl: ${TAG_CACHE_TTL:-30}
-  # 智能区域发现配置
+  # 智能区域发现配置（纯内存设计，无持久化）
   region_discovery:
     enabled: ${REGION_DISCOVERY_ENABLED:-true}
     # 重新发现周期：定期将所有区域状态重置为 unknown 以重新探测（默认 1h，用户可自定义）
@@ -35,10 +45,6 @@ server:
     discovery_interval: ${REGION_DISCOVERY_INTERVAL:-1h}
     # 空区域跳过阈值：连续多少次发现区域为空后跳过该区域（默认 3）
     empty_threshold: ${REGION_EMPTY_THRESHOLD:-3}
-    # 数据目录：区域状态持久化文件的存储目录
-    data_dir: ${REGION_DATA_DIR:-/app/data}
-    # 持久化文件名：区域状态保存的文件名（相对于 data_dir）
-    persist_file: ${REGION_PERSIST_FILE:-region_status.json}
   # 首次采集策略配置
   # 控制多 Pod 启动时的首次采集时机，避免同时向云厂商 API 发起大量请求导致限流
   first_run:
@@ -60,19 +66,6 @@ server:
     # 标签缓存生命周期：缓存资源标签的有效期（默认 30m）
     # 支持单位：s(秒), m(分), h(时)
     tag_ttl: ${HUAWEI_CACHE_TAG_TTL:-30m}
-
-# 区域数据持久化配置（仅 Kubernetes 部署有效）
-# - enabled: 是否启用 PVC 持久化（默认 false，使用 emptyDir）
-# - storageClass: StorageClass 名称（留空使用集群默认）
-# - size: PVC 大小（默认 1Gi）
-# - accessMode: 访问模式（默认 ReadWriteOnce）
-# - existingClaim: 使用已存在的 PVC 名称（可选）
-regionData:
-  persistence:
-    enabled: ${REGION_DATA_PERSISTENCE_ENABLED:-false}
-    storageClass: ${REGION_DATA_STORAGE_CLASS:-}
-    size: ${REGION_DATA_SIZE:-1Gi}
-    accessMode: ${REGION_DATA_ACCESS_MODE:-ReadWriteOnce}
-    existingClaim: ${REGION_DATA_EXISTING_CLAIM:-}
   admin_auth_enabled: ${ADMIN_AUTH_ENABLED:-false}
   admin_auth: []
+

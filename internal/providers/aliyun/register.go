@@ -5,6 +5,7 @@ import (
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/discovery"
 	"multicloud-exporter/internal/providers"
+	"multicloud-exporter/internal/providers/common"
 )
 
 // GetDefaultResources 返回阿里云默认采集的资源类型
@@ -16,6 +17,11 @@ func (a *Collector) GetDefaultResources() []string {
 // 阿里云在 collectCMSMetrics 中实现了产品级分片（使用 utils.ShouldProcess）
 func (a *Collector) SupportsInternalSharding() bool {
 	return true
+}
+
+// SetDegradationManager 设置降级管理器
+func (a *Collector) SetDegradationManager(mgr *common.Manager) {
+	a.degradeMgr = mgr
 }
 
 func init() {

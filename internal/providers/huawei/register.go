@@ -6,6 +6,7 @@ import (
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/discovery"
 	"multicloud-exporter/internal/providers"
+	providerscommon "multicloud-exporter/internal/providers/common"
 )
 
 // GetDefaultResources 返回华为云默认采集的资源类型
@@ -17,6 +18,11 @@ func (h *Collector) GetDefaultResources() []string {
 // 华为云在 collectELB 等方法中实现了产品级分片（使用 utils.ShouldProcess）
 func (h *Collector) SupportsInternalSharding() bool {
 	return true
+}
+
+// SetDegradationManager 设置降级管理器
+func (h *Collector) SetDegradationManager(mgr *providerscommon.Manager) {
+	h.degradeMgr = mgr
 }
 
 func init() {

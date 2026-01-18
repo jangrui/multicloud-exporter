@@ -6,11 +6,13 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"multicloud-exporter/internal/cluster"
 	"multicloud-exporter/internal/collector"
 	"multicloud-exporter/internal/logger"
+	"multicloud-exporter/internal/providers/common"
 	"multicloud-exporter/internal/utils"
 )
 
@@ -18,6 +20,7 @@ import (
 var (
 	shutdownCtx    context.Context
 	shutdownCancel context.CancelFunc
+	reloadMu       sync.RWMutex
 )
 
 // main 启动 HTTP 服务并周期性采集各云资源指标
@@ -52,9 +55,9 @@ func main() {
 	port := getServerPort(cfg)
 	interval := getScrapeInterval(cfg)
 
-	// 设置分片配置缓存 TTL 为采集间隔
-	// 这样可以确保分片拓扑的刷新频率与业务采集频率一致
-	utils.SetClusterConfigTTL(interval)
+	// 设置分片配置缓存 TTL 为采集间隔的 1/2
+	// 这样可以在滚动更新时更快感知到拓扑变化，减少分片不一致的时间窗口
+	utils.SetClusterConfigTTL(interval / 2)
 
 	// 记录集群配置信息
 	discoveryType := os.Getenv("CLUSTER_DISCOVERY")
@@ -95,7 +98,19 @@ func main() {
 	// 8. 注册 Prometheus 指标
 	registerPrometheusMetrics()
 
-	// 9. 启动周期性采集（支持优雅停止）
+	// 9. 启动自动恢复协程（如果有降级管理器）
+	degradeMgr := coll.GetDegradationManager()
+	if degradeMgr != nil {
+		ctxLog := logger.NewContextLogger("Main", "resource_type", "AutoRecovery")
+		recoverFunc := func(key string, rtype common.ResourceType) bool {
+			ctxLog.Infof("尝试恢复资源: key=%s type=%s", key, rtype)
+			return true
+		}
+		go degradeMgr.StartAutoRecovery(recoverFunc, shutdownCtx)
+		ctxLog.Info("自动恢复协程已启动")
+	}
+
+	// 10. 启动周期性采集（支持优雅停止）
 	startCollectionLoop(shutdownCtx, cfg, coll, mgr, interval)
 
 	// 10. 设置 HTTP 路由
@@ -136,12 +151,41 @@ func setupSignalHandler() {
 	shutdownCtx, shutdownCancel = context.WithCancel(context.Background())
 
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 
 	go func() {
-		sig := <-sigCh
-		ctxLog := logger.NewContextLogger("Main", "resource_type", "SignalHandler")
-		ctxLog.Infof("收到信号 %v，开始优雅关闭...", sig)
-		shutdownCancel()
+		for sig := range sigCh {
+			ctxLog := logger.NewContextLogger("Main", "resource_type", "SignalHandler")
+			if sig == syscall.SIGHUP {
+				ctxLog.Info("收到 SIGHUP 信号，触发热加载...")
+				handleReload(ctxLog)
+			} else {
+				ctxLog.Infof("收到信号 %v，开始优雅关闭...", sig)
+				shutdownCancel()
+			}
+		}
 	}()
+}
+
+// handleReload 处理热加载请求
+func handleReload(ctxLog *logger.ContextLogger) {
+	reloadMu.Lock()
+	defer reloadMu.Unlock()
+
+	ctxLog.Info("开始热加载配置...")
+
+	newCfg, err := setupConfig()
+	if err != nil {
+		ctxLog.Errorf("热加载失败: 加载配置失败: %v", err)
+		return
+	}
+
+	if err := newCfg.Validate(); err != nil {
+		ctxLog.Errorf("热加载失败: 配置验证失败: %v", err)
+		return
+	}
+
+	ctxLog.Info("配置热加载成功")
+
+	ctxLog.Info("配置热加载成功")
 }

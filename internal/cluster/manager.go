@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"multicloud-exporter/internal/logger"
+	"multicloud-exporter/internal/metrics"
 )
 
 // RegionManagerInterface defines the interface for updating region status
@@ -78,25 +79,53 @@ func (m *SyncManager) BroadcastRegionStatus(provider, accountID, region, status 
 		return
 	}
 
-	// Async broadcast
-	go func() {
-		var wg sync.WaitGroup
-		for _, peer := range peers {
-			wg.Add(1)
-			go func(url string) {
-				defer wg.Done()
-				m.sendUpdate(url, data)
-			}(peer)
-		}
-		wg.Wait()
-	}()
+	// 为每个 peer 发送更新，带超时和重试
+	var wg sync.WaitGroup
+	for _, peer := range peers {
+		wg.Add(1)
+		go func(url string) {
+			defer wg.Done()
+			// 最多重试 3 次
+			const maxRetries = 3
+			var lastErr error
+			for attempt := 0; attempt < maxRetries; attempt++ {
+				// 创建带超时的 context（5s 超时）
+				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				defer cancel()
+
+				// 发送请求
+				err := m.sendUpdateWithContext(ctx, url, data)
+				if err == nil {
+					m.logger.Debugf("成功发送区域状态更新到 peer: %s (attempt=%d)", url, attempt+1)
+					break
+				}
+				lastErr = err
+
+				// 如果是最后一次尝试，记录错误
+				if attempt == maxRetries-1 {
+					m.logger.Warnf("发送区域状态更新到 peer 失败（已重试%d次）: %s 错误: %v", maxRetries, url, lastErr)
+					metrics.BroadcastFailedTotal.WithLabelValues(url).Inc()
+				}
+
+				// 如果不是最后一次尝试，等待后重试（指数退避）
+				if attempt < maxRetries-1 {
+					sleep := time.Duration(200*(1<<attempt)) * time.Millisecond
+					if sleep > 1*time.Second {
+						sleep = 1 * time.Second
+					}
+					time.Sleep(sleep)
+				}
+			}
+		}(peer)
+	}
+	wg.Wait()
 }
 
-func (m *SyncManager) sendUpdate(peerURL string, data []byte) {
+func (m *SyncManager) sendUpdateWithContext(ctx context.Context, peerURL string, data []byte) error {
 	url := peerURL + "/api/v1/cluster/sync"
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(data))
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(data))
 	if err != nil {
-		return
+		return err
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -106,15 +135,14 @@ func (m *SyncManager) sendUpdate(peerURL string, data []byte) {
 
 	resp, err := m.client.Do(req)
 	if err != nil {
-		// Log at debug level to avoid spamming logs when peers are unstable
-		m.logger.Debugf("Failed to send update to %s: %v", url, err)
-		return
+		return err
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		m.logger.Debugf("Peer %s returned status %d", url, resp.StatusCode)
 	}
+	return nil
 }
 
 // HandleSync handles incoming sync requests

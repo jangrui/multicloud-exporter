@@ -41,9 +41,17 @@ type clbLister struct {
 func (l *clbLister) List(ctx context.Context, region string, account config.CloudAccount) ([]lbInfo, error) {
 	client, err := l.c.clientFactory.NewELBClient(ctx, region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
+		if l.c.degradeMgr != nil {
+			regionKey := account.Provider + ":" + account.AccountID + ":" + region
+			l.c.degradeMgr.RecordFailure(regionKey, common.ResourceTypeRegion, err.Error())
+		}
 		return nil, err
 	}
 	var lbs []lbInfo
+	regionKey := account.Provider + ":" + account.AccountID + ":" + region
+	if l.c.degradeMgr != nil && l.c.degradeMgr.IsDisabled(regionKey, common.ResourceTypeRegion) {
+		return []lbInfo{}, nil
+	}
 	// AWS SDK Paginator 自动处理分页：HasMorePages() 检查是否还有更多页，NextPage() 获取下一页
 	// 边界情况处理：
 	// - 空结果：HasMorePages() 返回 false，不会进入循环
@@ -61,12 +69,22 @@ func (l *clbLister) List(ctx context.Context, region string, account config.Clou
 			if status == "limit_error" {
 				metrics.RateLimitTotal.WithLabelValues("aws", "DescribeLoadBalancers").Inc()
 			}
+			if l.c.degradeMgr != nil && status == "auth_error" {
+				disabled := l.c.degradeMgr.RecordFailure(regionKey, common.ResourceTypeRegion, err.Error())
+				if disabled {
+					ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", region)
+					ctxLog.Warn("区域已降级")
+				}
+			}
 			// API 调用失败时，返回已收集的数据和错误，允许上层决定如何处理
 			return lbs, err
 		}
 		metrics.RequestTotal.WithLabelValues("aws", "DescribeLoadBalancers", "success").Inc()
 		metrics.RecordRequest("aws", "DescribeLoadBalancers", "success")
 		metrics.RequestDuration.WithLabelValues("aws", "DescribeLoadBalancers").Observe(time.Since(start).Seconds())
+		if l.c.degradeMgr != nil {
+			l.c.degradeMgr.RecordSuccess(regionKey, common.ResourceTypeRegion)
+		}
 		for _, lb := range page.LoadBalancerDescriptions {
 			if lb.LoadBalancerName != nil {
 				lbs = append(lbs, lbInfo{Name: *lb.LoadBalancerName, CodeName: *lb.LoadBalancerName})
@@ -137,9 +155,17 @@ type elbv2Lister struct {
 func (l *elbv2Lister) List(ctx context.Context, region string, account config.CloudAccount) ([]lbInfo, error) {
 	client, err := l.c.clientFactory.NewELBv2Client(ctx, region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
+		if l.c.degradeMgr != nil {
+			regionKey := account.Provider + ":" + account.AccountID + ":" + region
+			l.c.degradeMgr.RecordFailure(regionKey, common.ResourceTypeRegion, err.Error())
+		}
 		return nil, err
 	}
 	var lbs []lbInfo
+	regionKey := account.Provider + ":" + account.AccountID + ":" + region
+	if l.c.degradeMgr != nil && l.c.degradeMgr.IsDisabled(regionKey, common.ResourceTypeRegion) {
+		return []lbInfo{}, nil
+	}
 	// AWS SDK Paginator 自动处理分页：HasMorePages() 检查是否还有更多页，NextPage() 获取下一页
 	// 边界情况处理：
 	// - 空结果：HasMorePages() 返回 false，不会进入循环
@@ -157,12 +183,22 @@ func (l *elbv2Lister) List(ctx context.Context, region string, account config.Cl
 			if status == "limit_error" {
 				metrics.RateLimitTotal.WithLabelValues("aws", "DescribeLoadBalancers").Inc()
 			}
+			if l.c.degradeMgr != nil && status == "auth_error" {
+				disabled := l.c.degradeMgr.RecordFailure(regionKey, common.ResourceTypeRegion, err.Error())
+				if disabled {
+					ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", region)
+					ctxLog.Warn("区域已降级")
+				}
+			}
 			// API 调用失败时，返回已收集的数据和错误，允许上层决定如何处理
 			return lbs, err
 		}
 		metrics.RequestTotal.WithLabelValues("aws", "DescribeLoadBalancers", "success").Inc()
 		metrics.RecordRequest("aws", "DescribeLoadBalancers", "success")
 		metrics.RequestDuration.WithLabelValues("aws", "DescribeLoadBalancers").Observe(time.Since(start).Seconds())
+		if l.c.degradeMgr != nil {
+			l.c.degradeMgr.RecordSuccess(regionKey, common.ResourceTypeRegion)
+		}
 		for _, lb := range page.LoadBalancers {
 			if lb.Type == l.lbType && lb.LoadBalancerName != nil && lb.LoadBalancerArn != nil {
 				lbs = append(lbs, lbInfo{Name: *lb.LoadBalancerName, ARN: *lb.LoadBalancerArn, CodeName: *lb.LoadBalancerName})

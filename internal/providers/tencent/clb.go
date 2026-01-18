@@ -17,6 +17,12 @@ import (
 func (t *Collector) listCLBVips(account config.CloudAccount, region string) []string {
 	ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "CLB")
 
+	regionKey := account.Provider + ":" + account.AccountID + ":" + region
+	if t.degradeMgr != nil && t.degradeMgr.IsDisabled(regionKey, providerscommon.ResourceTypeRegion) {
+		ctxLog.Debugf("CLB 枚举 VIP - 区域已降级，跳过")
+		return []string{}
+	}
+
 	if ids, hit := t.getCachedIDs(account, region, "QCE/LB", "clb"); hit {
 		ctxLog.Debugf("CLB 枚举 VIP - 缓存命中 - 数量=%d", len(ids))
 		return ids
@@ -24,6 +30,9 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 
 	client, err := t.clientFactory.NewCLBClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
+		if t.degradeMgr != nil {
+			t.degradeMgr.RecordFailure(regionKey, providerscommon.ResourceTypeRegion, err.Error())
+		}
 		return []string{}
 	}
 
@@ -47,6 +56,9 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 				metrics.RequestTotal.WithLabelValues("tencent", "DescribeLoadBalancers", "success").Inc()
 				metrics.RecordRequest("tencent", "DescribeLoadBalancers", "success")
 				metrics.RequestDuration.WithLabelValues("tencent", "DescribeLoadBalancers").Observe(time.Since(start).Seconds())
+				if t.degradeMgr != nil {
+					t.degradeMgr.RecordSuccess(regionKey, providerscommon.ResourceTypeRegion)
+				}
 				break
 			}
 			status := providerscommon.ClassifyTencentError(callErr)
@@ -57,6 +69,12 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 				metrics.RateLimitTotal.WithLabelValues("tencent", "DescribeLoadBalancers").Inc()
 			}
 			if status == "auth_error" {
+				if t.degradeMgr != nil {
+					disabled := t.degradeMgr.RecordFailure(regionKey, providerscommon.ResourceTypeRegion, callErr.Error())
+					if disabled {
+						ctxLog.Warn("区域已降级")
+					}
+				}
 				return []string{}
 			}
 			// 指数退避重试
@@ -68,6 +86,12 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 		}
 		if callErr != nil {
 			ctxLog.Warnf("CLB 枚举 VIP - API: DescribeLoadBalancers - 失败 offset=%d: %v", offset, callErr)
+			if t.degradeMgr != nil {
+				disabled := t.degradeMgr.RecordFailure(regionKey, providerscommon.ResourceTypeRegion, callErr.Error())
+				if disabled {
+					ctxLog.Warn("区域已降级")
+				}
+			}
 			break
 		}
 
@@ -246,7 +270,7 @@ func (t *Collector) fetchCLBMonitor(account config.CloudAccount, region string, 
 					labels = append(labels, "")
 				}
 				alias.WithLabelValues(labels...).Set(scaled)
-				metrics.IncSampleCount(prod.Namespace, 1)
+				metrics.IncSampleCountWithLabels(account.AccountID, region, "clb", prod.Namespace, 1)
 			}
 		}
 	}
