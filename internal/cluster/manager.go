@@ -51,15 +51,16 @@ func (m *SyncManager) Start(ctx context.Context) {
 	m.discovery.Start(ctx)
 }
 
-// RegisterRegionManager registers a region manager for a provider
-func (m *SyncManager) RegisterRegionManager(provider string, rm RegionManagerInterface) {
+// RegisterProductRegionManager registers a region manager for a provider:product combination
+func (m *SyncManager) RegisterProductRegionManager(provider, product string, rm RegionManagerInterface) {
+	key := provider + ":" + product
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.managers[provider] = rm
+	m.managers[key] = rm
 }
 
 // BroadcastRegionStatus sends status update to all peers
-func (m *SyncManager) BroadcastRegionStatus(provider, accountID, region, status string, resourceCount int) {
+func (m *SyncManager) BroadcastRegionStatus(provider, product, accountID, region, status string, resourceCount int) {
 	peers := m.discovery.GetPeers()
 	if len(peers) == 0 {
 		return
@@ -67,6 +68,7 @@ func (m *SyncManager) BroadcastRegionStatus(provider, accountID, region, status 
 
 	payload := RegionStatusUpdate{
 		Provider:      provider,
+		Product:       product,
 		AccountID:     accountID,
 		Region:        region,
 		Status:        status,
@@ -166,12 +168,18 @@ func (m *SyncManager) HandleSync(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Build key as {provider}:{product}
+	key := update.Provider
+	if update.Product != "" {
+		key += ":" + update.Product
+	}
+
 	m.mu.RLock()
-	rm, ok := m.managers[update.Provider]
+	rm, ok := m.managers[key]
 	m.mu.RUnlock()
 
 	if !ok {
-		// Provider not found, ignore
+		// Provider:product not found, ignore
 		w.WriteHeader(http.StatusOK)
 		return
 	}

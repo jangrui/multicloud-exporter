@@ -36,7 +36,7 @@ func TestSyncManager_BroadcastAndReceive(t *testing.T) {
 
 	peerMux := http.NewServeMux()
 	peerSync := NewSyncManager("test", "0", "secret")
-	peerSync.RegisterRegionManager("aliyun", mockRM)
+	peerSync.RegisterProductRegionManager("aliyun", "slb", mockRM)
 	peerMux.HandleFunc("/api/v1/cluster/sync", peerSync.HandleSync)
 
 	peerServer := httptest.NewServer(peerMux)
@@ -50,7 +50,7 @@ func TestSyncManager_BroadcastAndReceive(t *testing.T) {
 	senderSync.discovery.mu.Unlock()
 
 	// 3. Broadcast
-	senderSync.BroadcastRegionStatus("aliyun", "acc1", "us-east-1", "empty", 0)
+	senderSync.BroadcastRegionStatus("aliyun", "slb", "acc1", "us-east-1", "empty", 0)
 
 	// 4. Wait for async processing
 	time.Sleep(200 * time.Millisecond)
@@ -68,19 +68,19 @@ func TestSyncManager_BroadcastAndReceive(t *testing.T) {
 	}
 }
 
-func TestSyncManager_RegisterRegionManager(t *testing.T) {
+func TestSyncManager_RegisterProductRegionManager(t *testing.T) {
 	syncMgr := NewSyncManager("test", "0", "")
 
-	if _, exists := syncMgr.managers["aliyun"]; exists {
+	if _, exists := syncMgr.managers["aliyun:slb"]; exists {
 		t.Errorf("Expected no manager to exist before registration")
 	}
 
 	mockRM := &mockRegionManager{}
-	syncMgr.RegisterRegionManager("aliyun", mockRM)
+	syncMgr.RegisterProductRegionManager("aliyun", "slb", mockRM)
 
 	syncMgr.mu.RLock()
 	defer syncMgr.mu.RUnlock()
-	if _, exists := syncMgr.managers["aliyun"]; !exists {
+	if _, exists := syncMgr.managers["aliyun:slb"]; !exists {
 		t.Errorf("Expected manager to exist after registration")
 	}
 }
@@ -89,7 +89,7 @@ func TestSyncManager_BroadcastNoPeers(t *testing.T) {
 	syncMgr := NewSyncManager("test", "0", "")
 
 	// Should not panic when no peers
-	syncMgr.BroadcastRegionStatus("aliyun", "acc1", "us-east-1", "empty", 0)
+	syncMgr.BroadcastRegionStatus("aliyun", "slb", "acc1", "us-east-1", "empty", 0)
 }
 
 func TestSyncManager_HandleSync_MethodNotAllowed(t *testing.T) {
@@ -135,9 +135,9 @@ func TestSyncManager_HandleSync_InvalidBody(t *testing.T) {
 func TestSyncManager_HandleSync_ProviderNotFound(t *testing.T) {
 	syncMgr := NewSyncManager("test", "0", "secret")
 	mockRM := &mockRegionManager{}
-	syncMgr.RegisterRegionManager("aliyun", mockRM)
+	syncMgr.RegisterProductRegionManager("aliyun", "slb", mockRM)
 
-	body := `{"provider":"unknown","account_id":"acc1","region":"us-east-1","status":"empty","resource_count":0}`
+	body := `{"provider":"unknown","product":"slb","account_id":"acc1","region":"us-east-1","status":"empty","resource_count":0}`
 	req := httptest.NewRequest("POST", "/api/v1/cluster/sync", bytes.NewBufferString(body))
 	req.Header.Set("X-Cluster-Secret", "secret")
 	rr := httptest.NewRecorder()

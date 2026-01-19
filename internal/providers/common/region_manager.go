@@ -64,7 +64,7 @@ type RegionManagerStats struct {
 
 // Broadcaster 定义集群广播接口
 type Broadcaster interface {
-	BroadcastRegionStatus(provider, accountID, region, status string, resourceCount int)
+	BroadcastRegionStatus(provider, product, accountID, region, status string, resourceCount int)
 }
 
 // RegionManager 区域管理器接口
@@ -79,7 +79,7 @@ type RegionManager interface {
 	UpdateFromPeer(accountID, region string, resourceCount int, status string)
 
 	// SetBroadcaster 设置广播器
-	SetBroadcaster(b Broadcaster, provider string)
+	SetBroadcaster(b Broadcaster, provider, product string)
 
 	// MarkRegionForRediscovery 标记区域为需重新发现
 	MarkRegionForRediscovery(accountID, region string)
@@ -114,6 +114,7 @@ type SmartRegionManager struct {
 
 	broadcaster  Broadcaster
 	providerName string
+	productName  string
 
 	// 统计信息
 	stats   RegionManagerStats
@@ -153,11 +154,12 @@ func NewRegionManager(config RegionDiscoveryConfig) RegionManager {
 }
 
 // SetBroadcaster 设置广播器
-func (rm *SmartRegionManager) SetBroadcaster(b Broadcaster, provider string) {
+func (rm *SmartRegionManager) SetBroadcaster(b Broadcaster, provider, product string) {
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 	rm.broadcaster = b
 	rm.providerName = provider
+	rm.productName = product
 }
 
 // GetActiveRegions 获取活跃区域列表
@@ -229,11 +231,12 @@ func (rm *SmartRegionManager) UpdateRegionStatus(accountID, region string, resou
 	// 触发广播
 	rm.mu.RLock()
 	b := rm.broadcaster
-	p := rm.providerName
+	provider := rm.providerName
+	product := rm.productName
 	rm.mu.RUnlock()
 
-	if b != nil && p != "" {
-		b.BroadcastRegionStatus(p, accountID, region, string(status), resourceCount)
+	if b != nil && provider != "" {
+		b.BroadcastRegionStatus(provider, product, accountID, region, string(status), resourceCount)
 	}
 }
 

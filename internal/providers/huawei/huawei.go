@@ -62,8 +62,8 @@ func NewCollector(cfg *config.Config, mgr *discovery.Manager, clusterMgr *cluste
 		})
 
 		if clusterMgr != nil {
-			c.regionManager.SetBroadcaster(clusterMgr, "huawei")
-			clusterMgr.RegisterRegionManager("huawei", c.regionManager)
+			c.regionManager.SetBroadcaster(clusterMgr, "huawei", "")
+			clusterMgr.RegisterProductRegionManager("huawei", "", c.regionManager)
 		}
 
 		// 启动定期重新发现调度器

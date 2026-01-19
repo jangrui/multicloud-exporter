@@ -54,8 +54,8 @@ func NewCollector(cfg *config.Config, mgr *discovery.Manager, clusterMgr *cluste
 		})
 
 		if clusterMgr != nil {
-			c.regionManager.SetBroadcaster(clusterMgr, "tencent")
-			clusterMgr.RegisterRegionManager("tencent", c.regionManager)
+			c.regionManager.SetBroadcaster(clusterMgr, "tencent", "")
+			clusterMgr.RegisterProductRegionManager("tencent", "", c.regionManager)
 		}
 
 		// 启动定期重新发现调度器

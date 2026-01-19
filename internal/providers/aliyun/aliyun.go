@@ -32,23 +32,34 @@ import (
 
 // Collector 封装阿里云资源采集逻辑
 type Collector struct {
-	cfg           *config.Config
-	disc          *discovery.Manager
-	metaCache     map[string]metricMeta
-	metaMu        sync.RWMutex
-	cacheMu       sync.RWMutex
-	resCache      map[string]resCacheEntry
-	uidCache      map[string]string
-	uidMu         sync.RWMutex
-	ossCache      map[string]ossCacheEntry
-	ossMu         sync.Mutex
-	tagCache      map[string]tagCacheEntry // 标签缓存：key -> tags + expiry
-	tagMu         sync.RWMutex             // 标签缓存锁
-	clientFactory ClientFactory
-	sf            singleflight.Group
-	regionManager common.RegionManager
-	degradeMgr    *common.Manager
+	cfg                   *config.Config
+	disc                  *discovery.Manager
+	metaCache             map[string]metricMeta
+	metaMu                sync.RWMutex
+	cacheMu               sync.RWMutex
+	resCache              map[string]resCacheEntry
+	uidCache              map[string]string
+	uidMu                 sync.RWMutex
+	ossCache              map[string]ossCacheEntry
+	ossMu                 sync.Mutex
+	tagCache              map[string]tagCacheEntry // 标签缓存：key -> tags + expiry
+	tagMu                 sync.RWMutex             // 标签缓存锁
+	clientFactory         ClientFactory
+	sf                    singleflight.Group
+	productRegionManagers map[string]common.RegionManager // 产品级 RegionManager: product -> RegionManager
+	rmMu                  sync.RWMutex                    // productRegionManagers 锁
+	degradeMgr            *common.Manager
 }
+
+// 阿里云产品常量
+const (
+	AliyunProductSLB     = "slb"
+	AliyunProductCBWP    = "cbwp"
+	AliyunProductOSS     = "oss"
+	AliyunProductALB     = "alb"
+	AliyunProductNLB     = "nlb"
+	AliyunProductAliGWLB = "aligwlb"
+)
 
 // resCacheEntry 缓存资源ID及元数据
 type resCacheEntry struct {
@@ -74,35 +85,49 @@ type ossBucketInfo struct {
 	Location string
 }
 
+// getProductRegionManager 获取指定产品的 RegionManager
+func (c *Collector) getProductRegionManager(product string) common.RegionManager {
+	c.rmMu.RLock()
+	defer c.rmMu.RUnlock()
+	return c.productRegionManagers[product]
+}
+
 // NewCollector 创建阿里云采集器实例
 func NewCollector(cfg *config.Config, mgr *discovery.Manager, clusterMgr *cluster.SyncManager) *Collector {
 	c := &Collector{
-		cfg:           cfg,
-		disc:          mgr,
-		metaCache:     make(map[string]metricMeta),
-		resCache:      make(map[string]resCacheEntry),
-		uidCache:      make(map[string]string),
-		ossCache:      make(map[string]ossCacheEntry),
-		tagCache:      make(map[string]tagCacheEntry), // 初始化标签缓存
-		clientFactory: &defaultClientFactory{},
+		cfg:                   cfg,
+		disc:                  mgr,
+		metaCache:             make(map[string]metricMeta),
+		resCache:              make(map[string]resCacheEntry),
+		uidCache:              make(map[string]string),
+		ossCache:              make(map[string]ossCacheEntry),
+		tagCache:              make(map[string]tagCacheEntry), // 初始化标签缓存
+		clientFactory:         &defaultClientFactory{},
+		productRegionManagers: make(map[string]common.RegionManager),
 	}
 
-	// 初始化区域管理器
+	// 初始化产品级区域管理器
 	if cfg != nil && cfg.GetServer() != nil && cfg.GetServer().RegionDiscovery != nil {
-		c.regionManager = common.NewRegionManager(common.RegionDiscoveryConfig{
-			Enabled:           cfg.GetServer().RegionDiscovery.Enabled,
-			DiscoveryInterval: parseDuration(cfg.GetServer().RegionDiscovery.DiscoveryInterval),
-			EmptyThreshold:    cfg.GetServer().RegionDiscovery.EmptyThreshold,
-		})
+		products := []string{AliyunProductSLB, AliyunProductCBWP, AliyunProductOSS, AliyunProductALB, AliyunProductNLB, AliyunProductAliGWLB}
+		for _, product := range products {
+			rm := common.NewRegionManager(common.RegionDiscoveryConfig{
+				Enabled:           cfg.GetServer().RegionDiscovery.Enabled,
+				DiscoveryInterval: parseDuration(cfg.GetServer().RegionDiscovery.DiscoveryInterval),
+				EmptyThreshold:    cfg.GetServer().RegionDiscovery.EmptyThreshold,
+			})
 
-		// 设置集群同步
-		if clusterMgr != nil {
-			c.regionManager.SetBroadcaster(clusterMgr, "aliyun")
-			clusterMgr.RegisterRegionManager("aliyun", c.regionManager)
+			// 设置集群同步
+			if clusterMgr != nil {
+				rm.SetBroadcaster(clusterMgr, "aliyun", product)
+				clusterMgr.RegisterProductRegionManager("aliyun", product, rm)
+			}
+
+			// 启动定期重新发现调度器
+			rm.StartRediscoveryScheduler()
+
+			// 存储到 map
+			c.productRegionManagers[product] = rm
 		}
-
-		// 启动定期重新发现调度器
-		c.regionManager.StartRediscoveryScheduler()
 	}
 
 	return c
@@ -368,15 +393,7 @@ func (a *Collector) getAllRegions(account config.CloudAccount) []string {
 	}
 	ctxLog.Debugf("DescribeRegions 成功，总区域数=%d", len(regions))
 
-	// 使用区域管理器进行智能过滤
-	if a.regionManager != nil {
-		activeRegions := a.regionManager.GetActiveRegions(account.AccountID, regions)
-		ctxLog.Infof("智能区域选择: 总=%d 活跃=%d",
-			len(regions), len(activeRegions))
-		return activeRegions
-	}
-
-	// 如果未启用区域管理器，返回所有区域
+	// 注意：产品级状态隔离已实施，区域过滤在各产品的 listXXXIDs 方法中通过专属 RegionManager 进行
 	return regions
 }
 
@@ -1358,12 +1375,13 @@ func (a *Collector) listNLBIDs(account config.CloudAccount, region string) []str
 	a.setCachedIDs(account, region, "acs_nlb", "nlb", out, meta)
 
 	// 更新区域状态
-	if a.regionManager != nil {
+	rm := a.getProductRegionManager(AliyunProductNLB)
+	if rm != nil {
 		status := common.RegionStatusEmpty
 		if len(out) > 0 {
 			status = common.RegionStatusActive
 		}
-		a.regionManager.UpdateRegionStatus(account.AccountID, region, len(out), status)
+		rm.UpdateRegionStatus(account.AccountID, region, len(out), status)
 		ctxLog.Debugf("更新区域状态 account=%s region=%s status=%s count=%d",
 			account.AccountID, region, status, len(out))
 	}

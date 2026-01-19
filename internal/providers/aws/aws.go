@@ -39,8 +39,8 @@ func NewCollector(cfg *config.Config, mgr *discovery.Manager, clusterMgr *cluste
 		})
 
 		if clusterMgr != nil {
-			c.regionManager.SetBroadcaster(clusterMgr, "aws")
-			clusterMgr.RegisterRegionManager("aws", c.regionManager)
+			c.regionManager.SetBroadcaster(clusterMgr, "aws", "")
+			clusterMgr.RegisterProductRegionManager("aws", "", c.regionManager)
 		}
 
 		// 启动定期重新发现调度器

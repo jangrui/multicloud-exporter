@@ -18,13 +18,14 @@ type MockBroadcaster struct {
 
 type BroadcastMessage struct {
 	Provider      string
+	Product       string
 	AccountID     string
 	Region        string
 	Status        string
 	ResourceCount int
 }
 
-func (m *MockBroadcaster) BroadcastRegionStatus(provider, accountID, region, status string, resourceCount int) {
+func (m *MockBroadcaster) BroadcastRegionStatus(provider, product, accountID, region, status string, resourceCount int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.broadcastCount++
@@ -72,7 +73,7 @@ func TestRegionManager_SetBroadcaster(t *testing.T) {
 	mgr := NewRegionManager(RegionDiscoveryConfig{})
 	broadcaster := &MockBroadcaster{}
 
-	mgr.SetBroadcaster(broadcaster, "aliyun")
+	mgr.SetBroadcaster(broadcaster, "aliyun", "")
 
 	rm := mgr.(*SmartRegionManager)
 	assert.Equal(t, broadcaster, rm.broadcaster)
@@ -131,7 +132,7 @@ func TestRegionManager_GetActiveRegions_EmptyBelowThreshold(t *testing.T) {
 func TestRegionManager_UpdateRegionStatus(t *testing.T) {
 	broadcaster := &MockBroadcaster{}
 	mgr := NewRegionManager(RegionDiscoveryConfig{})
-	mgr.SetBroadcaster(broadcaster, "aliyun")
+	mgr.SetBroadcaster(broadcaster, "aliyun", "")
 
 	accountID := "test-account"
 	region := "cn-north-4"
@@ -170,7 +171,7 @@ func TestRegionManager_UpdateRegionStatus_EmptyCount(t *testing.T) {
 func TestRegionManager_UpdateFromPeer(t *testing.T) {
 	broadcaster := &MockBroadcaster{}
 	mgr := NewRegionManager(RegionDiscoveryConfig{})
-	mgr.SetBroadcaster(broadcaster, "aliyun")
+	mgr.SetBroadcaster(broadcaster, "aliyun", "")
 
 	accountID := "test-account"
 	region := "cn-north-4"

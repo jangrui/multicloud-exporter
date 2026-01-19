@@ -17,6 +17,23 @@ import (
 
 func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []string {
 	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "resource_type", "CBWP")
+
+	rm := a.getProductRegionManager(AliyunProductCBWP)
+	if rm != nil {
+		accountRegions, ok := rm.(*common.SmartRegionManager)
+		if ok {
+			if info, exists := accountRegions.GetRegionInfo(account.AccountID, region); exists {
+				if info.Status == common.RegionStatusEmpty && info.EmptyCount >= 10 {
+					ctxLog.Warnf("区域被标记为空（emptyCount=%d），强制重新发现以采集 CBWP 实例: region=%s", info.EmptyCount, region)
+					accountRegions.MarkRegionForRediscovery(account.AccountID, region)
+				}
+			} else {
+				ctxLog.Warnf("区域状态未找到，强制重新发现以采集 CBWP 实例: region=%s", region)
+				accountRegions.MarkRegionForRediscovery(account.AccountID, region)
+			}
+		}
+	}
+
 	ctxLog.Infof("枚举共享带宽包 - 调用 API: DescribeCommonBandwidthPackages")
 	client, err := a.clientFactory.NewVPCClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
@@ -163,12 +180,12 @@ func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []st
 	}
 
 	// 更新区域状态
-	if a.regionManager != nil {
+	if rm := a.getProductRegionManager(AliyunProductCBWP); rm != nil {
 		status := common.RegionStatusEmpty
 		if len(ids) > 0 {
 			status = common.RegionStatusActive
 		}
-		a.regionManager.UpdateRegionStatus(account.AccountID, region, len(ids), status)
+		rm.UpdateRegionStatus(account.AccountID, region, len(ids), status)
 		ctxLog.Infof("更新区域状态 account=%s region=%s status=%s count=%d",
 			account.AccountID, region, status, len(ids))
 	}
