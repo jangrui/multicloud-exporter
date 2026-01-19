@@ -18,6 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
+  "id": 98,
   "links": [
     {
       "asDropdown": false,
@@ -29,7 +30,7 @@
       "title": "L1-全局总览",
       "tooltip": "",
       "type": "link",
-      "url": "/d/L1-v3"
+      "url": "/d/L1"
     },
     {
       "asDropdown": false,
@@ -41,7 +42,7 @@
       "title": "L3-传统负载均衡",
       "tooltip": "",
       "type": "link",
-      "url": "/d/L3-CLB-v3"
+      "url": "/d/L3-CLB"
     },
     {
       "asDropdown": false,
@@ -53,7 +54,7 @@
       "title": "L3-应用负载均衡",
       "tooltip": "",
       "type": "link",
-      "url": "/d/L3-ALB-v3"
+      "url": "/d/L3-ALB"
     },
     {
       "asDropdown": false,
@@ -65,7 +66,7 @@
       "title": "L3-网络负载均衡",
       "tooltip": "",
       "type": "link",
-      "url": "/d/L3-NLB-v3"
+      "url": "/d/L3-NLB"
     },
     {
       "asDropdown": false,
@@ -77,10 +78,9 @@
       "title": "L3-网关负载均衡",
       "tooltip": "",
       "type": "link",
-      "url": "/d/L3-GWLB-v3"
+      "url": "/d/L3-GWLB"
     }
   ],
-  "liveNow": false,
   "panels": [
     {
       "collapsed": false,
@@ -110,8 +110,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           },
@@ -131,6 +130,7 @@
         "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -138,7 +138,9 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
       "pluginVersion": "11.6.1",
       "targets": [
@@ -166,8 +168,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           },
@@ -187,6 +188,7 @@
         "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -194,7 +196,9 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
       "pluginVersion": "11.6.1",
       "targets": [
@@ -212,6 +216,7 @@
         "type": "prometheus",
         "uid": "$datasource"
       },
+      "description": "",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -222,8 +227,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           },
@@ -243,6 +247,7 @@
         "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -250,7 +255,9 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
       "pluginVersion": "11.6.1",
       "targets": [
@@ -260,7 +267,7 @@
           "refId": "A"
         }
       ],
-      "title": "总 QPS",
+      "title": "QPS",
       "type": "stat"
     },
     {
@@ -268,6 +275,7 @@
         "type": "prometheus",
         "uid": "$datasource"
       },
+      "description": "异常后端服务器数量（阿里云、AWS、华为云支持，腾讯云不支持）",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -278,12 +286,11 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
-                "value": 80
+                "value": 1
               }
             ]
           },
@@ -298,11 +305,34 @@
         "y": 1
       },
       "id": 4,
+      "links": [
+        {
+          "targetBlank": true,
+          "title": "L3-传统负载均衡",
+          "url": "/d/L3-CLB?viewPanel=20"
+        },
+        {
+          "targetBlank": true,
+          "title": "L3-应用负载均衡",
+          "url": "/d/L3-ALB?viewPanel=16"
+        },
+        {
+          "targetBlank": true,
+          "title": "L3-网络负载均衡",
+          "url": "/d/L3-NLB?viewPanel=16"
+        },
+        {
+          "targetBlank": true,
+          "title": "L3-网关负载均衡",
+          "url": "/d/L3-GWLB?viewPanel=11"
+        }
+      ],
       "options": {
         "colorMode": "background",
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -310,9 +340,10 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "description": "异常后端服务器数量（阿里云、AWS、华为云支持，腾讯云不支持）",
       "pluginVersion": "11.6.1",
       "targets": [
         {
@@ -339,8 +370,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           },
@@ -360,6 +390,7 @@
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -367,7 +398,9 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
       "pluginVersion": "11.6.1",
       "targets": [
@@ -395,8 +428,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -420,6 +452,7 @@
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -427,7 +460,9 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
       "pluginVersion": "11.6.1",
       "targets": [
@@ -503,6 +538,7 @@
           "values": false
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
@@ -516,7 +552,7 @@
           "refId": "A"
         }
       ],
-      "title": "按云厂商分布",
+      "title": "云厂商分布",
       "type": "piechart"
     },
     {
@@ -545,9 +581,18 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
             "lineWidth": 1,
+            "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
             },
             "thresholdsStyle": {
               "mode": "off"
@@ -558,8 +603,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           },
@@ -582,6 +626,7 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
@@ -595,7 +640,7 @@
           "refId": "A"
         }
       ],
-      "title": "按区域分布 Top 10",
+      "title": "区域分布 Top 10",
       "type": "timeseries"
     },
     {
@@ -624,9 +669,18 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
             "lineWidth": 1,
+            "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
+            },
+            "showPoints": "auto",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
             },
             "thresholdsStyle": {
               "mode": "off"
@@ -637,8 +691,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           },
@@ -661,6 +714,7 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
@@ -674,7 +728,7 @@
           "refId": "A"
         }
       ],
-      "title": "按账号分布 Top 10",
+      "title": "账号分布 Top 10",
       "type": "timeseries"
     },
     {
@@ -707,6 +761,7 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
@@ -737,8 +792,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           },
@@ -747,8 +801,8 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
+        "h": 7,
+        "w": 8,
         "x": 0,
         "y": 16
       },
@@ -761,6 +815,7 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
@@ -794,6 +849,7 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
@@ -824,8 +880,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           },
@@ -834,9 +889,9 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
+        "h": 7,
+        "w": 8,
+        "x": 8,
         "y": 16
       },
       "id": 21,
@@ -848,6 +903,7 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
@@ -881,6 +937,7 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
@@ -911,8 +968,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           },
@@ -921,10 +977,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 24
+        "h": 7,
+        "w": 8,
+        "x": 16,
+        "y": 16
       },
       "id": 22,
       "options": {
@@ -935,6 +991,7 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
@@ -968,6 +1025,7 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
@@ -998,8 +1056,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           },
@@ -1010,8 +1067,8 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 24
+        "x": 0,
+        "y": 23
       },
       "id": 23,
       "options": {
@@ -1022,6 +1079,7 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
@@ -1039,12 +1097,101 @@
       "type": "timeseries"
     },
     {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green"
+              }
+            ]
+          },
+          "unit": "bps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 23
+      },
+      "id": 104,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "table",
+          "placement": "right",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "11.6.1",
+      "targets": [
+        {
+          "editorMode": "code",
+          "expr": "topk(10, {__name__=~\"${lb_type:regex}_traffic_tx_bps\", cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"})",
+          "legendFormat": "{{resource_id}}",
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "title": "出向带宽 Top 10",
+      "type": "timeseries"
+    },
+    {
       "collapsed": false,
       "gridPos": {
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 32
+        "y": 31
       },
       "id": 103,
       "panels": [],
@@ -1068,6 +1215,7 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
@@ -1098,8 +1246,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           },
@@ -1111,7 +1258,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 33
+        "y": 32
       },
       "id": 30,
       "options": {
@@ -1122,6 +1269,7 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
@@ -1143,6 +1291,7 @@
         "type": "prometheus",
         "uid": "$datasource"
       },
+      "description": "异常后端服务器数量（阿里云、AWS、华为云支持，腾讯云不支持）",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1155,6 +1304,7 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
@@ -1185,8 +1335,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           },
@@ -1198,7 +1347,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 33
+        "y": 32
       },
       "id": 31,
       "options": {
@@ -1209,11 +1358,11 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
       },
-      "description": "异常后端服务器数量（阿里云、AWS、华为云支持，腾讯云不支持）",
       "pluginVersion": "11.6.1",
       "targets": [
         {
@@ -1227,6 +1376,7 @@
       "type": "timeseries"
     }
   ],
+  "preload": false,
   "refresh": "30s",
   "schemaVersion": 41,
   "tags": [
@@ -1238,10 +1388,9 @@
     "list": [
       {
         "current": {
-          "text": "Prometheus",
-          "value": "Prometheus"
+          "text": "vm-cluster",
+          "value": "PBF65911BEAADD538"
         },
-        "hide": 0,
         "label": "数据源",
         "name": "datasource",
         "options": [],
@@ -1260,7 +1409,6 @@
           "uid": "$datasource"
         },
         "definition": "label_values(clb_rt,cloud_provider)",
-        "hide": 0,
         "includeAll": true,
         "label": "云厂商",
         "multi": true,
@@ -1285,7 +1433,6 @@
           "uid": "$datasource"
         },
         "definition": "label_values(clb_rt{cloud_provider=~\"$cloud_provider\"},account_id)",
-        "hide": 0,
         "includeAll": true,
         "label": "账号",
         "multi": true,
@@ -1310,7 +1457,6 @@
           "uid": "$datasource"
         },
         "definition": "label_values(clb_rt{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\"},region)",
-        "hide": 0,
         "includeAll": true,
         "label": "区域",
         "multi": true,
@@ -1335,7 +1481,6 @@
           "uid": "$datasource"
         },
         "definition": "label_values(clb_rt{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\"},resource_id)",
-        "hide": 0,
         "includeAll": true,
         "label": "资源ID",
         "multi": true,
@@ -1360,7 +1505,6 @@
           "uid": "$datasource"
         },
         "definition": "label_values(clb_rt{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"},code_name)",
-        "hide": 0,
         "includeAll": true,
         "label": "业务",
         "multi": true,
@@ -1376,37 +1520,40 @@
       },
       {
         "current": {
-          "text": "All",
-          "value": ".*"
+          "text": [
+            "$__all"
+          ],
+          "value": [
+            "$__all"
+          ]
         },
-        "hide": 0,
+        "includeAll": true,
         "label": "LB 类型",
         "multi": true,
         "name": "lb_type",
         "options": [
           {
-            "selected": true,
+            "selected": false,
             "text": "alb",
             "value": "alb"
           },
           {
-            "selected": true,
+            "selected": false,
             "text": "clb",
             "value": "clb"
           },
           {
-            "selected": true,
+            "selected": false,
             "text": "nlb",
             "value": "nlb"
           },
           {
-            "selected": true,
+            "selected": false,
             "text": "gwlb",
             "value": "gwlb"
           }
         ],
         "query": "alb,clb,nlb,gwlb",
-        "refresh": 1,
         "type": "custom"
       }
     ]
@@ -1417,7 +1564,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "L2-负载均衡-v3",
-  "uid": "L2-LB-v3",
-  "version": 1
+  "title": "L2-负载均衡",
+  "uid": "L2-LB",
+  "version": ""
 }

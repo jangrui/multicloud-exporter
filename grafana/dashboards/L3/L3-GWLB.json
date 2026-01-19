@@ -1,31 +1,43 @@
 {
   "annotations": {
-    "list": []
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
   },
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": null,
+  "id": 86,
   "links": [
     {
       "title": "L1-全局总览",
-      "url": "/d/L1-v3"
+      "url": "/d/L1"
     },
     {
       "title": "L2-负载均衡",
-      "url": "/d/L2-LB-v3"
+      "url": "/d/L2-LB"
     },
     {
       "title": "L4-网关负载均衡",
-      "url": "/d/L4-GWLB-v3"
+      "url": "/d/L4-GWLB"
     }
   ],
-  "liveNow": false,
   "panels": [
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "$datasource"
       },
       "description": "当前区域内GWLB实例总数",
       "fieldConfig": {
@@ -38,13 +50,13 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           },
           "unit": "short"
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 4,
@@ -58,14 +70,20 @@
         "graphMode": "none",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
+        "showPercentChange": false,
         "text": {},
-        "textMode": "auto"
+        "textMode": "auto",
+        "wideLayout": true
       },
+      "pluginVersion": "11.6.1",
       "targets": [
         {
           "datasource": {
@@ -74,7 +92,8 @@
           },
           "expr": "count(gwlb_active_connection{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"})",
           "instant": true,
-          "legendFormat": ""
+          "legendFormat": "",
+          "refId": "A"
         }
       ],
       "title": "GWLB 实例数",
@@ -83,7 +102,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "$datasource"
       },
       "description": "所有实例当前活跃连接数总和",
       "fieldConfig": {
@@ -96,8 +115,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "yellow",
@@ -110,7 +128,8 @@
             ]
           },
           "unit": "short"
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 4,
@@ -124,14 +143,20 @@
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
+        "showPercentChange": false,
         "text": {},
-        "textMode": "auto"
+        "textMode": "auto",
+        "wideLayout": true
       },
+      "pluginVersion": "11.6.1",
       "targets": [
         {
           "datasource": {
@@ -139,7 +164,8 @@
             "uid": "${datasource}"
           },
           "expr": "sum(gwlb_active_connection{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"})",
-          "legendFormat": ""
+          "legendFormat": "",
+          "refId": "A"
         }
       ],
       "title": "总活跃连接数",
@@ -148,7 +174,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "$datasource"
       },
       "description": "所有实例每秒处理的数据量",
       "fieldConfig": {
@@ -161,13 +187,13 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           },
           "unit": "Bps"
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 4,
@@ -181,14 +207,20 @@
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
+        "showPercentChange": false,
         "text": {},
-        "textMode": "auto"
+        "textMode": "auto",
+        "wideLayout": true
       },
+      "pluginVersion": "11.6.1",
       "targets": [
         {
           "datasource": {
@@ -196,7 +228,8 @@
             "uid": "${datasource}"
           },
           "expr": "sum(gwlb_bytes_processed_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"})",
-          "legendFormat": ""
+          "legendFormat": "",
+          "refId": "A"
         }
       ],
       "title": "总处理速率",
@@ -205,7 +238,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "$datasource"
       },
       "description": "所有实例总包速率",
       "fieldConfig": {
@@ -218,13 +251,13 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           },
           "unit": "pps"
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 4,
@@ -238,14 +271,20 @@
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
-          "calcs": ["lastNotNull"],
+          "calcs": [
+            "lastNotNull"
+          ],
           "fields": "",
           "values": false
         },
+        "showPercentChange": false,
         "text": {},
-        "textMode": "auto"
+        "textMode": "auto",
+        "wideLayout": true
       },
+      "pluginVersion": "11.6.1",
       "targets": [
         {
           "datasource": {
@@ -253,7 +292,8 @@
             "uid": "${datasource}"
           },
           "expr": "sum(gwlb_packet_rate{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"})",
-          "legendFormat": ""
+          "legendFormat": "",
+          "refId": "A"
         }
       ],
       "title": "总包速率",
@@ -262,7 +302,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "$datasource"
       },
       "description": "每个实例的活跃连接数趋势",
       "fieldConfig": {
@@ -271,19 +311,22 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
             "hideFrom": {
+              "legend": false,
               "tooltip": false,
-              "viz": false,
-              "legend": false
+              "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 1,
             "pointSize": 5,
@@ -291,20 +334,27 @@
               "type": "linear"
             },
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           },
           "unit": "short"
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
@@ -315,16 +365,22 @@
       "id": 5,
       "options": {
         "legend": {
-          "calcs": ["mean", "lastNotNull", "max"],
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max"
+          ],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
       },
+      "pluginVersion": "11.6.1",
       "targets": [
         {
           "datasource": {
@@ -332,7 +388,8 @@
             "uid": "${datasource}"
           },
           "expr": "gwlb_active_connection{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}",
-          "legendFormat": "{{resource_id}} - 活跃连接"
+          "legendFormat": "{{resource_id}} - 活跃连接",
+          "refId": "A"
         }
       ],
       "title": "活跃连接数",
@@ -341,7 +398,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "$datasource"
       },
       "description": "每个实例的入方向流量趋势",
       "fieldConfig": {
@@ -350,19 +407,22 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
             "hideFrom": {
+              "legend": false,
               "tooltip": false,
-              "viz": false,
-              "legend": false
+              "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 1,
             "pointSize": 5,
@@ -370,20 +430,27 @@
               "type": "linear"
             },
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           },
           "unit": "Bps"
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
@@ -394,16 +461,22 @@
       "id": 6,
       "options": {
         "legend": {
-          "calcs": ["mean", "lastNotNull", "max"],
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max"
+          ],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
       },
+      "pluginVersion": "11.6.1",
       "targets": [
         {
           "datasource": {
@@ -411,7 +484,8 @@
             "uid": "${datasource}"
           },
           "expr": "gwlb_bytes_in_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}",
-          "legendFormat": "{{resource_id}} - 入流量"
+          "legendFormat": "{{resource_id}} - 入流量",
+          "refId": "A"
         }
       ],
       "title": "入方向流量",
@@ -420,7 +494,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "$datasource"
       },
       "description": "每个实例的出方向流量趋势",
       "fieldConfig": {
@@ -429,19 +503,22 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
             "hideFrom": {
+              "legend": false,
               "tooltip": false,
-              "viz": false,
-              "legend": false
+              "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 1,
             "pointSize": 5,
@@ -449,20 +526,27 @@
               "type": "linear"
             },
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           },
           "unit": "Bps"
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
@@ -473,16 +557,22 @@
       "id": 7,
       "options": {
         "legend": {
-          "calcs": ["mean", "lastNotNull", "max"],
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max"
+          ],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
       },
+      "pluginVersion": "11.6.1",
       "targets": [
         {
           "datasource": {
@@ -490,7 +580,8 @@
             "uid": "${datasource}"
           },
           "expr": "gwlb_bytes_out_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}",
-          "legendFormat": "{{resource_id}} - 出流量"
+          "legendFormat": "{{resource_id}} - 出流量",
+          "refId": "A"
         }
       ],
       "title": "出方向流量",
@@ -499,7 +590,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "$datasource"
       },
       "description": "每个实例的处理速率趋势",
       "fieldConfig": {
@@ -508,19 +599,22 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
             "hideFrom": {
+              "legend": false,
               "tooltip": false,
-              "viz": false,
-              "legend": false
+              "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 1,
             "pointSize": 5,
@@ -528,20 +622,27 @@
               "type": "linear"
             },
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           },
           "unit": "Bps"
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
@@ -552,16 +653,22 @@
       "id": 8,
       "options": {
         "legend": {
-          "calcs": ["mean", "lastNotNull", "max"],
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max"
+          ],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
       },
+      "pluginVersion": "11.6.1",
       "targets": [
         {
           "datasource": {
@@ -569,7 +676,8 @@
             "uid": "${datasource}"
           },
           "expr": "gwlb_bytes_processed_bps{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}",
-          "legendFormat": "{{resource_id}} - 处理速率"
+          "legendFormat": "{{resource_id}} - 处理速率",
+          "refId": "A"
         }
       ],
       "title": "处理速率",
@@ -578,7 +686,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "$datasource"
       },
       "description": "每个实例的包速率趋势",
       "fieldConfig": {
@@ -587,19 +695,22 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
             "hideFrom": {
+              "legend": false,
               "tooltip": false,
-              "viz": false,
-              "legend": false
+              "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 1,
             "pointSize": 5,
@@ -607,20 +718,27 @@
               "type": "linear"
             },
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           },
           "unit": "pps"
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
@@ -631,16 +749,22 @@
       "id": 9,
       "options": {
         "legend": {
-          "calcs": ["mean", "lastNotNull", "max"],
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max"
+          ],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
       },
+      "pluginVersion": "11.6.1",
       "targets": [
         {
           "datasource": {
@@ -648,7 +772,8 @@
             "uid": "${datasource}"
           },
           "expr": "gwlb_packet_rate{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}",
-          "legendFormat": "{{resource_id}} - 包速率"
+          "legendFormat": "{{resource_id}} - 包速率",
+          "refId": "A"
         }
       ],
       "title": "包速率",
@@ -657,7 +782,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "$datasource"
       },
       "description": "每个实例的新连接速率趋势",
       "fieldConfig": {
@@ -666,19 +791,22 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
             "hideFrom": {
+              "legend": false,
               "tooltip": false,
-              "viz": false,
-              "legend": false
+              "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "smooth",
             "lineWidth": 1,
             "pointSize": 5,
@@ -686,20 +814,27 @@
               "type": "linear"
             },
             "showPoints": "never",
-            "spanNulls": true
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               }
             ]
           },
           "unit": "ops"
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
@@ -710,16 +845,22 @@
       "id": 10,
       "options": {
         "legend": {
-          "calcs": ["mean", "lastNotNull", "max"],
+          "calcs": [
+            "mean",
+            "lastNotNull",
+            "max"
+          ],
           "displayMode": "table",
           "placement": "bottom",
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
       },
+      "pluginVersion": "11.6.1",
       "targets": [
         {
           "datasource": {
@@ -727,7 +868,8 @@
             "uid": "${datasource}"
           },
           "expr": "gwlb_new_connection_rate{cloud_provider=~\"$cloud_provider\", account_id=~\"$account_id\", region=~\"$region\", resource_id=~\"$resource_id\"}",
-          "legendFormat": "{{resource_id}} - 新连接速率"
+          "legendFormat": "{{resource_id}} - 新连接速率",
+          "refId": "A"
         }
       ],
       "title": "新连接速率",
@@ -736,7 +878,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "${datasource}"
+        "uid": "$datasource"
       },
       "fieldConfig": {
         "defaults": {
@@ -750,6 +892,7 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
@@ -758,6 +901,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -765,15 +909,21 @@
               "type": "linear"
             },
             "showPoints": "auto",
-            "spanNulls": true
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -782,7 +932,8 @@
             ]
           },
           "unit": "short"
-        }
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
@@ -793,16 +944,22 @@
       "id": 11,
       "options": {
         "legend": {
-          "calcs": ["lastNotNull", "max", "mean"],
+          "calcs": [
+            "lastNotNull",
+            "max",
+            "mean"
+          ],
           "displayMode": "table",
           "placement": "right",
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
       },
+      "pluginVersion": "11.6.1",
       "targets": [
         {
           "datasource": {
@@ -818,41 +975,41 @@
       "type": "timeseries"
     }
   ],
+  "preload": false,
   "refresh": "30s",
-  "schemaVersion": 39,
-  "tags": ["multicloud", "gwlb", "lb"],
+  "schemaVersion": 41,
+  "tags": [
+    "multicloud",
+    "gwlb",
+    "lb"
+  ],
   "templating": {
     "list": [
       {
-        "current": {},
-        "datasource": {
-          "type": "datasource",
-          "uid": "-- Mixed --"
+        "current": {
+          "text": "vm-cluster",
+          "value": "PBF65911BEAADD538"
         },
-        "definition": "prometheus",
-        "hide": 0,
         "includeAll": false,
         "label": "数据源",
-        "multi": false,
         "name": "datasource",
         "options": [],
         "query": "prometheus",
-        "queryValue": "",
         "refresh": 1,
         "regex": "",
-        "skipUrlSync": false,
         "type": "datasource"
       },
       {
-        "current": {},
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
         "datasource": {
           "type": "prometheus",
           "uid": "${datasource}"
         },
         "definition": "label_values(gwlb_active_connection,cloud_provider)",
-        "hide": 0,
         "includeAll": true,
-        "includeAllValue": ".*",
         "label": "云厂商",
         "multi": true,
         "name": "cloud_provider",
@@ -863,20 +1020,20 @@
         },
         "refresh": 2,
         "regex": "",
-        "skipUrlSync": false,
         "sort": 1,
         "type": "query"
       },
       {
-        "current": {},
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
         "datasource": {
           "type": "prometheus",
           "uid": "${datasource}"
         },
         "definition": "label_values(gwlb_active_connection{cloud_provider=~\"$cloud_provider\"},account_id)",
-        "hide": 0,
         "includeAll": true,
-        "includeAllValue": ".*",
         "label": "账号ID",
         "multi": true,
         "name": "account_id",
@@ -887,20 +1044,20 @@
         },
         "refresh": 2,
         "regex": "",
-        "skipUrlSync": false,
         "sort": 1,
         "type": "query"
       },
       {
-        "current": {},
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
         "datasource": {
           "type": "prometheus",
           "uid": "${datasource}"
         },
         "definition": "label_values(gwlb_active_connection{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\"},region)",
-        "hide": 0,
         "includeAll": true,
-        "includeAllValue": ".*",
         "label": "区域",
         "multi": true,
         "name": "region",
@@ -911,20 +1068,20 @@
         },
         "refresh": 2,
         "regex": "",
-        "skipUrlSync": false,
         "sort": 1,
         "type": "query"
       },
       {
-        "current": {},
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
         "datasource": {
           "type": "prometheus",
           "uid": "${datasource}"
         },
         "definition": "label_values(gwlb_active_connection{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"},resource_id)",
-        "hide": 0,
         "includeAll": true,
-        "includeAllValue": ".*",
         "label": "资源ID",
         "multi": true,
         "name": "resource_id",
@@ -935,31 +1092,30 @@
         },
         "refresh": 2,
         "regex": "",
-        "skipUrlSync": false,
         "sort": 1,
         "type": "query"
       },
       {
-        "current": {},
+        "current": {
+          "text": "All",
+          "value": "$__all"
+        },
         "datasource": {
           "type": "prometheus",
           "uid": "${datasource}"
         },
-        "definition": "label_values(gwlb_active_connection{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"},code_name)",
-        "hide": 0,
+        "definition": "label_values(gwlb_active_connection{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\",resource_id},code_name)",
         "includeAll": true,
-        "includeAllValue": ".*",
         "label": "资源名称",
         "multi": true,
         "name": "code_name",
         "options": [],
         "query": {
-          "query": "label_values(gwlb_active_connection{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\"},code_name)",
+          "query": "label_values(gwlb_active_connection{cloud_provider=~\"$cloud_provider\",account_id=~\"$account_id\",region=~\"$region\", resource_id=~\"$resource_id\"},code_name)",
           "refId": "PrometheusVariableQueryEditor-VariableQuery"
         },
         "refresh": 2,
         "regex": "",
-        "skipUrlSync": false,
         "sort": 1,
         "type": "query"
       }
@@ -971,7 +1127,7 @@
   },
   "timepicker": {},
   "timezone": "browser",
-  "title": "L3-网关负载均衡-v3",
-  "uid": "L3-GWLB-v3",
-  "version": 1
+  "title": "L3-网关负载均衡",
+  "uid": "L3-GWLB",
+  "version": ""
 }
