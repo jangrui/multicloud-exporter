@@ -1,4 +1,21 @@
-.PHONY: lint
+.PHONY: help build test lint check clean mappings-check
+
+help:
+	@echo "可用命令："
+	@echo "  make build           - 构建应用"
+	@echo "  make test            - 运行单元测试"
+	@echo "  make lint            - 代码静态检查"
+	@echo "  make mappings-check  - 检查指标映射配置"
+	@echo "  make clean           - 清理构建产物"
+	@echo "  make check           - 完整检查（依赖整理 + Lint + 测试 + 构建）"
+
+build:
+	@echo "Building..."
+	go build -v ./...
+
+test:
+	@echo "Running tests..."
+	go test -v -race -cover ./...
 
 lint:
 	@echo "Running go vet..."
@@ -16,11 +33,17 @@ lint:
 	@echo "Validating mapping structure..."
 	@go test ./internal/config >/dev/null
 
-.PHONY: mappings-check
-
 mappings-check:
 	go run ./cmd/mappings-check
 
-.PHONY: check
-check: lint
-	go test -v -race -cover ./...
+clean:
+	@echo "Cleaning..."
+	rm -rf bin/
+
+check:
+	@echo "Running complete check..."
+	go mod tidy
+	$(MAKE) lint
+	$(MAKE) test
+	$(MAKE) build
+	@echo "All checks passed!"
