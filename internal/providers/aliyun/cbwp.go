@@ -36,7 +36,8 @@ func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []st
 		}
 	}
 	page := 1
-	for {
+	maxPages := 100 // 防止死循环的安全限制
+	for page <= maxPages {
 		req := vpc.CreateDescribeCommonBandwidthPackagesRequest()
 		req.RegionId = region
 		req.PageSize = requests.NewInteger(pageSize)
@@ -82,14 +83,18 @@ func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []st
 			time.Sleep(sleep)
 		}
 		if callErr != nil {
+			ctxLog.Errorf("CBWP API 调用失败 page=%d error=%v", page, callErr)
 			break
 		}
 		if resp == nil {
+			ctxLog.Warnf("CBWP API 返回空响应 page=%d", page)
 			break
 		}
 		if len(resp.CommonBandwidthPackages.CommonBandwidthPackage) == 0 {
+			ctxLog.Infof("CBWP API 返回空数据 page=%d", page)
 			break
 		}
+		ctxLog.Infof("CBWP API 返回数据 page=%d 本次获取=%d", page, len(resp.CommonBandwidthPackages.CommonBandwidthPackage))
 		for _, pkg := range resp.CommonBandwidthPackages.CommonBandwidthPackage {
 			ids = append(ids, pkg.BandwidthPackageId)
 		}
@@ -102,6 +107,9 @@ func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []st
 		// 检查是否还有更多页：如果返回的数据量小于 pageSize，说明已经是最后一页
 		// 如果返回的数据量等于 pageSize，可能还有更多页，继续下一页
 		// 使用 TotalCount 来验证（如果存在）
+		if resp.TotalCount == 0 {
+			ctxLog.Warnf("CBWP API 返回 TotalCount=0，依赖当前页数据量判断是否还有更多页 page=%d", page)
+		}
 		if resp.TotalCount > 0 {
 			// 如果 TotalCount 存在，可以用它来判断是否还有更多数据
 			totalCollected := len(ids)
@@ -115,6 +123,7 @@ func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []st
 
 		if currentCount < pageSize {
 			// 当前页数据量小于 pageSize，说明已经是最后一页
+			ctxLog.Infof("CBWP 当前页数据量小于 pageSize，已到最后一页 page=%d current_count=%d pageSize=%d", page, currentCount, pageSize)
 			break
 		}
 
@@ -122,6 +131,9 @@ func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []st
 		page++
 		ctxLog.Debugf("CBWP 分页采集 page=%d current_count=%d total_collected=%d", page, currentCount, len(ids))
 		time.Sleep(50 * time.Millisecond)
+	}
+	if page > maxPages {
+		ctxLog.Errorf("CBWP 分页超过最大页数限制 %d，强制退出", maxPages)
 	}
 
 	wTotal, wIndex := utils.ClusterConfig()
@@ -133,8 +145,9 @@ func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []st
 				filteredIDs = append(filteredIDs, id)
 			}
 		}
+		originalCount := len(ids)
 		ids = filteredIDs
-		ctxLog.Debugf("实例级分片过滤后 account=%s region=%s 原始数量=%d 过滤后数量=%d", account.AccountID, region, len(ids), len(filteredIDs))
+		ctxLog.Infof("实例级分片过滤后 account=%s region=%s 原始数量=%d 过滤后数量=%d 分片配置=total=%d index=%d", account.AccountID, region, originalCount, len(filteredIDs), wTotal, wIndex)
 	}
 
 	// 打印缩略的 ID 列表，便于定位
@@ -144,7 +157,7 @@ func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []st
 			max = len(ids)
 		}
 		preview := ids[:max]
-		ctxLog.Debugf("CBWP 枚举共享带宽包完成 - API: DescribeCommonBandwidthPackages - 数量=%d 预览=%v", len(ids), preview)
+		ctxLog.Infof("CBWP 枚举共享带宽包完成 - API: DescribeCommonBandwidthPackages - 数量=%d 预览=%v", len(ids), preview)
 	} else {
 		ctxLog.Debugf("CBWP 枚举共享带宽包完成 - API: DescribeCommonBandwidthPackages - 数量=%d", len(ids))
 	}
@@ -156,7 +169,7 @@ func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []st
 			status = common.RegionStatusActive
 		}
 		a.regionManager.UpdateRegionStatus(account.AccountID, region, len(ids), status)
-		ctxLog.Debugf("更新区域状态 account=%s region=%s status=%s count=%d",
+		ctxLog.Infof("更新区域状态 account=%s region=%s status=%s count=%d",
 			account.AccountID, region, status, len(ids))
 	}
 
