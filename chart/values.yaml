@@ -97,7 +97,7 @@ firstRun:
 regionDiscovery:
   enabled: true                # 是否启用智能区域发现；默认 true
   discoveryInterval: 1h        # 重新发现周期；支持 s/m/h/d；默认 1h（从 24h 改为 1h）
-  emptyThreshold: 3            # 连续空次数阈值；默认 3
+  emptyThreshold: 30           # 连续空次数阈值；默认 30
 
 # 华为云缓存配置（限流优化）
 # 针对华为云的严格限流策略，通过缓存减少 API 调用次数

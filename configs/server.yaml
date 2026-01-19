@@ -43,8 +43,8 @@ server:
     # 重新发现周期：定期将所有区域状态重置为 unknown 以重新探测（默认 1h，用户可自定义）
     # 支持单位：s(秒), m(分), h(时), d(天, 1d=24h)
     discovery_interval: ${REGION_DISCOVERY_INTERVAL:-1h}
-    # 空区域跳过阈值：连续多少次发现区域为空后跳过该区域（默认 3）
-    empty_threshold: ${REGION_EMPTY_THRESHOLD:-3}
+    # 空区域跳过阈值：连续多少次发现区域为空后跳过该区域（默认 30）
+    empty_threshold: ${REGION_EMPTY_THRESHOLD:-30}
   # 首次采集策略配置
   # 控制多 Pod 启动时的首次采集时机，避免同时向云厂商 API 发起大量请求导致限流
   first_run:
