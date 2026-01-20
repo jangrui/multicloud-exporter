@@ -22,14 +22,22 @@ import (
 	monitor "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/monitor/v20180724"
 )
 
+const (
+	TencentProductCLB  = "clb"
+	TencentProductBWP  = "bwp"
+	TencentProductCOS  = "cos"
+	TencentProductGWLB = "gwlb"
+)
+
 type Collector struct {
-	cfg           *config.Config
-	disc          *discovery.Manager
-	resCache      map[string]resCacheEntry
-	cacheMu       sync.RWMutex
-	clientFactory ClientFactory
-	regionManager providerscommon.RegionManager
-	degradeMgr    *providerscommon.Manager
+	cfg                   *config.Config
+	disc                  *discovery.Manager
+	resCache              map[string]resCacheEntry
+	cacheMu               sync.RWMutex
+	clientFactory         ClientFactory
+	productRegionManagers map[string]providerscommon.RegionManager
+	rmMu                  sync.RWMutex
+	degradeMgr            *providerscommon.Manager
 }
 
 type resCacheEntry struct {
@@ -37,32 +45,51 @@ type resCacheEntry struct {
 	UpdatedAt time.Time
 }
 
+var (
+	productToNamespaceMapTencent = map[string]string{
+		TencentProductCLB:  "QCE/LB",
+		TencentProductBWP:  "QCE/BWP",
+		TencentProductCOS:  "QCE/COS",
+		TencentProductGWLB: "qce/gwlb",
+	}
+)
+
 func NewCollector(cfg *config.Config, mgr *discovery.Manager, clusterMgr *cluster.SyncManager) *Collector {
 	c := &Collector{
-		cfg:           cfg,
-		disc:          mgr,
-		resCache:      make(map[string]resCacheEntry),
-		clientFactory: &defaultClientFactory{},
+		cfg:                   cfg,
+		disc:                  mgr,
+		resCache:              make(map[string]resCacheEntry),
+		clientFactory:         &defaultClientFactory{},
+		productRegionManagers: make(map[string]providerscommon.RegionManager),
 	}
 
-	// 初始化区域管理器
+	// 为每个产品创建独立的 RegionManager
 	if cfg != nil && cfg.GetServer() != nil && cfg.GetServer().RegionDiscovery != nil {
-		c.regionManager = providerscommon.NewRegionManager(providerscommon.RegionDiscoveryConfig{
-			Enabled:           cfg.GetServer().RegionDiscovery.Enabled,
-			DiscoveryInterval: parseDuration(cfg.GetServer().RegionDiscovery.DiscoveryInterval),
-			EmptyThreshold:    cfg.GetServer().RegionDiscovery.EmptyThreshold,
-		})
+		for product := range productToNamespaceMapTencent {
+			rm := providerscommon.NewRegionManager(providerscommon.RegionDiscoveryConfig{
+				Enabled:           cfg.GetServer().RegionDiscovery.Enabled,
+				DiscoveryInterval: parseDuration(cfg.GetServer().RegionDiscovery.DiscoveryInterval),
+				EmptyThreshold:    cfg.GetServer().RegionDiscovery.EmptyThreshold,
+			})
 
-		if clusterMgr != nil {
-			c.regionManager.SetBroadcaster(clusterMgr, "tencent", "")
-			clusterMgr.RegisterProductRegionManager("tencent", "", c.regionManager)
+			if clusterMgr != nil {
+				rm.SetBroadcaster(clusterMgr, "tencent", product)
+				clusterMgr.RegisterProductRegionManager("tencent", product, rm)
+			}
+
+			rm.StartRediscoveryScheduler()
+			c.productRegionManagers[product] = rm
 		}
-
-		// 启动定期重新发现调度器
-		c.regionManager.StartRediscoveryScheduler()
 	}
 
 	return c
+}
+
+// getProductRegionManager 获取指定产品的 RegionManager
+func (t *Collector) getProductRegionManager(product string) providerscommon.RegionManager {
+	t.rmMu.RLock()
+	defer t.rmMu.RUnlock()
+	return t.productRegionManagers[product]
 }
 
 // parseDuration 解析时长字符串为 time.Duration
@@ -164,15 +191,7 @@ func (t *Collector) getAllRegions(account config.CloudAccount) []string {
 		regions = []string{"ap-guangzhou"}
 	}
 
-	// 使用区域管理器进行智能过滤
-	if t.regionManager != nil {
-		activeRegions := t.regionManager.GetActiveRegions(account.AccountID, regions)
-		ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "resource_type", "RegionManager")
-		ctxLog.Infof("智能区域选择: 总=%d 活跃=%d",
-			len(regions), len(activeRegions))
-		return activeRegions
-	}
-
+	// 注意：产品级状态隔离已实施，区域过滤在各产品的 listXXXIDs 方法中通过专属 RegionManager 进行
 	return regions
 }
 

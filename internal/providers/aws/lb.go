@@ -345,12 +345,32 @@ func (c *Collector) processRegionLB(account config.CloudAccount, region string, 
 	// 创建上下文用于 LB 采集
 	ctx := context.Background()
 
+	// 获取 LB 产品的 RegionManager
+	lbRM := c.getProductRegionManager(AWSProductLB)
+	if lbRM != nil && lbRM.ShouldSkipRegion(account.AccountID, region) {
+		ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", region, "namespace", prod.Namespace)
+		ctxLog.Debugf("LB 采集 - 区域已跳过（产品级 RegionManager）")
+		return
+	}
+
 	lbs, err := lister.List(ctx, region, account)
 	if err != nil {
 		ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", region, "namespace", prod.Namespace)
 		ctxLog.Errorf("ListLB API调用失败: %v", err)
 		return
 	}
+
+	// 更新产品级区域状态
+	if lbRM != nil {
+		status := common.RegionStatusEmpty
+		if len(lbs) > 0 {
+			status = common.RegionStatusActive
+		}
+		lbRM.UpdateRegionStatus(account.AccountID, region, len(lbs), status)
+		ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", region, "namespace", prod.Namespace)
+		ctxLog.Debugf("更新 LB 区域状态，status=%s，count=%d", status, len(lbs))
+	}
+
 	if len(lbs) == 0 {
 		return
 	}

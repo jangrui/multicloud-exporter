@@ -75,6 +75,12 @@ func isCOSCapacityMetric(metricName string) bool {
 
 func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) []string {
 	ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "COS")
+	cosRM := t.getProductRegionManager(TencentProductCOS)
+
+	if cosRM != nil && cosRM.ShouldSkipRegion(account.AccountID, region) {
+		ctxLog.Debugf("COS 枚举存储桶 - 区域已跳过（空区域）")
+		return []string{}
+	}
 
 	if ids, hit := t.getCachedIDs(account, region, "QCE/COS", "cos"); hit {
 		return ids
@@ -156,12 +162,12 @@ func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) [
 	t.setCachedIDs(account, region, "QCE/COS", "cos", buckets)
 
 	// 更新区域状态
-	if t.regionManager != nil {
+	if cosRM != nil {
 		status := providerscommon.RegionStatusEmpty
 		if len(buckets) > 0 {
 			status = providerscommon.RegionStatusActive
 		}
-		t.regionManager.UpdateRegionStatus(account.AccountID, region, len(buckets), status)
+		cosRM.UpdateRegionStatus(account.AccountID, region, len(buckets), status)
 		ctxLog.Debugf("COS 枚举存储桶 - API: GetService - 更新区域状态, status=%s，count=%d", status, len(buckets))
 	}
 

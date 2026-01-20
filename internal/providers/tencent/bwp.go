@@ -16,6 +16,7 @@ import (
 
 func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []string {
 	ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "BWP")
+	bwpRM := t.getProductRegionManager(TencentProductBWP)
 
 	regionKey := account.Provider + ":" + account.AccountID + ":" + region
 	if t.degradeMgr != nil && t.degradeMgr.IsDisabled(regionKey, providerscommon.ResourceTypeRegion) {
@@ -26,6 +27,11 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 	if ids, hit := t.getCachedIDs(account, region, "QCE/BWP", "bwp"); hit {
 		ctxLog.Debugf("BWP 枚举带宽包 - 缓存命中 - 数量=%d", len(ids))
 		return ids
+	}
+
+	if bwpRM != nil && bwpRM.ShouldSkipRegion(account.AccountID, region) {
+		ctxLog.Debugf("BWP 枚举带宽包 - 区域已跳过（空区域）")
+		return []string{}
 	}
 
 	client, err := t.clientFactory.NewVPCClient(region, account.AccessKeyID, account.AccessKeySecret)
@@ -150,12 +156,12 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 	t.setCachedIDs(account, region, "QCE/BWP", "bwp", ids)
 
 	// 更新区域状态
-	if t.regionManager != nil {
+	if bwpRM != nil {
 		status := providerscommon.RegionStatusEmpty
 		if len(ids) > 0 {
 			status = providerscommon.RegionStatusActive
 		}
-		t.regionManager.UpdateRegionStatus(account.AccountID, region, len(ids), status)
+		bwpRM.UpdateRegionStatus(account.AccountID, region, len(ids), status)
 		ctxLog.Debugf("BWP 枚举带宽包 - API: DescribeBandwidthPackages - 更新区域状态, status=%s, count=%d", status, len(ids))
 	}
 

@@ -31,6 +31,7 @@ func (m *MockBroadcaster) BroadcastRegionStatus(provider, product, accountID, re
 	m.broadcastCount++
 	m.messages = append(m.messages, BroadcastMessage{
 		Provider:      provider,
+		Product:       product,
 		AccountID:     accountID,
 		Region:        region,
 		Status:        status,

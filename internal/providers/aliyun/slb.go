@@ -20,6 +20,13 @@ import (
 
 func (a *Collector) listSLBIDs(account config.CloudAccount, region string) ([]string, map[string]interface{}) {
 	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "resource_type", "SLB")
+
+	rm := a.getProductRegionManager(AliyunProductSLB)
+	if rm != nil && rm.ShouldSkipRegion(account.AccountID, region) {
+		ctxLog.Debugf("SLB 枚举实例 - 区域已跳过（空区域）")
+		return []string{}, nil
+	}
+
 	client, err := a.clientFactory.NewSLBClient(region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
 		return []string{}, nil
@@ -205,9 +212,8 @@ func (a *Collector) listSLBIDs(account config.CloudAccount, region string) ([]st
 
 	ctxLog.Debugf("枚举SLB实例完成 实例数=%d 带监听器数=%d", len(ids), len(meta))
 
-	// 更新区域状态
-	rm := a.getProductRegionManager(AliyunProductSLB)
-	if rm != nil {
+	// 缓存前更新区域状态
+	if rm := a.getProductRegionManager(AliyunProductSLB); rm != nil {
 		status := common.RegionStatusEmpty
 		if len(ids) > 0 {
 			status = common.RegionStatusActive

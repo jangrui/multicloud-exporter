@@ -6,6 +6,7 @@
 
 - **多云支持**：统一监控阿里云、腾讯云、华为云、AWS 的云资源。
 - **智能区域发现**：自动探测并记录活跃区域，跳过无资源区域，大幅减少 API 调用和费用（支持所有厂商）。
+- **产品级状态隔离**：为每个云产品创建独立的区域状态管理器，避免不同产品间的状态干扰，进一步提升采集效率（v0.4.8+）。
 - **自动化分片**：支持 Kubernetes 动态分片和静态分片，轻松扩展以支持大规模资源监控。
 - **指标一致性**：统一各云厂商的指标命名和标签，便于跨云统一看板展示。
 - **高可用设计**：内置集群稳定性检测、限流重试和指数退避机制。
@@ -261,7 +262,7 @@ A: 增加 `server.scrape_interval` 降低采集频率，或启用缓存功能调
 
 ## 功能特性
 
-- 支持多云平台：阿里云、华为云、腾讯云
+- 支持多云平台：阿里云、华为云、腾讯云、AWS
 - 支持多账号配置
 - 支持多区域监控
 - 按云平台、账号、区域标签区分
@@ -273,6 +274,7 @@ A: 增加 `server.scrape_interval` 降低采集频率，或启用缓存功能调
 - 管理接口认证：`/api/discovery/*` 可选启用 BasicAuth
 - 传输安全：阿里云 CMS 客户端与腾讯云 SDK 默认使用 HTTPS
 - 智能区域发现：自动识别有资源的区域，优先采集活跃区域，跳过空区域，显著降低 API 调用和采集延迟
+- **产品级状态隔离**（v0.4.8+）：为每个云产品创建独立的区域状态管理器，避免不同产品间的状态干扰。每个产品独立管理自己的区域状态（active/empty），集群同步时携带产品标识，确保状态隔离的准确性。例如：SLB 某个区域为空不会影响 CBWP 同一区域的状态判断。
 
 ## 支持的资源类型
 
@@ -671,6 +673,49 @@ accounts:
 > resources 配置：
 > - `resources: []` 或 `resources: ["*"]` 采集所有资源类型
 > - 指定如 `resources: ["clb", "bwp"]` 仅采集列出的资源类型
+
+### 产品标识映射表（v0.4.8+）
+
+产品级状态隔离使用小写的产品标识符进行状态管理：
+
+| 云厂商 | 产品 ID | Namespace | 产品名称 |
+|--------|---------|-----------|---------|
+| 阿里云 | slb | acs_slb_dashboard | 传统负载均衡 |
+| 阿里云 | cbwp | ACS_CBP | 共享带宽包 |
+| 阿里云 | oss | acs_oss_dashboard | 对象存储 |
+| 阿里云 | alb | acs_alb_dashboard | 应用负载均衡 |
+| 阿里云 | nlb | acs_nlb_dashboard | 网络负载均衡 |
+| 阿里云 | gwlb | acs_gwlb_dashboard | 网关负载均衡 |
+| 腾讯云 | clb | QCE/LB_PUBLIC | 云负载均衡 |
+| 腾讯云 | bwp | QCE/CDN_BWP | 共享带宽包 |
+| 腾讯云 | cos | QCE/COS_DATA | 云对象存储 |
+| 腾讯云 | gwlb | QCE/GWLB | 网关负载均衡 |
+| 华为云 | elb | SYS.ELB | 弹性负载均衡 |
+| 华为云 | obs | SYS.OBS | 对象存储服务 |
+| AWS | lb | AWS/ELB | 弹性负载均衡 |
+| AWS | s3 | AWS/S3 | 简单存储服务 |
+
+**使用示例**：
+```yaml
+# accounts.yaml
+accounts:
+  aliyun:
+    - provider: aliyun
+      account_id: "aliyun-prod"
+      resources:
+        - slb  # 使用产品 ID
+        - cbwp
+        - oss
+```
+
+**监控指标查询示例**：
+```promql
+# 查询阿里云 SLB 的活跃区域数
+multicloud_region_status_total{cloud_provider="aliyun", product="slb", status="active"}
+
+# 查询所有产品的内存占用
+multicloud_region_manager_memory_bytes
+```
 
 ## 使用方法
 

@@ -15,7 +15,13 @@ import (
 
 func (t *Collector) listGWLBIDs(account config.CloudAccount, region string) []string {
 	ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "GWLB")
+	gwlbRM := t.getProductRegionManager(TencentProductGWLB)
 	ctxLog.Debugf("GWLB 枚举实例 - API: GetMonitorData - 开始枚举")
+
+	if gwlbRM != nil && gwlbRM.ShouldSkipRegion(account.AccountID, region) {
+		ctxLog.Debugf("GWLB 枚举实例 - 区域已跳过（空区域）")
+		return []string{}
+	}
 
 	if ids, hit := t.getCachedIDs(account, region, "qce/gwlb", "gwlb"); hit {
 		ctxLog.Debugf("GWLB 枚举实例 - 缓存命中 - 数量=%d", len(ids))
@@ -80,12 +86,12 @@ func (t *Collector) listGWLBIDs(account config.CloudAccount, region string) []st
 	t.setCachedIDs(account, region, "qce/gwlb", "gwlb", ids)
 
 	// 更新区域状态
-	if t.regionManager != nil {
+	if gwlbRM != nil {
 		status := providerscommon.RegionStatusEmpty
 		if len(ids) > 0 {
 			status = providerscommon.RegionStatusActive
 		}
-		t.regionManager.UpdateRegionStatus(account.AccountID, region, len(ids), status)
+		gwlbRM.UpdateRegionStatus(account.AccountID, region, len(ids), status)
 		ctxLog.Debugf("GWLB 枚举实例 - API: GetMonitorData - 更新区域状态, status=%s, count=%d", status, len(ids))
 	}
 

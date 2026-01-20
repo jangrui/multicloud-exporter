@@ -1051,9 +1051,16 @@ func (a *Collector) cacheKey(account config.CloudAccount, region, namespace, rty
 }
 
 func (a *Collector) listALBIDs(account config.CloudAccount, region string) []string {
-	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccessKeyID, "region", region, "rtype", "alb")
+	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", "alb")
 	// 记录当前方法名，用于在 clearTagCache 中标识资源类型
 	_ = "alb"
+
+	// 检查区域是否应跳过（产品级 RegionManager）
+	rm := a.getProductRegionManager(AliyunProductALB)
+	if rm != nil && rm.ShouldSkipRegion(account.AccountID, region) {
+		ctxLog.Debugf("ALB 枚举实例 - 区域已跳过（空区域）")
+		return []string{}
+	}
 
 	if ids, _, hit := a.getCachedIDs(account, region, "acs_alb", "alb"); hit {
 		return ids
@@ -1215,7 +1222,14 @@ func (a *Collector) listALBIDs(account config.CloudAccount, region string) []str
 }
 
 func (a *Collector) listNLBIDs(account config.CloudAccount, region string) []string {
-	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccessKeyID, "region", region, "rtype", "nlb")
+	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", "nlb")
+
+	// 检查区域是否应跳过（产品级 RegionManager）
+	rm := a.getProductRegionManager(AliyunProductNLB)
+	if rm != nil && rm.ShouldSkipRegion(account.AccountID, region) {
+		ctxLog.Debugf("NLB 枚举实例 - 区域已跳过（空区域）")
+		return []string{}
+	}
 
 	if ids, _, hit := a.getCachedIDs(account, region, "acs_nlb", "nlb"); hit {
 		return ids
@@ -1374,15 +1388,14 @@ func (a *Collector) listNLBIDs(account config.CloudAccount, region string) []str
 	// 如果是因为 API 调用失败导致的空结果，不缓存，允许下次重新尝试
 	a.setCachedIDs(account, region, "acs_nlb", "nlb", out, meta)
 
-	// 更新区域状态
-	rm := a.getProductRegionManager(AliyunProductNLB)
-	if rm != nil {
+	// 缓存前更新区域状态
+	if rm := a.getProductRegionManager(AliyunProductNLB); rm != nil {
 		status := common.RegionStatusEmpty
 		if len(out) > 0 {
 			status = common.RegionStatusActive
 		}
 		rm.UpdateRegionStatus(account.AccountID, region, len(out), status)
-		ctxLog.Debugf("更新区域状态 account=%s region=%s status=%s count=%d",
+		ctxLog.Debugf("更新 NLB 区域状态 account=%s region=%s status=%s count=%d",
 			account.AccountID, region, status, len(out))
 	}
 
@@ -1391,6 +1404,14 @@ func (a *Collector) listNLBIDs(account config.CloudAccount, region string) []str
 
 // listAliGWLBIDs 通过 CMS 指标数据枚举 GWLB 资源 ID
 func (a *Collector) listAliGWLBIDs(account config.CloudAccount, region string) []string {
+	// 检查区域是否应跳过（产品级 RegionManager）
+	rm := a.getProductRegionManager(AliyunProductAliGWLB)
+	if rm != nil && rm.ShouldSkipRegion(account.AccountID, region) {
+		logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", "gwlb").
+			Debugf("GWLB 枚举实例 - 区域已跳过（空区域）")
+		return []string{}
+	}
+
 	if ids, _, hit := a.getCachedIDs(account, region, "acs_gwlb", "gwlb"); hit {
 		return ids
 	}
@@ -1411,6 +1432,18 @@ func (a *Collector) listAliGWLBIDs(account config.CloudAccount, region string) [
 			}
 		}
 		out = filteredOut
+	}
+
+	// 缓存前更新区域状态
+	if rm != nil {
+		status := common.RegionStatusEmpty
+		if len(out) > 0 {
+			status = common.RegionStatusActive
+		}
+		rm.UpdateRegionStatus(account.AccountID, region, len(out), status)
+		logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "rtype", "gwlb").
+			Debugf("更新 GWLB 区域状态 account=%s region=%s status=%s count=%d",
+				account.AccountID, region, status, len(out))
 	}
 
 	a.setCachedIDs(account, region, "acs_gwlb", "gwlb", out, nil)

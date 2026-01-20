@@ -62,6 +62,12 @@ func (h *Collector) collectOBS(account config.CloudAccount, region string) {
 func (h *Collector) listOBSBuckets(account config.CloudAccount, region string) []obsInfo {
 	ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "resource_type", "OBS")
 
+	obsRM := h.getProductRegionManager(HuaweiProductOBS)
+	if obsRM != nil && obsRM.ShouldSkipRegion(account.AccountID, region) {
+		ctxLog.Debugf("OBS 枚举存储桶 - 区域已跳过（产品级 RegionManager）")
+		return []obsInfo{}
+	}
+
 	if ids, hit := h.getCachedIDs(account, region, "SYS.OBS", "obs"); hit {
 		var buckets []obsInfo
 		for _, id := range ids {
@@ -172,14 +178,14 @@ func (h *Collector) listOBSBuckets(account config.CloudAccount, region string) [
 	}
 	h.setCachedIDs(account, region, "SYS.OBS", "obs", ids)
 
-	// 更新区域状态
-	if h.regionManager != nil {
+	// 更新产品级区域状态
+	if obsRM != nil {
 		status := providerscommon.RegionStatusEmpty
 		if len(ids) > 0 {
 			status = providerscommon.RegionStatusActive
 		}
-		h.regionManager.UpdateRegionStatus(account.AccountID, region, len(ids), status)
-		ctxLog.Debugf("更新区域状态，status=%s，count=%d", status, len(ids))
+		obsRM.UpdateRegionStatus(account.AccountID, region, len(ids), status)
+		ctxLog.Debugf("更新 OBS 区域状态，status=%s，count=%d", status, len(ids))
 	}
 
 	if len(buckets) > 0 {

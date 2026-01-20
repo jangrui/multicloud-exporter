@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"strings"
+	"sync"
 	"time"
 
 	"multicloud-exporter/internal/cluster"
@@ -14,40 +15,63 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 )
 
+const (
+	AWSProductS3 = "s3"
+	AWSProductLB = "lb"
+)
+
+var (
+	productToNamespaceMapAWS = map[string]string{
+		AWSProductS3: "AWS/S3",
+		AWSProductLB: "AWS/ELB",
+	}
+)
+
 // Collector AWS 采集器：按账号/区域采集 CloudWatch 指标
 type Collector struct {
-	cfg           *config.Config
-	disc          *discovery.Manager
-	clientFactory ClientFactory
-	regionManager providerscommon.RegionManager
-	degradeMgr    *providerscommon.Manager
+	cfg                   *config.Config
+	disc                  *discovery.Manager
+	clientFactory         ClientFactory
+	productRegionManagers map[string]providerscommon.RegionManager
+	rmMu                  sync.RWMutex
+	degradeMgr            *providerscommon.Manager
 }
 
 func NewCollector(cfg *config.Config, mgr *discovery.Manager, clusterMgr *cluster.SyncManager) *Collector {
 	c := &Collector{
-		cfg:           cfg,
-		disc:          mgr,
-		clientFactory: &defaultClientFactory{},
+		cfg:                   cfg,
+		disc:                  mgr,
+		clientFactory:         &defaultClientFactory{},
+		productRegionManagers: make(map[string]providerscommon.RegionManager),
 	}
 
-	// 初始化区域管理器
+	// 为每个产品创建独立的 RegionManager
 	if cfg != nil && cfg.GetServer() != nil && cfg.GetServer().RegionDiscovery != nil {
-		c.regionManager = providerscommon.NewRegionManager(providerscommon.RegionDiscoveryConfig{
-			Enabled:           cfg.GetServer().RegionDiscovery.Enabled,
-			DiscoveryInterval: parseDuration(cfg.GetServer().RegionDiscovery.DiscoveryInterval),
-			EmptyThreshold:    cfg.GetServer().RegionDiscovery.EmptyThreshold,
-		})
+		for product := range productToNamespaceMapAWS {
+			rm := providerscommon.NewRegionManager(providerscommon.RegionDiscoveryConfig{
+				Enabled:           cfg.GetServer().RegionDiscovery.Enabled,
+				DiscoveryInterval: parseDuration(cfg.GetServer().RegionDiscovery.DiscoveryInterval),
+				EmptyThreshold:    cfg.GetServer().RegionDiscovery.EmptyThreshold,
+			})
 
-		if clusterMgr != nil {
-			c.regionManager.SetBroadcaster(clusterMgr, "aws", "")
-			clusterMgr.RegisterProductRegionManager("aws", "", c.regionManager)
+			if clusterMgr != nil {
+				rm.SetBroadcaster(clusterMgr, "aws", product)
+				clusterMgr.RegisterProductRegionManager("aws", product, rm)
+			}
+
+			rm.StartRediscoveryScheduler()
+			c.productRegionManagers[product] = rm
 		}
-
-		// 启动定期重新发现调度器
-		c.regionManager.StartRediscoveryScheduler()
 	}
 
 	return c
+}
+
+// getProductRegionManager 获取指定产品的 RegionManager
+func (c *Collector) getProductRegionManager(product string) providerscommon.RegionManager {
+	c.rmMu.RLock()
+	defer c.rmMu.RUnlock()
+	return c.productRegionManagers[product]
 }
 
 // parseDuration 解析时长字符串为 time.Duration
@@ -115,15 +139,6 @@ func (c *Collector) getAllRegions(account config.CloudAccount) []string {
 	}
 	ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", "us-east-1", "resource_type", "EC2")
 	ctxLog.Debugf("DescribeRegions API调用成功，数量=%d", len(regions))
-
-	// 使用区域管理器进行智能过滤
-	if c.regionManager != nil {
-		activeRegions := c.regionManager.GetActiveRegions(account.AccountID, regions)
-		ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "resource_type", "RegionManager")
-		ctxLog.Infof("智能区域选择: 总=%d 活跃=%d",
-			len(regions), len(activeRegions))
-		return activeRegions
-	}
 
 	// 如果未启用区域管理器，返回所有区域
 	return regions

@@ -22,21 +22,26 @@ var defaultHuaweiRegions = []string{
 	"cn-east-3",      // 上海一
 	"cn-east-2",      // 上海二
 	"cn-south-1",     // 广州
-	"cn-southwest-2", // 贵阳一
+	"cn-southwest-2", // 成都一
 	"ap-southeast-1", // 香港
-	"ap-southeast-2", // 曼谷
+	"ap-southeast-2", // 雅谷
 	"ap-southeast-3", // 新加坡
 }
 
-// Collector 封装华为云资源采集逻辑
+const (
+	HuaweiProductELB = "elb"
+	HuaweiProductOBS = "obs"
+)
+
 type Collector struct {
-	cfg           *config.Config
-	disc          *discovery.Manager
-	resCache      map[string]resCacheEntry
-	cacheMu       sync.RWMutex
-	clientFactory ClientFactory
-	regionManager providerscommon.RegionManager
-	degradeMgr    *providerscommon.Manager
+	cfg                   *config.Config
+	disc                  *discovery.Manager
+	resCache              map[string]resCacheEntry
+	cacheMu               sync.RWMutex
+	clientFactory         ClientFactory
+	productRegionManagers map[string]providerscommon.RegionManager
+	rmMu                  sync.RWMutex
+	degradeMgr            *providerscommon.Manager
 }
 
 type resCacheEntry struct {
@@ -44,51 +49,71 @@ type resCacheEntry struct {
 	UpdatedAt time.Time
 }
 
+var (
+	productToNamespaceMapHuawei = map[string]string{
+		HuaweiProductELB: "SYS.ELB",
+		HuaweiProductOBS: "SYS.OBS",
+	}
+)
+
 // NewCollector 创建华为云采集器实例
 func NewCollector(cfg *config.Config, mgr *discovery.Manager, clusterMgr *cluster.SyncManager) *Collector {
 	c := &Collector{
-		cfg:           cfg,
-		disc:          mgr,
-		resCache:      make(map[string]resCacheEntry),
-		clientFactory: &defaultClientFactory{},
+		cfg:                   cfg,
+		disc:                  mgr,
+		resCache:              make(map[string]resCacheEntry),
+		clientFactory:         &defaultClientFactory{},
+		productRegionManagers: make(map[string]providerscommon.RegionManager),
 	}
 
-	// 初始化区域管理器
+	// 为每个产品创建独立的 RegionManager
 	if cfg != nil && cfg.GetServer() != nil && cfg.GetServer().RegionDiscovery != nil {
-		c.regionManager = providerscommon.NewRegionManager(providerscommon.RegionDiscoveryConfig{
-			Enabled:           cfg.GetServer().RegionDiscovery.Enabled,
-			DiscoveryInterval: parseDuration(cfg.GetServer().RegionDiscovery.DiscoveryInterval),
-			EmptyThreshold:    cfg.GetServer().RegionDiscovery.EmptyThreshold,
-		})
+		for product := range productToNamespaceMapHuawei {
+			rm := providerscommon.NewRegionManager(providerscommon.RegionDiscoveryConfig{
+				Enabled:           cfg.GetServer().RegionDiscovery.Enabled,
+				DiscoveryInterval: parseDuration(cfg.GetServer().RegionDiscovery.DiscoveryInterval),
+				EmptyThreshold:    cfg.GetServer().RegionDiscovery.EmptyThreshold,
+			})
 
-		if clusterMgr != nil {
-			c.regionManager.SetBroadcaster(clusterMgr, "huawei", "")
-			clusterMgr.RegisterProductRegionManager("huawei", "", c.regionManager)
+			if clusterMgr != nil {
+				rm.SetBroadcaster(clusterMgr, "huawei", product)
+				clusterMgr.RegisterProductRegionManager("huawei", product, rm)
+			}
+
+			rm.StartRediscoveryScheduler()
+			c.productRegionManagers[product] = rm
 		}
-
-		// 启动定期重新发现调度器
-		c.regionManager.StartRediscoveryScheduler()
 	}
 
 	return c
 }
 
+// getProductRegionManager 获取指定产品的 RegionManager
+func (h *Collector) getProductRegionManager(product string) providerscommon.RegionManager {
+	h.rmMu.RLock()
+	defer h.rmMu.RUnlock()
+	return h.productRegionManagers[product]
+}
+
+// parseDuration 解析时长字符串为 time.Duration
+func parseDuration(s string) time.Duration {
+	if s == "" {
+		return 0
+	}
+	if d, err := time.ParseDuration(s); err == nil {
+		return d
+	}
+	return 0
+}
+
 // Collect 根据账号配置遍历区域与资源类型并采集
 // 注意：分片逻辑已下沉到产品级（collectELB/collectOBS），此处不做区域级分片
 // 这样可以避免双重分片导致的任务丢失问题
+// 注意：产品级状态隔离已实施，区域过滤在各产品的 listXXXIDs 方法中通过专属 RegionManager 进行
 func (h *Collector) Collect(account config.CloudAccount) {
 	regions := account.Regions
 	if len(regions) == 0 || (len(regions) == 1 && regions[0] == "*") {
 		regions = defaultHuaweiRegions
-	}
-
-	// 使用区域管理器进行智能过滤
-	if h.regionManager != nil {
-		activeRegions := h.regionManager.GetActiveRegions(account.AccountID, regions)
-		ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "resource_type", "RegionSelection")
-		ctxLog.Infof("智能区域选择: 总=%d 活跃=%d",
-			len(regions), len(activeRegions))
-		regions = activeRegions
 	}
 
 	var wg sync.WaitGroup
@@ -171,15 +196,4 @@ func (h *Collector) setCachedIDs(account config.CloudAccount, region, namespace,
 	h.cacheMu.Lock()
 	h.resCache[h.cacheKey(account, region, namespace, rtype)] = resCacheEntry{IDs: ids, UpdatedAt: time.Now()}
 	h.cacheMu.Unlock()
-}
-
-// parseDuration 解析时长字符串为 time.Duration
-func parseDuration(s string) time.Duration {
-	if s == "" {
-		return 0
-	}
-	if d, err := time.ParseDuration(s); err == nil {
-		return d
-	}
-	return 0
 }

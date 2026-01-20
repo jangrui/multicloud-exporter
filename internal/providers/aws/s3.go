@@ -46,6 +46,12 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 	}
 
 	accountKey := account.Provider + ":" + account.AccountID + ":global"
+	s3RM := c.getProductRegionManager(AWSProductS3)
+	if s3RM != nil && s3RM.ShouldSkipRegion(account.AccountID, "global") {
+		ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", "global", "namespace", s3Prod.Namespace)
+		ctxLog.Debugf("S3 采集 - 区域已跳过（产品级 RegionManager）")
+		return
+	}
 	if c.degradeMgr != nil && c.degradeMgr.IsDisabled(accountKey, common.ResourceTypeAccount) {
 		ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", "global", "namespace", s3Prod.Namespace)
 		ctxLog.Debugf("S3 采集 - 账号已降级，跳过")
@@ -133,6 +139,18 @@ func (c *Collector) collectS3(account config.CloudAccount) {
 			buckets = append(buckets, *b.Name)
 		}
 	}
+
+	// 更新产品级区域状态
+	if s3RM != nil {
+		status := common.RegionStatusEmpty
+		if len(buckets) > 0 {
+			status = common.RegionStatusActive
+		}
+		s3RM.UpdateRegionStatus(account.AccountID, "global", len(buckets), status)
+		ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", "global", "namespace", s3Prod.Namespace)
+		ctxLog.Debugf("更新 S3 区域状态，status=%s，count=%d", status, len(buckets))
+	}
+
 	if len(buckets) == 0 {
 		return
 	}

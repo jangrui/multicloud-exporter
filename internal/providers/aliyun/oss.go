@@ -167,6 +167,14 @@ func (a *Collector) listOSSIDs(account config.CloudAccount, region string) []str
 		}
 	}
 
+	// 检查区域是否应跳过（产品级 RegionManager）
+	rm := a.getProductRegionManager(AliyunProductOSS)
+	if rm != nil && rm.ShouldSkipRegion(account.AccountID, region) {
+		ctxLog.Debugf("OSS 枚举存储桶 - 区域已跳过（空区域）")
+		return []string{}
+	}
+
+	// 分片过滤
 	wTotal, wIndex := utils.ClusterConfig()
 	if wTotal > 1 {
 		filteredBuckets := []string{}
@@ -179,11 +187,10 @@ func (a *Collector) listOSSIDs(account config.CloudAccount, region string) []str
 		regionBuckets = filteredBuckets
 	}
 
-	// Cache the filtered result at region level (consistent with other resources)
+	// 缓存过滤结果（consistent with other resources）
 	a.setCachedIDs(account, region, "acs_oss_dashboard", "oss", regionBuckets, nil)
 
 	// 更新区域状态
-	rm := a.getProductRegionManager(AliyunProductOSS)
 	if rm != nil {
 		status := common.RegionStatusEmpty
 		if len(regionBuckets) > 0 {

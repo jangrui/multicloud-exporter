@@ -61,6 +61,12 @@ func (h *Collector) collectELB(account config.CloudAccount, region string) {
 func (h *Collector) listELBInstances(account config.CloudAccount, region string) []elbInfo {
 	ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "resource_type", "ELB")
 
+	elbRM := h.getProductRegionManager(HuaweiProductELB)
+	if elbRM != nil && elbRM.ShouldSkipRegion(account.AccountID, region) {
+		ctxLog.Debugf("ELB 枚举实例 - 区域已跳过（产品级 RegionManager）")
+		return []elbInfo{}
+	}
+
 	regionKey := account.Provider + ":" + account.AccountID + ":" + region
 	if h.degradeMgr != nil && h.degradeMgr.IsDisabled(regionKey, providerscommon.ResourceTypeRegion) {
 		ctxLog.Debugf("ELB 枚举实例 - 区域已降级，跳过")
@@ -193,14 +199,14 @@ func (h *Collector) listELBInstances(account config.CloudAccount, region string)
 	}
 	h.setCachedIDs(account, region, "SYS.ELB", "elb", ids)
 
-	// 更新区域状态
-	if h.regionManager != nil {
+	// 更新产品级区域状态
+	if elbRM != nil {
 		status := providerscommon.RegionStatusEmpty
 		if len(ids) > 0 {
 			status = providerscommon.RegionStatusActive
 		}
-		h.regionManager.UpdateRegionStatus(account.AccountID, region, len(ids), status)
-		ctxLog.Debugf("更新区域状态，status=%s，count=%d",
+		elbRM.UpdateRegionStatus(account.AccountID, region, len(ids), status)
+		ctxLog.Debugf("更新 ELB 区域状态，status=%s，count=%d",
 			status, len(ids))
 	}
 

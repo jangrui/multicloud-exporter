@@ -16,6 +16,7 @@ import (
 
 func (t *Collector) listCLBVips(account config.CloudAccount, region string) []string {
 	ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "CLB")
+	clbRM := t.getProductRegionManager(TencentProductCLB)
 
 	regionKey := account.Provider + ":" + account.AccountID + ":" + region
 	if t.degradeMgr != nil && t.degradeMgr.IsDisabled(regionKey, providerscommon.ResourceTypeRegion) {
@@ -26,6 +27,11 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 	if ids, hit := t.getCachedIDs(account, region, "QCE/LB", "clb"); hit {
 		ctxLog.Debugf("CLB 枚举 VIP - 缓存命中 - 数量=%d", len(ids))
 		return ids
+	}
+
+	if clbRM != nil && clbRM.ShouldSkipRegion(account.AccountID, region) {
+		ctxLog.Debugf("CLB 枚举 VIP - 区域已跳过（空区域）")
+		return []string{}
 	}
 
 	client, err := t.clientFactory.NewCLBClient(region, account.AccessKeyID, account.AccessKeySecret)
@@ -154,12 +160,12 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 	t.setCachedIDs(account, region, "QCE/LB", "clb", vips)
 
 	// 更新区域状态
-	if t.regionManager != nil {
+	if clbRM != nil {
 		status := providerscommon.RegionStatusEmpty
 		if len(vips) > 0 {
 			status = providerscommon.RegionStatusActive
 		}
-		t.regionManager.UpdateRegionStatus(account.AccountID, region, len(vips), status)
+		clbRM.UpdateRegionStatus(account.AccountID, region, len(vips), status)
 		ctxLog.Debugf("更新区域状态 account=%s region=%s status=%s count=%d",
 			account.AccountID, region, status, len(vips))
 	}

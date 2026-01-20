@@ -601,13 +601,319 @@ graph TB
 - **采集延迟降低**：采集周期从 60 秒降低到约 15 秒
 - **云配额节省**：显著降低云厂商 API 配额消耗
 
- ## 8. 缓存策略（v0.4.6+）
+  ## 8. 产品级区域状态隔离（v0.4.8+）
 
- ### 8.1 架构设计
+  ### 8.1 架构设计
 
- 系统采用多层缓存策略，减少云 API 调用次数，提升采集性能。
+  产品级区域状态隔离通过为每个云产品创建独立的 RegionManager，实现产品级别的区域状态管理，避免不同产品间的状态干扰。
 
- ### 8.2 缓存类型
+  ### 8.2 设计背景
+
+  **问题背景**：
+  - 旧版本使用单个共享的 RegionManager 管理所有产品的区域状态
+  - 不同产品的区域状态可能相互干扰
+  - 例如：SLB 某个区域为空，但 CBWP 同一区域有资源，共享状态导致判断复杂
+  - 集群同步时无法区分产品的区域状态
+
+  **解决方案**：
+  - 为每个产品创建独立的 RegionManager 实例
+  - 每个产品的区域状态完全隔离，互不干扰
+  - 集群同步时携带产品标识，实现产品级别的状态同步
+
+  ### 8.3 架构图
+
+  ```mermaid
+  ---
+  config:
+    theme: mc
+    layout: tb
+  ---
+  graph TB
+    subgraph Aliyun["阿里云 Collector"]
+      subgraph CBWP["CBWP 产品"]
+        RM1[RegionManager<br/>product=cbwp]
+        STATUS1[Region Status Map]
+      end
+      
+      subgraph SLB["SLB 产品"]
+        RM2[RegionManager<br/>product=slb]
+        STATUS2[Region Status Map]
+      end
+      
+      subgraph OSS["OSS 产品"]
+        RM3[RegionManager<br/>product=oss]
+        STATUS3[Region Status Map]
+      end
+    end
+    
+    subgraph SyncManager["集群同步管理器"]
+      SYNC[SyncManager]
+      BROADCAST[广播器]
+    end
+    
+    RM1 -->|1. 更新区域状态| STATUS1
+    RM2 -->|1. 更新区域状态| STATUS2
+    RM3 -->|1. 更新区域状态| STATUS3
+    
+    STATUS1 -->|2. 产品级广播| BROADCAST
+    STATUS2 -->|2. 产品级广播| BROADCAST
+    STATUS3 -->|2. 产品级广播| BROADCAST
+    
+    BROADCAST -->|3. 集群同步| SYNC
+    SYNC -->|4. 同步到对等节点| RM1
+    SYNC -->|4. 同步到对等节点| RM2
+    SYNC -->|4. 同步到对等节点| RM3
+    
+    style Aliyun fill:#e1f5ff,stroke:#333
+    style SyncManager fill:#ffe1f5,stroke:#333
+  ```
+
+  ### 8.4 产品标识映射
+
+  | 云厂商 | 产品 ID | Namespace | 产品名称 |
+  |--------|---------|-----------|---------|
+  | 阿里云 | slb | acs_slb_dashboard | 传统负载均衡 |
+  | 阿里云 | cbwp | ACS_CBP | 共享带宽包 |
+  | 阿里云 | oss | acs_oss_dashboard | 对象存储 |
+  | 阿里云 | alb | acs_alb_dashboard | 应用负载均衡 |
+  | 阿里云 | nlb | acs_nlb_dashboard | 网络负载均衡 |
+  | 阿里云 | gwlb | acs_gwlb_dashboard | 网关负载均衡 |
+  | 腾讯云 | clb | QCE/LB_PUBLIC | 云负载均衡 |
+  | 腾讯云 | bwp | QCE/CDN_BWP | 共享带宽包 |
+  | 腾讯云 | cos | QCE/COS_DATA | 云对象存储 |
+  | 腾讯云 | gwlb | QCE/GWLB | 网关负载均衡 |
+  | 华为云 | elb | SYS.ELB | 弹性负载均衡 |
+  | 华为云 | obs | SYS.OBS | 对象存储服务 |
+  | AWS | lb | AWS/ELB | 弹性负载均衡 |
+  | AWS | s3 | AWS/S3 | 简单存储服务 |
+
+  ### 8.5 工作流程
+
+  #### 8.5.1 初始化阶段
+
+  1. **Collector 启动时**：
+     - 遍历配置的产品列表
+     - 为每个产品创建独立的 RegionManager 实例
+     - 设置产品标识（provider, product）
+     - 注册到集群同步管理器
+
+  2. **示例代码**（阿里云）：
+     ```go
+     // internal/providers/aliyun/aliyun.go
+     func NewCollector(...) *Collector {
+         c := &Collector{
+             productRegionManagers: make(map[string]common.RegionManager),
+         }
+         
+         // 为每个产品创建独立的 RegionManager
+         for _, product := range []string{AliyunProductSLB, AliyunProductCBWP, AliyunProductOSS} {
+             rm := common.NewSmartRegionManager(common.RegionDiscoveryConfig{
+                 Enabled: cfg.GetServer().RegionDiscovery.Enabled,
+             })
+             
+             // 设置产品标识
+             rm.SetProductIdentifier("aliyun", product)
+             
+             // 注册到集群同步管理器
+             if clusterMgr != nil {
+                 clusterMgr.RegisterRegionManager("aliyun", product, rm)
+                 rm.SetBroadcaster(clusterMgr, "aliyun", product)
+             }
+             
+             c.productRegionManagers[product] = rm
+         }
+         
+         return c
+     }
+     ```
+
+  #### 8.5.2 采集阶段
+
+  1. **获取产品的 RegionManager**：
+     ```go
+     func (a *Collector) listSLBIDs(...) ([]string, error) {
+         rm := a.getProductRegionManager(AliyunProductSLB)
+         
+         // 检查是否应该跳过该区域
+         if rm.ShouldSkipRegion(account.AccountID, region) {
+             logger.Info("skip empty region", 
+                 zap.String("product", AliyunProductSLB),
+                 zap.String("region", region))
+             return []string{}, nil
+         }
+         
+         // 执行实际的 API 调用
+         ids, err := a.client.DescribeLoadBalancers(...)
+         
+         // 更新区域状态
+         status := common.RegionStatusActive
+         if len(ids) == 0 {
+             status = common.RegionStatusEmpty
+         }
+         rm.UpdateRegionStatus(account.AccountID, region, len(ids), status)
+         
+         return ids, err
+     }
+     ```
+
+  2. **产品级别的区域状态管理**：
+     - 每个产品的 RegionManager 独立维护区域状态
+     - 产品的空区域不会影响其他产品的区域状态
+     - 每个产品独立跳过空区域，优化采集效率
+
+  #### 8.5.3 集群同步阶段
+
+  1. **产品级广播**：
+     - 每个产品的 RegionManager 独立广播自己的区域状态
+     - 广播消息携带产品标识：`{provider}:{product}`
+     - 对等节点根据产品标识路由到对应的 RegionManager
+
+  2. **示例消息格式**：
+     ```json
+     {
+       "provider": "aliyun",
+       "product": "slb",
+       "account_id": "1234567890123456",
+       "region": "cn-hangzhou",
+       "status": "active",
+       "resource_count": 5,
+       "timestamp": "2026-01-20T10:00:00Z"
+     }
+     ```
+
+  3. **接收端处理**：
+     ```go
+     // internal/cluster/manager.go
+     func (sm *SyncManager) HandleSync(msg RegionStatusUpdate) {
+         // 根据产品标识查找对应的 RegionManager
+         key := fmt.Sprintf("%s:%s", msg.Provider, msg.Product)
+         rm := sm.managers[key]
+         
+         if rm != nil {
+             // 更新到对应产品的 RegionManager
+             rm.UpdateFromPeer(msg)
+         }
+     }
+     ```
+
+  ### 8.6 性能收益
+
+  **典型场景**（阿里云 20 个区域，6 个产品）：
+  - **采集优化**：
+    - 每个产品独立跳过空区域，减少无效 API 调用
+    - 例如：SLB 在 10 个区域为空，CBWP 在 5 个区域为空
+    - 总计减少约 75% 的空区域 API 调用
+
+  - **集群同步优化**：
+    - 产品级状态隔离，避免全局广播
+    - 广播消息更精准，减少网络流量
+
+  - **内存占用**：
+    - 每个产品的 RegionManager 独立管理内存
+    - 内存占用 = 产品数量 × 区域数量 × 128 字节
+    - 6 个产品 × 20 区域 × 128 字节 ≈ 15 KB
+
+  ### 8.7 配置项
+
+  产品级状态隔离无需额外配置，自动启用。
+
+  **相关配置**：
+  - `server.region_discovery.enabled`: 是否启用智能区域发现（默认 true）
+  - `server.region_discovery.empty_threshold`: 空区域跳过阈值（默认 3）
+
+  ### 8.8 监控指标
+
+  产品级状态隔离提供了以下 Prometheus 指标：
+
+  **区域状态指标**（扩展了 `product` 标签）：
+  - `multicloud_region_status_total{cloud_provider, product, status}`: 区域状态统计
+  - `multicloud_region_skip_total{cloud_provider, product}`: 跳过的空区域次数
+
+  **内存监控指标**（新增）：
+  - `multicloud_region_manager_memory_bytes{cloud_provider, product}`: RegionManager 内存占用（字节）
+  - `multicloud_region_manager_products_total{cloud_provider}`: 每个云厂商的 RegionManager 数量
+
+  **使用示例**：
+  ```promql
+  # 查询阿里云 SLB 的活跃区域数
+  multicloud_region_status_total{cloud_provider="aliyun", product="slb", status="active"}
+
+  # 查询所有产品的内存占用
+  multicloud_region_manager_memory_bytes
+
+  # 查询每个云厂商的 RegionManager 数量
+  multicloud_region_manager_products_total
+  ```
+
+  ### 8.9 故障排查
+
+  **问题 1：某些产品的指标没有采集到**
+
+  **可能原因**：
+  - 产品的 RegionManager 将所有区域标记为 `empty`，跳过了采集
+
+  **排查步骤**：
+  ```bash
+  # 1. 检查该产品的区域状态
+  curl -s http://localhost:9101/metrics | grep multicloud_region_status_total | grep product="slb"
+
+  # 2. 检查跳过次数
+  curl -s http://localhost:9101/metrics | grep multicloud_region_skip_total | grep product="slb"
+
+  # 3. 检查日志中的区域状态更新
+  kubectl logs -f deployment/multicloud-exporter | grep "UpdateRegionStatus"
+  ```
+
+  **解决方案**：
+  - 降低 `server.region_discovery.empty_threshold`（如从 3 改为 5）
+  - 增加 `server.region_discovery.discovery_interval`（如从 24h 改为 12h），更频繁地重新发现
+
+  **问题 2：集群同步后某些产品的区域状态不一致**
+
+  **可能原因**：
+  - 集群同步键格式错误，导致路由到错误的 RegionManager
+
+  **排查步骤**：
+  ```bash
+  # 1. 检查集群同步失败次数
+  curl -s http://localhost:9101/metrics | grep multicloud_broadcast_failed_total
+
+  # 2. 检查各 Pod 的产品区域状态
+  for pod in $(kubectl get pods -l app.kubernetes.io/name=multicloud-exporter -o name); do
+     kubectl exec $pod -- cat /app/data/region_status.json | jq .
+  done
+  ```
+
+  **解决方案**：
+  - 检查日志中的广播消息格式
+  - 验证产品标识是否正确（小写，如 slb 而非 SLB）
+  - 重启 Pod，重新建立集群同步
+
+  **问题 3：内存占用持续增长**
+
+  **可能原因**：
+  - 某个产品的 RegionManager 累积了大量区域数据
+
+  **排查步骤**：
+  ```bash
+  # 1. 检查各产品的内存占用
+  curl -s http://localhost:9101/metrics | grep multicloud_region_manager_memory_bytes
+
+  # 2. 检查是否超过告警阈值（默认 5 MB/产品）
+  ```
+
+  **解决方案**：
+  - 检查该产品的区域数量是否异常
+  - 增加该产品的 `empty_threshold`，更快跳过空区域
+  - 考虑清理不使用的区域配置
+
+  ## 9. 缓存策略（v0.4.6+）
+
+  ### 9.1 架构设计
+
+  系统采用多层缓存策略，减少云 API 调用次数，提升采集性能。
+
+  ### 9.2 缓存类型
 
  | 缓存类型 | 缓存内容 | TTL | 清理机制 | 实现位置 |
  |----------|----------|-----|----------|----------|

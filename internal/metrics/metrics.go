@@ -68,13 +68,13 @@ var (
 		},
 		[]string{"cache_type"},
 	)
-	// RegionDiscovery 区域发现状态统计
+	// RegionDiscovery 区域发现状态统计（扩展支持产品维度）
 	RegionDiscoveryStatus = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "multicloud_region_status_total",
 			Help: " - 区域状态统计（active/empty/unknown）",
 		},
-		[]string{"cloud_provider", "status"},
+		[]string{"cloud_provider", "product", "status"},
 	)
 	// RegionDiscoveryDuration 区域发现耗时
 	RegionDiscoveryDuration = prometheus.NewHistogramVec(
@@ -85,13 +85,13 @@ var (
 		},
 		[]string{"cloud_provider"},
 	)
-	// RegionSkippedTotal 跳过的空区域次数
+	// RegionSkippedTotal 跳过的空区域次数（扩展支持产品维度）
 	RegionSkippedTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "multicloud_region_skip_total",
 			Help: " - 跳过的空区域次数",
 		},
-		[]string{"cloud_provider"},
+		[]string{"cloud_provider", "product"},
 	)
 	// RegionRediscoveryTotal 区域重新发现触发次数
 	RegionRediscoveryTotal = prometheus.NewCounterVec(
@@ -192,6 +192,22 @@ var (
 			Help: " - 集群广播失败次数统计",
 		},
 		[]string{"peer"},
+	)
+	// RegionManagerMemoryBytes 区域管理器内存占用（按云厂商和产品维度）
+	RegionManagerMemoryBytes = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "multicloud_region_manager_memory_bytes",
+			Help: " - 区域管理器内存占用（字节），按云厂商和产品维度统计",
+		},
+		[]string{"cloud_provider", "product"},
+	)
+	// RegionManagerProductsTotal 每个云厂商的产品数量
+	RegionManagerProductsTotal = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "multicloud_region_manager_products_total",
+			Help: " - 每个云厂商的产品 RegionManager 数量",
+		},
+		[]string{"cloud_provider"},
 	)
 )
 

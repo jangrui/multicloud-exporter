@@ -101,6 +101,9 @@ type RegionManager interface {
 
 	// CleanupInactiveAccounts 清理不活跃账号
 	CleanupInactiveAccounts(olderThan time.Duration) int
+
+	// UpdatePrometheusMetrics 更新 Prometheus 指标
+	UpdatePrometheusMetrics()
 }
 
 // SmartRegionManager 智能区域管理器实现
@@ -245,6 +248,9 @@ func (rm *SmartRegionManager) UpdateFromPeer(accountID, region string, resourceC
 	status := RegionStatus(statusStr)
 	rm.updateRegionStatusInternal(accountID, region, resourceCount, status)
 	atomic.AddInt64(&rm.stats.RemoteUpdateCount, 1)
+
+	// 异步更新 Prometheus 指标
+	go rm.UpdatePrometheusMetrics()
 }
 
 // updateRegionStatusInternal 内部更新逻辑
@@ -343,6 +349,9 @@ func (rm *SmartRegionManager) updateRegionStatusInternal(accountID, region strin
 	}
 
 	rm.regionMap[accountID][region] = info
+
+	// 异步更新 Prometheus 指标（避免锁竞争）
+	go rm.UpdatePrometheusMetrics()
 }
 
 // MarkRegionForRediscovery 标记区域为需重新发现
@@ -361,6 +370,9 @@ func (rm *SmartRegionManager) MarkRegionForRediscovery(accountID, region string)
 		rm.regionMap[accountID][region] = info
 		ctxLog := logger.NewContextLogger("RegionManager", "resource_type", "Rediscovery", "account_id", accountID, "region", region)
 		ctxLog.Infof("标记区域重新发现")
+
+		// 异步更新 Prometheus 指标
+		go rm.UpdatePrometheusMetrics()
 	}
 }
 
@@ -600,4 +612,76 @@ func (rm *SmartRegionManager) CleanupInactiveAccounts(olderThan time.Duration) i
 	}
 
 	return len(toDelete)
+}
+
+// UpdatePrometheusMetrics 更新 Prometheus 指标
+func (rm *SmartRegionManager) UpdatePrometheusMetrics() {
+	if rm.providerName == "" || rm.productName == "" {
+		return
+	}
+
+	stats := rm.GetStats()
+
+	// 更新区域状态指标（按产品和状态维度）
+	metrics.RegionDiscoveryStatus.WithLabelValues(
+		rm.providerName,
+		rm.productName,
+		"active",
+	).Set(float64(stats.ActiveRegions))
+
+	metrics.RegionDiscoveryStatus.WithLabelValues(
+		rm.providerName,
+		rm.productName,
+		"empty",
+	).Set(float64(stats.EmptyRegions))
+
+	metrics.RegionDiscoveryStatus.WithLabelValues(
+		rm.providerName,
+		rm.productName,
+		"unknown",
+	).Set(float64(stats.UnknownRegions))
+
+	// 更新跳过区域指标
+	metrics.RegionSkippedTotal.WithLabelValues(
+		rm.providerName,
+		rm.productName,
+	).Add(float64(stats.SkippedRegions))
+
+	// 更新内存占用指标
+	rm.updateMemoryMetrics()
+}
+
+// updateMemoryMetrics 更新内存占用指标
+func (rm *SmartRegionManager) updateMemoryMetrics() {
+	rm.mu.Lock()
+	defer rm.mu.Unlock()
+
+	// 估算内存占用：每个 RegionInfo 约 100 字节（估算）
+	// 实际大小会因字符串长度和字段而异
+	regionCount := 0
+	accountCount := len(rm.regionMap)
+	for _, regions := range rm.regionMap {
+		regionCount += len(regions)
+	}
+
+	// RegionInfo 结构大小估算：8 字节指针 + 5 字段 × 8 字节 + 字符串开销
+	// 约为 100-200 字节/region
+	estimatedBytes := int64(regionCount * 128)
+
+	// 加上 map 开销（每个 map 条目约 32 字节）
+	estimatedBytes += int64(regionCount * 32)
+
+	// 加上 regionMap 的开销
+	estimatedBytes += int64(accountCount * 32)
+
+	// 更新内存指标
+	metrics.RegionManagerMemoryBytes.WithLabelValues(
+		rm.providerName,
+		rm.productName,
+	).Set(float64(estimatedBytes))
+
+	// 更新产品数量指标
+	metrics.RegionManagerProductsTotal.WithLabelValues(
+		rm.providerName,
+	).Set(1)
 }
