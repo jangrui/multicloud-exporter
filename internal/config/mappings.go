@@ -2,8 +2,9 @@ package config
 
 import (
 	"fmt"
-	"multicloud-exporter/internal/metrics"
 	"os"
+
+	"multicloud-exporter/internal/metrics"
 
 	"gopkg.in/yaml.v3"
 )

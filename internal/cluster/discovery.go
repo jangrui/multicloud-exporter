@@ -87,7 +87,7 @@ func (d *PeerDiscovery) discover() {
 		// Only log debug/info on failure, as we might be in single-node mode
 		// check if error is "no such host"
 		d.logger.Debugf("Service lookup failed (%s): %v. Assuming single-node mode.", d.serviceName, err)
-		
+
 		d.mu.Lock()
 		if len(d.peers) > 0 {
 			d.logger.Infof("Lost all peers (lookup failed)")
@@ -103,7 +103,7 @@ func (d *PeerDiscovery) discover() {
 		if d.localIPs[addr] {
 			continue
 		}
-		
+
 		// Skip loopback unless we are testing (but localIPs should handle it if correctly detected)
 		if addr == "127.0.0.1" || addr == "::1" {
 			continue

@@ -1,8 +1,9 @@
 package logger
 
 import (
-	"multicloud-exporter/internal/config"
 	"testing"
+
+	"multicloud-exporter/internal/config"
 
 	"github.com/stretchr/testify/assert"
 )

@@ -2,8 +2,9 @@ package discovery
 
 import (
 	"context"
-	"multicloud-exporter/internal/config"
 	"testing"
+
+	"multicloud-exporter/internal/config"
 )
 
 type testD struct{ prods []config.Product }

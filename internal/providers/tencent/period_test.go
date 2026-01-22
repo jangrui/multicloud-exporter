@@ -1,8 +1,9 @@
 package tencent
 
 import (
-	"multicloud-exporter/internal/config"
 	"testing"
+
+	"multicloud-exporter/internal/config"
 )
 
 func TestMinPeriod_PeriodsList(t *testing.T) {

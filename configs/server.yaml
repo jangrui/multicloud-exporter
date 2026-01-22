@@ -68,4 +68,16 @@ server:
     tag_ttl: ${HUAWEI_CACHE_TAG_TTL:-30m}
   admin_auth_enabled: ${ADMIN_AUTH_ENABLED:-false}
   admin_auth: []
+  # 四维架构配置（v0.5.0 新增）
+  four_dimension:
+    # 并发模式：auto（自动选择）、conservative（保守）、standard（标准）、aggressive（激进）
+    # - auto: 根据账号数自动选择：≤10→conservative，10-50→standard，>50→aggressive
+    # - conservative: 保守模式，总并发度 4（账号并发 4 × 产品并发 1 × 区域并发 1）
+    # - standard: 标准模式，总并发度 16（账号并发 4 × 产品并发 2 × 区域并发 2）
+    # - aggressive: 激进模式，总并发度 48（账号并发 4 × 产品并发 3 × 区域并发 4）
+    concurrency_mode: ${FOUR_DIMENSION_CONCURRENCY_MODE:-auto}
+    # 总并发度限制：避免触发云 API 限流，建议范围 1-20
+    max_concurrency: ${FOUR_DIMENSION_MAX_CONCURRENCY:-20}
+    # 性能优化开关：启用后会自动计算最优并发度，禁用后使用预设值
+    performance_tuning: ${FOUR_DIMENSION_PERFORMANCE_TUNING:-true}
 

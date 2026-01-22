@@ -61,9 +61,7 @@ func parseDuration(s string) (time.Duration, error) {
 type Config struct {
 	Mu sync.RWMutex `yaml:"-"`
 
-	Server *ServerConf `yaml:"server"`
-	// ServerConf 已废弃，保留用于向后兼容，将在加载时合并到 Server
-	ServerConf *ServerConf     `yaml:"serverconf"` // Deprecated: use Server instead
+	Server     *ServerConf     `yaml:"server"`
 	RemoteProm *RemoteProm     `yaml:"remote_prom"`
 	Credential *Credential     `yaml:"credential"`
 	DataTag    []DataTag       `yaml:"datatag"`
@@ -74,12 +72,9 @@ type Config struct {
 	ProductsByProvider map[string][]Product `yaml:"products"`
 }
 
-// GetServer 获取 Server 配置，优先返回 Server，如果为空则返回 ServerConf（向后兼容）
+// GetServer 获取 Server 配置
 func (c *Config) GetServer() *ServerConf {
-	if c.Server != nil {
-		return c.Server
-	}
-	return c.ServerConf
+	return c.Server
 }
 
 // DefaultResourceDimMapping 返回默认的资源维度映射配置
@@ -109,7 +104,7 @@ func (c *Config) Validate() error {
 	var warnings []string
 
 	// 验证 Server 配置
-	if c.Server == nil && c.ServerConf == nil {
+	if c.Server == nil {
 		errs = append(errs, "server config is required")
 	} else {
 		server := c.GetServer()
@@ -193,22 +188,22 @@ func (c *Config) Validate() error {
 		}
 
 		// 验证首次采集策略
-		if server.FirstRunStrategy != "" {
+		if server.FirstRun != nil {
 			validStrategies := map[string]bool{"auto": true, "immediate": true, "staggered": true}
-			if !validStrategies[server.FirstRunStrategy] {
+			if !validStrategies[server.FirstRun.Strategy] {
 				warnings = append(warnings, fmt.Sprintf(
-					"invalid first_run_strategy: %s (valid values: auto, immediate, staggered), will use 'auto'",
-					server.FirstRunStrategy))
-				server.FirstRunStrategy = "auto"
+					"invalid first_run.strategy: %s (valid values: auto, immediate, staggered), will use 'auto'",
+					server.FirstRun.Strategy))
+				server.FirstRun.Strategy = "auto"
 			}
-		}
 
-		// 需求 9.2: 当首次采集最大延迟小于 0 时，使用 180 秒作为默认值
-		if server.FirstRunMaxDelay < 0 {
-			warnings = append(warnings, fmt.Sprintf(
-				"first_run_max_delay is negative (%d), will use default value 180 seconds",
-				server.FirstRunMaxDelay))
-			server.FirstRunMaxDelay = 180
+			// 需求 9.2: 当首次采集最大延迟小于 0 时，使用 180 秒作为默认值
+			if server.FirstRun.MaxDelay < 0 {
+				warnings = append(warnings, fmt.Sprintf(
+					"first_run.max_delay is negative (%d), will use default value 180 seconds",
+					server.FirstRun.MaxDelay))
+				server.FirstRun.MaxDelay = 180
+			}
 		}
 
 		// 验证集群稳定性检测配置
@@ -238,6 +233,28 @@ func (c *Config) Validate() error {
 				warnings = append(warnings, fmt.Sprintf(
 					"cluster_stability_check.required_stable (%d) is out of range (1-10), will use default 3",
 					csc.RequiredStable))
+			}
+		}
+
+		// 验证四维架构配置（v0.5.0 新增）
+		if server.FourDimension != nil {
+			fd := server.FourDimension
+
+			// 验证并发模式
+			validModes := map[string]bool{"auto": true, "conservative": true, "standard": true, "aggressive": true}
+			if !validModes[fd.ConcurrencyMode] {
+				warnings = append(warnings, fmt.Sprintf(
+					"invalid four_dimension.concurrency_mode: %s (valid: auto, conservative, standard, aggressive), will use 'auto'",
+					fd.ConcurrencyMode))
+				fd.ConcurrencyMode = "auto"
+			}
+
+			// 验证总并发度范围
+			if fd.MaxConcurrency < 1 || fd.MaxConcurrency > 20 {
+				warnings = append(warnings, fmt.Sprintf(
+					"invalid four_dimension.max_concurrency: %d (must be 1-20), will use default 20",
+					fd.MaxConcurrency))
+				fd.MaxConcurrency = 20
 			}
 		}
 	}
@@ -303,7 +320,6 @@ func LoadConfig() (*Config, error) {
 		}
 		if s.Server != nil {
 			cfg.Server = s.Server
-			cfg.ServerConf = s.Server
 			// 初始化默认维度映射
 			if cfg.Server.ResourceDimMapping == nil {
 				cfg.Server.ResourceDimMapping = DefaultResourceDimMapping()
@@ -345,6 +361,11 @@ func LoadConfig() (*Config, error) {
 		}
 		if accCfg.AccountsByProvider != nil {
 			cfg.AccountsByProvider = accCfg.AccountsByProvider
+			for provider, accounts := range accCfg.AccountsByProvider {
+				for i := range accounts {
+					accounts[i].Provider = provider
+				}
+			}
 		}
 	} else {
 		// 如果没有指定 ACCOUNTS_PATH，尝试默认路径（可选）
@@ -359,6 +380,11 @@ func LoadConfig() (*Config, error) {
 			}
 			if accCfg.AccountsByProvider != nil {
 				cfg.AccountsByProvider = accCfg.AccountsByProvider
+				for provider, accounts := range accCfg.AccountsByProvider {
+					for i := range accounts {
+						accounts[i].Provider = provider
+					}
+				}
 			}
 		}
 	}
@@ -368,20 +394,14 @@ func LoadConfig() (*Config, error) {
 }
 
 type ServerConf struct {
-	ServiceEndpoint string `yaml:"service_endpoint"`
-	Port            int    `yaml:"port"`
-	PageSize        int    `yaml:"page_size"`
-	// Deprecated: use Log.Output instead
-	LogDest int `yaml:"log_dest"`
-	// Deprecated: use Log.File.Path instead
-	LogDir string `yaml:"log_dir"`
-	// Deprecated: use Log.Level instead
-	LogLevel   string     `yaml:"log_level"`
-	Log        *LogConfig `yaml:"log"`
-	HttpProxy  string     `yaml:"http_proxy"`
-	HttpsProxy string     `yaml:"https_proxy"`
-	NoProxy    string     `yaml:"no_proxy"`
-	NoMeta     bool       `yaml:"no_meta"`
+	ServiceEndpoint string     `yaml:"service_endpoint"`
+	Port            int        `yaml:"port"`
+	PageSize        int        `yaml:"page_size"`
+	Log             *LogConfig `yaml:"log"`
+	HttpProxy       string     `yaml:"http_proxy"`
+	HttpsProxy      string     `yaml:"https_proxy"`
+	NoProxy         string     `yaml:"no_proxy"`
+	NoMeta          bool       `yaml:"no_meta"`
 	// DiscoveryTTL 控制资源自动发现结果的缓存生命周期。
 	// 支持的时间单位：
 	//   - s: 秒 (second)
@@ -393,9 +413,8 @@ type ServerConf struct {
 	//   - "1d": 缓存 1 天
 	//   - "60m": 缓存 60 分钟
 	//   - "24h": 缓存 24 小时
-	DiscoveryTTL     string `yaml:"discovery_ttl"`
-	DiscoveryRefresh string `yaml:"discovery_refresh"`
-	ScrapeInterval   string `yaml:"scrape_interval"`
+	DiscoveryTTL   string `yaml:"discovery_ttl"`
+	ScrapeInterval string `yaml:"scrape_interval"`
 	// TagCacheTTL 控制标签缓存的 TTL（分钟），默认 30
 	TagCacheTTL int `yaml:"tag_cache_ttl"`
 	// PeriodFallback 当无法从元数据获取 Period 时的默认值（秒），默认 60
@@ -416,16 +435,16 @@ type ServerConf struct {
 	// HuaweiCache 定义华为云缓存配置
 	HuaweiCache *HuaweiCacheConf `yaml:"huawei_cache"`
 
-	// FirstRunStrategy 定义首次采集策略：auto（自动判断）、immediate（立即采集）、staggered（强制错峰）
-	FirstRunStrategy string `yaml:"first_run_strategy"`
-
-	// FirstRunMaxDelay 定义首次采集最大延迟时间（秒），默认 180
-	FirstRunMaxDelay int `yaml:"first_run_max_delay"`
+	// FirstRun 定义首次采集策略配置
+	FirstRun *FirstRunConf `yaml:"first_run"`
 
 	// ClusterStabilityCheck 定义集群稳定性检测配置
 	ClusterStabilityCheck *ClusterStabilityCheckConf `yaml:"cluster_stability_check"`
 
-	// ResourceDimMapping 定义各云厂商、各产品（Namespace）的资源维度校验规则。
+	// FourDimension 定义四维架构配置（v0.5.0 新增）
+	FourDimension *FourDimensionConfig `yaml:"four_dimension"`
+
+	// ResourceDimMapping 定义各云厂商、各产品的资源维度校验规则。
 	// Key 为 "provider.namespace"，例如 "aliyun.acs_ecs_dashboard"。
 	// Value 为该产品必须包含的维度键列表（任一匹配即可），例如 ["InstanceId", "instance_id"]。
 	ResourceDimMapping map[string][]string `yaml:"resource_dim_mapping"`
@@ -438,6 +457,14 @@ type RegionDiscoveryConf struct {
 	Enabled           bool   `yaml:"enabled"`            // 是否启用智能区域发现，默认 true
 	DiscoveryInterval string `yaml:"discovery_interval"` // 重新发现周期，如 "1h"
 	EmptyThreshold    int    `yaml:"empty_threshold"`    // 连续空次数阈值，默认 3
+}
+
+// FirstRunConf 定义首次采集策略配置
+type FirstRunConf struct {
+	// 策略类型：auto（自动判断）、immediate（立即采集）、staggered（强制错峰）
+	Strategy string `yaml:"strategy"`
+	// 最大延迟时间（秒），默认 180
+	MaxDelay int `yaml:"max_delay"`
 }
 
 // ClusterConf 定义集群同步配置
@@ -521,4 +548,106 @@ type EstimationConf struct {
 type CLBEstimationConf struct {
 	AliyunBandwidthCapBps int            `yaml:"aliyun_bandwidth_cap_bps"`
 	PerInstanceCapBps     map[string]int `yaml:"per_instance_cap_bps"`
+}
+
+// FourDimensionConfig 定义四维架构配置（v0.5.0 新增）
+type FourDimensionConfig struct {
+	// 并发模式：auto（自动选择）、conservative（保守）、standard（标准）、aggressive（激进）
+	ConcurrencyMode string `yaml:"concurrency_mode"`
+
+	// 总并发度限制：避免触发云 API 限流，建议范围 1-20
+	MaxConcurrency int `yaml:"max_concurrency"`
+
+	// 性能优化开关：启用后会自动计算最优并发度
+	PerformanceTuning bool `yaml:"performance_tuning"`
+}
+
+// GetFourDimensionConfig 获取四维配置，如果未设置则返回默认值
+func (c *Config) GetFourDimensionConfig() FourDimensionConfig {
+	if c.Server == nil || c.Server.FourDimension == nil {
+		return defaultFourDimensionConfig()
+	}
+	return *c.Server.FourDimension
+}
+
+// defaultFourDimensionConfig 返回四维配置默认值
+func defaultFourDimensionConfig() FourDimensionConfig {
+	return FourDimensionConfig{
+		ConcurrencyMode:   "auto",
+		MaxConcurrency:    20,
+		PerformanceTuning: true,
+	}
+}
+
+// CalculateConcurrency 根据四维配置计算各维度并发度
+// 返回：账号并发度、产品并发度、区域并发度、总并发度
+func CalculateConcurrency(fd FourDimensionConfig, accountCount int) (accountConc, productConc, regionConc, totalConc int) {
+	// 根据并发模式或账号数选择预设
+	var (
+		accConc  int
+		prodConc int
+		regConc  int
+	)
+
+	switch fd.ConcurrencyMode {
+	case "conservative":
+		// 保守模式：4×1×1=4
+		accConc, prodConc, regConc = 4, 1, 1
+	case "standard":
+		// 标准模式：4×2×2=16
+		accConc, prodConc, regConc = 4, 2, 2
+	case "aggressive":
+		// 激进模式：4×3×4=48
+		accConc, prodConc, regConc = 4, 3, 4
+	case "auto":
+		// 自动模式：根据账号数自动选择
+		if accountCount <= 10 {
+			accConc, prodConc, regConc = 4, 1, 1
+		} else if accountCount <= 50 {
+			accConc, prodConc, regConc = 4, 2, 2
+		} else {
+			accConc, prodConc, regConc = 4, 3, 4
+		}
+	default:
+		// 默认使用保守模式
+		accConc, prodConc, regConc = 4, 1, 1
+	}
+
+	// 性能优化：启用后根据账号数动态调整
+	if fd.PerformanceTuning && fd.ConcurrencyMode == "auto" {
+		// 账号数较少时可以降低账号并发度，提高产品/区域并发度
+		if accountCount <= 3 {
+			accConc, prodConc, regConc = 2, 2, 2
+		} else if accountCount <= 5 {
+			accConc, prodConc, regConc = 2, 2, 2
+		} else if accountCount <= 10 {
+			accConc, prodConc, regConc = 3, 1, 2
+		} else if accountCount <= 30 {
+			accConc, prodConc, regConc = 3, 1, 2
+		}
+	}
+
+	// 计算总并发度
+	calculatedTotal := accConc * prodConc * regConc
+
+	// 验证总并发度不超过 max_concurrency
+	if calculatedTotal > fd.MaxConcurrency {
+		// 自动调整：逐步降低各维度并发度，直到满足限制
+		// 优先级：账号并发度 > 产品并发度 > 区域并发度
+		for calculatedTotal > fd.MaxConcurrency {
+			if accConc > 1 {
+				accConc--
+			} else if prodConc > 1 {
+				prodConc--
+			} else if regConc > 1 {
+				regConc--
+			} else {
+				// 所有维度都已降至最小，无法继续降低
+				break
+			}
+			calculatedTotal = accConc * prodConc * regConc
+		}
+	}
+
+	return accConc, prodConc, regConc, calculatedTotal
 }

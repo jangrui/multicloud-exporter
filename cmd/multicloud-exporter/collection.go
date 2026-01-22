@@ -32,7 +32,7 @@ import (
 //   - CLUSTER_STABILITY_MAX_WAIT: 稳定性检测最长等待时间（默认 30s）
 //   - CLUSTER_STABILITY_CHECK_INTERVAL: 稳定性检测间隔（默认 2s）
 //   - CLUSTER_STABILITY_REQUIRED_STABLE: 需要连续稳定的次数（默认 3）
-func startCollectionLoop(ctx context.Context, cfg *config.Config, coll *collector.Collector, mgr *discovery.Manager, interval time.Duration) {
+func startCollectionLoop(ctx context.Context, cfg *config.Config, coll *collector.FourDimensionCollector, mgr *discovery.Manager, interval time.Duration) {
 	go func() {
 		lastVer := int64(-1)
 		ticker := time.NewTicker(interval)

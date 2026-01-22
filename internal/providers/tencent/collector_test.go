@@ -147,11 +147,15 @@ func TestCollector_Collect(t *testing.T) {
 	c.clientFactory = factory
 
 	// Execute Collect for CLB
-	c.Collect(config.CloudAccount{
+	acc := config.CloudAccount{
 		AccountID:       "test-acc",
 		AccessKeyID:     "ak",
 		AccessKeySecret: "sk",
 		Regions:         []string{"*"},
 		Resources:       []string{"clb", "bwp", "cos"},
-	})
+	}
+	regions := c.getAllRegions(acc)
+	for _, region := range regions {
+		c.collectRegion(acc, region)
+	}
 }

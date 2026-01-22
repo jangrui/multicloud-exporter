@@ -103,28 +103,6 @@ func parseDuration(s string) time.Duration {
 	return 0
 }
 
-func (t *Collector) Collect(account config.CloudAccount) {
-	regions := account.Regions
-	if len(regions) == 0 || (len(regions) == 1 && regions[0] == "*") {
-		regions = t.getAllRegions(account)
-		if len(regions) == 0 {
-			regions = []string{"ap-guangzhou"}
-		}
-	}
-
-	// 注意：分片逻辑已下沉到产品级（collectCLB/collectBWP/collectCOS 等），此处不做区域级分片
-	// 这样可以避免双重分片导致的任务丢失问题
-	var wg sync.WaitGroup
-	for _, region := range regions {
-		wg.Add(1)
-		go func(r string) {
-			defer wg.Done()
-			t.collectRegion(account, r)
-		}(region)
-	}
-	wg.Wait()
-}
-
 // getAllRegions 通过 CVM DescribeRegions 自动枚举腾讯云可用区域
 func (t *Collector) getAllRegions(account config.CloudAccount) []string {
 	client, err := t.clientFactory.NewCVMClient("ap-guangzhou", account.AccessKeyID, account.AccessKeySecret)

@@ -1,6 +1,7 @@
 package tencent
 
 import (
+	"context"
 	"time"
 
 	"multicloud-exporter/internal/config"
@@ -45,8 +46,12 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 	ctxLog.Debugf("BWP 枚举带宽包 - API: DescribeBandwidthPackages - 开始枚举")
 
 	var ids []string
-	limit := uint64(100) // 腾讯云 VPC API 默认单次最多返回 100 条
+	limit := uint64(100)
 	offset := uint64(0)
+
+	// 使用通用重试配置
+	retryConfig := providerscommon.DefaultRetryConfig()
+	shouldRetry := providerscommon.ShouldRetryForLimitError(providerscommon.TencentClassifier)
 
 	for {
 		req := vpc.NewDescribeBandwidthPackagesRequest()
@@ -55,26 +60,33 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 
 		start := time.Now()
 		var resp *vpc.DescribeBandwidthPackagesResponse
-		var callErr error
-		for attempt := 0; attempt < 3; attempt++ {
-			resp, callErr = client.DescribeBandwidthPackages(req)
-			if callErr == nil {
-				metrics.RequestTotal.WithLabelValues("tencent", "DescribeBandwidthPackages", "success").Inc()
-				metrics.RecordRequest("tencent", "DescribeBandwidthPackages", "success")
-				metrics.RequestDuration.WithLabelValues("tencent", "DescribeBandwidthPackages").Observe(time.Since(start).Seconds())
-				if t.degradeMgr != nil {
-					t.degradeMgr.RecordSuccess(regionKey, providerscommon.ResourceTypeRegion)
+
+		callErr := providerscommon.RetryWithBackoff(context.TODO(), retryConfig, func() error {
+			var err error
+			resp, err = client.DescribeBandwidthPackages(req)
+
+			// 记录指标
+			if err != nil {
+				status := providerscommon.ClassifyTencentError(err)
+				metrics.RequestTotal.WithLabelValues("tencent", "DescribeBandwidthPackages", status).Inc()
+				metrics.RecordRequest("tencent", "DescribeBandwidthPackages", status)
+				if status == providerscommon.ErrorStatusLimit {
+					metrics.RateLimitTotal.WithLabelValues("tencent", "DescribeBandwidthPackages").Inc()
 				}
-				break
+				return err
 			}
-			status := providerscommon.ClassifyTencentError(callErr)
-			metrics.RequestTotal.WithLabelValues("tencent", "DescribeBandwidthPackages", status).Inc()
-			metrics.RecordRequest("tencent", "DescribeBandwidthPackages", status)
-			if status == "limit_error" {
-				// 记录限流指标
-				metrics.RateLimitTotal.WithLabelValues("tencent", "DescribeBandwidthPackages").Inc()
+
+			metrics.RequestTotal.WithLabelValues("tencent", "DescribeBandwidthPackages", "success").Inc()
+			metrics.RecordRequest("tencent", "DescribeBandwidthPackages", "success")
+			metrics.RequestDuration.WithLabelValues("tencent", "DescribeBandwidthPackages").Observe(time.Since(start).Seconds())
+			if t.degradeMgr != nil {
+				t.degradeMgr.RecordSuccess(regionKey, providerscommon.ResourceTypeRegion)
 			}
-			if status == "auth_error" {
+			return nil
+		}, shouldRetry)
+
+		if callErr != nil {
+			if providerscommon.ClassifyTencentError(callErr) == providerscommon.ErrorStatusAuth {
 				if t.degradeMgr != nil {
 					disabled := t.degradeMgr.RecordFailure(regionKey, providerscommon.ResourceTypeRegion, callErr.Error())
 					if disabled {
@@ -83,15 +95,7 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 				}
 				return []string{}
 			}
-			// 指数退避重试
-			sleep := time.Duration(200*(1<<attempt)) * time.Millisecond
-			if sleep > 5*time.Second {
-				sleep = 5 * time.Second
-			}
-			time.Sleep(sleep)
-		}
-		if callErr != nil {
-			ctxLog.Errorf("BWP 枚举带宽包 - API: DescribeBandwidthPackages - 失败 offset=%d: %v", offset, callErr)
+			ctxLog.Warnf("BWP 枚举带宽包 - API: DescribeBandwidthPackages - 失败 offset=%d: %v", offset, callErr)
 			if t.degradeMgr != nil {
 				disabled := t.degradeMgr.RecordFailure(regionKey, providerscommon.ResourceTypeRegion, callErr.Error())
 				if disabled {
@@ -118,26 +122,21 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 		}
 
 		// 使用 TotalCount 和当前已获取的数量来判断是否还有更多数据
-		// 如果返回的数据量小于 limit，说明已经是最后一页
-		// 如果返回的数据量等于 limit，需要检查是否还有更多页
 		if resp.Response.TotalCount != nil && *resp.Response.TotalCount > 0 {
 			totalCollected := uint64(len(ids))
 			if totalCollected >= *resp.Response.TotalCount {
-				// 已收集的数量达到总数，停止分页
-				ctxLog.Debugf("BWP 枚举带宽包 - API: DescribeBandwidthPackages - 分页完成, offset=%d, current_count=%d, total_collected=%d, total_count=%d",
+				ctxLog.Debugf("BWP 枚举带宽包 - 分页完成 offset=%d current_count=%d total_collected=%d total_count=%d",
 					offset, currentCount, totalCollected, *resp.Response.TotalCount)
 				break
 			}
 		}
 
 		if currentCount < limit {
-			// 当前页数据量小于 limit，说明已经是最后一页
 			break
 		}
 
-		// 继续下一页
 		offset += limit
-		ctxLog.Debugf("BWP 枚举带宽包 - API: DescribeBandwidthPackages - 分页, offset=%d, current_count=%d, total_collected=%d", offset, currentCount, len(ids))
+		ctxLog.Debugf("BWP 枚举带宽包 - 分页 offset=%d current_count=%d total_collected=%d", offset, currentCount, len(ids))
 		time.Sleep(50 * time.Millisecond)
 	}
 
@@ -162,7 +161,8 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 			status = providerscommon.RegionStatusActive
 		}
 		bwpRM.UpdateRegionStatus(account.AccountID, region, len(ids), status)
-		ctxLog.Debugf("BWP 枚举带宽包 - API: DescribeBandwidthPackages - 更新区域状态, status=%s, count=%d", status, len(ids))
+		ctxLog.Debugf("更新 BWP 区域状态, status=%s, count=%d",
+			status, len(ids))
 	}
 
 	if len(ids) > 0 {
@@ -171,9 +171,9 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 			max = len(ids)
 		}
 		preview := ids[:max]
-		ctxLog.Debugf("BWP 枚举带宽包 - API: DescribeBandwidthPackages - 已枚举, 数量=%d 预览=%v", len(ids), preview)
+		ctxLog.Debugf("BWP 已枚举，数量=%d 预览=%v", len(ids), preview)
 	} else {
-		ctxLog.Debugf("BWP 枚举带宽包 - API: DescribeBandwidthPackages - 已枚举, 数量=%d", len(ids))
+		ctxLog.Debugf("BWP 已枚举，数量=%d", len(ids))
 	}
 	return ids
 }
@@ -217,6 +217,7 @@ func (t *Collector) fetchBWPMonitor(account config.CloudAccount, region string, 
 			end := time.Now()
 			req.StartTime = common.StringPtr(start.UTC().Format("2006-01-02T15:04:05Z"))
 			req.EndTime = common.StringPtr(end.UTC().Format("2006-01-02T15:04:05Z"))
+
 			reqStart := time.Now()
 			resp, err := client.GetMonitorData(req)
 			if err != nil {
@@ -233,8 +234,6 @@ func (t *Collector) fetchBWPMonitor(account config.CloudAccount, region string, 
 			metrics.RequestDuration.WithLabelValues("tencent", "GetMonitorData").Observe(time.Since(reqStart).Seconds())
 
 			if resp == nil || resp.Response == nil || resp.Response.DataPoints == nil || len(resp.Response.DataPoints) == 0 {
-				// 如果没有数据点，不暴露指标（而不是设置 0 值）
-				// 根据 Prometheus 最佳实践：不存在资源或无数据时，不应该暴露指标
 				continue
 			}
 			for _, dp := range resp.Response.DataPoints {
@@ -245,7 +244,6 @@ func (t *Collector) fetchBWPMonitor(account config.CloudAccount, region string, 
 				if rid == "" {
 					continue
 				}
-				// 如果最后一个值为 nil，表示没有数据，跳过指标（而不是设置为 0）
 				v := dp.Values[len(dp.Values)-1]
 				if v == nil {
 					continue
@@ -253,7 +251,11 @@ func (t *Collector) fetchBWPMonitor(account config.CloudAccount, region string, 
 				val := *v
 				alias, count := metrics.NamespaceGauge("QCE/BWP", m)
 				scaled := scaleBWPMetric(m, val)
-				metrics.IncSampleCountWithLabels(account.AccountID, region, "bwp", "QCE/BWP", 1)
+				metricAlias := metrics.GetMetricAlias("QCE/BWP", m)
+				if metricAlias != "" {
+					ctxLog := logger.NewContextLogger("Tencent", "account_id", account.AccountID, "region", region, "resource_type", "BWP")
+					ctxLog.Debugf("BWP指标映射: 命名空间=QCE/BWP 原始=%s 别名=%s 最终名称=bwp_%s", m, metricAlias, metricAlias)
+				}
 				labels := []string{"tencent", account.AccountID, region, "bwp", rid, "QCE/BWP", m, ""}
 				for len(labels) < count {
 					labels = append(labels, "")
@@ -269,9 +271,9 @@ func scaleBWPMetric(metric string, val float64) float64 {
 	if s := metrics.GetMetricScale("QCE/BWP", metric); s != 0 && s != 1 {
 		return val * s
 	}
+	// 兼容多种指标名称的流量指标（单位从 Mbps 转换为 bit/s）
 	if metric == "InTraffic" || metric == "OutTraffic" {
 		return val * 1000000
 	}
 	return val
-
 }

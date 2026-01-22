@@ -1,16 +1,14 @@
 package main
 
 import (
-	"multicloud-exporter/internal/config"
 	"testing"
+
+	"multicloud-exporter/internal/config"
 )
 
 func adminAuthEnabled(cfg *config.Config) (bool, []config.BasicAuth) {
 	if cfg.Server != nil && cfg.Server.AdminAuthEnabled && len(cfg.Server.AdminAuth) > 0 {
 		return true, cfg.Server.AdminAuth
-	}
-	if cfg.ServerConf != nil && cfg.ServerConf.AdminAuthEnabled && len(cfg.ServerConf.AdminAuth) > 0 {
-		return true, cfg.ServerConf.AdminAuth
 	}
 	return false, nil
 }

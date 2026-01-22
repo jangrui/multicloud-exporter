@@ -456,79 +456,83 @@ func TestValidateHuaweiCacheConfig(t *testing.T) {
 // TestValidateFirstRunStrategy 测试首次采集策略配置验证
 func TestValidateFirstRunStrategy(t *testing.T) {
 	tests := []struct {
-		name     string
-		config   *Config
-		wantWarn bool // 是否期望警告（通过 stderr 输出）
+		name   string
+		config *Config
 	}{
 		{
 			name: "valid strategy - auto",
 			config: &Config{
 				Server: &ServerConf{
-					Port:             9101,
-					FirstRunStrategy: "auto",
-					FirstRunMaxDelay: 180,
+					Port: 9101,
+					FirstRun: &FirstRunConf{
+						Strategy: "auto",
+						MaxDelay: 180,
+					},
 				},
 				AccountsByProvider: map[string][]CloudAccount{
 					"aliyun": {{AccountID: "test", AccessKeyID: "ak", AccessKeySecret: "sk", Regions: []string{"cn-hangzhou"}}},
 				},
 			},
-			wantWarn: false,
 		},
 		{
 			name: "valid strategy - immediate",
 			config: &Config{
 				Server: &ServerConf{
-					Port:             9101,
-					FirstRunStrategy: "immediate",
-					FirstRunMaxDelay: 180,
+					Port: 9101,
+					FirstRun: &FirstRunConf{
+						Strategy: "immediate",
+						MaxDelay: 180,
+					},
 				},
 				AccountsByProvider: map[string][]CloudAccount{
 					"aliyun": {{AccountID: "test", AccessKeyID: "ak", AccessKeySecret: "sk", Regions: []string{"cn-hangzhou"}}},
 				},
 			},
-			wantWarn: false,
 		},
 		{
 			name: "valid strategy - staggered",
 			config: &Config{
 				Server: &ServerConf{
-					Port:             9101,
-					FirstRunStrategy: "staggered",
-					FirstRunMaxDelay: 180,
+					Port: 9101,
+					FirstRun: &FirstRunConf{
+						Strategy: "staggered",
+						MaxDelay: 180,
+					},
 				},
 				AccountsByProvider: map[string][]CloudAccount{
 					"aliyun": {{AccountID: "test", AccessKeyID: "ak", AccessKeySecret: "sk", Regions: []string{"cn-hangzhou"}}},
 				},
 			},
-			wantWarn: false,
 		},
 		{
 			name: "invalid strategy - should use default",
 			config: &Config{
 				Server: &ServerConf{
-					Port:             9101,
-					FirstRunStrategy: "invalid",
-					FirstRunMaxDelay: 180,
+					Port: 9101,
+					FirstRun: &FirstRunConf{
+						Strategy: "invalid",
+						MaxDelay: 180,
+					},
 				},
 				AccountsByProvider: map[string][]CloudAccount{
 					"aliyun": {{AccountID: "test", AccessKeyID: "ak", AccessKeySecret: "sk", Regions: []string{"cn-hangzhou"}}},
 				},
 			},
-			wantWarn: true,
 		},
 		{
 			name: "negative max_delay - should use default",
 			config: &Config{
 				Server: &ServerConf{
-					Port:             9101,
-					FirstRunStrategy: "auto",
-					FirstRunMaxDelay: -100,
+					Port: 9101,
+					FirstRun: &FirstRunConf{
+						Strategy: "auto",
+						MaxDelay: -100,
+					},
 				},
 				AccountsByProvider: map[string][]CloudAccount{
 					"aliyun": {{AccountID: "test", AccessKeyID: "ak", AccessKeySecret: "sk", Regions: []string{"cn-hangzhou"}}},
 				},
 			},
-			wantWarn: true,
 		},
 	}
 

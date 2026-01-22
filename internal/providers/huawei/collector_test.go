@@ -214,7 +214,13 @@ func TestCollect(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			account.Regions = tt.regions
-			c.Collect(account)
+			regions := account.Regions
+			if len(regions) == 0 || (len(regions) == 1 && regions[0] == "*") {
+				regions = []string{"cn-north-4"} // Mock default region
+			}
+			for _, region := range regions {
+				c.collectRegion(account, region)
+			}
 		})
 	}
 }

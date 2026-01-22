@@ -1,9 +1,10 @@
 package discovery
 
 import (
-	"multicloud-exporter/internal/config"
 	"os"
 	"testing"
+
+	"multicloud-exporter/internal/config"
 
 	"github.com/stretchr/testify/assert"
 )

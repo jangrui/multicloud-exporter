@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"multicloud-exporter/internal/cluster"
+	"multicloud-exporter/internal/cluster/four_dimension_sync"
 	"multicloud-exporter/internal/collector"
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/discovery"
@@ -26,7 +26,7 @@ const (
 )
 
 // setupHTTPHandlers 设置所有 HTTP 处理器
-func setupHTTPHandlers(cfg *config.Config, coll *collector.Collector, mgr *discovery.Manager, clusterMgr *cluster.SyncManager) {
+func setupHTTPHandlers(cfg *config.Config, coll *collector.FourDimensionCollector, mgr *discovery.Manager, clusterMgr *four_dimension_sync.FourDimensionSync) {
 	// Prometheus 指标端点
 	http.Handle("/metrics", promhttp.Handler())
 
@@ -48,13 +48,13 @@ func setupHTTPHandlers(cfg *config.Config, coll *collector.Collector, mgr *disco
 
 	// 集群同步端点（仅当启用集群模式时注册）
 	if clusterMgr != nil {
-		// SyncManager 内部已实现 Secret 校验
+		// FourDimensionSync 内部已实现 Secret 校验
 		http.HandleFunc("/api/v1/cluster/sync", clusterMgr.HandleSync)
 	}
 }
 
 // handleHealthz 健康检查处理器（深度检查）
-func handleHealthz(coll *collector.Collector, mgr *discovery.Manager) http.HandlerFunc {
+func handleHealthz(coll *collector.FourDimensionCollector, mgr *discovery.Manager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// 基本响应
 		w.Header().Set("Content-Type", "application/json")
@@ -87,7 +87,7 @@ func handleHealthz(coll *collector.Collector, mgr *discovery.Manager) http.Handl
 }
 
 // handleCollect 手动触发采集处理器
-func handleCollect(coll *collector.Collector) http.HandlerFunc {
+func handleCollect(coll *collector.FourDimensionCollector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		provider := r.URL.Query().Get("provider")
 		resource := r.URL.Query().Get("resource")
@@ -103,7 +103,7 @@ func handleCollect(coll *collector.Collector) http.HandlerFunc {
 }
 
 // handleStatus 获取采集状态处理器
-func handleStatus(coll *collector.Collector) http.HandlerFunc {
+func handleStatus(coll *collector.FourDimensionCollector) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(coll.GetStatus())

@@ -48,19 +48,6 @@ func TestGetAllRegions_FallbackOnError(t *testing.T) {
 	}
 }
 
-func TestCollect_UnknownResource_NoPanic(t *testing.T) {
-	c := &Collector{clientFactory: &mockFactory{}}
-	acc := config.CloudAccount{AccountID: "test", Resources: []string{"unknown_service"}}
-	// Should not panic
-	c.Collect(acc)
-}
-
-func TestCollect_Wildcard_NoConfig_NoPanic(t *testing.T) {
-	c := &Collector{clientFactory: &mockFactory{}}
-	acc := config.CloudAccount{AccountID: "test", Resources: []string{"*"}}
-	c.Collect(acc)
-}
-
 func TestGetDefaultResources(t *testing.T) {
 	c := &Collector{}
 	rd := c.GetDefaultResources()

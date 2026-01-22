@@ -1,10 +1,18 @@
 FROM golang:1.25-alpine AS builder
 WORKDIR /app
 ENV GOTOOLCHAIN=local
+
+# 构建参数
+ARG VERSION=dev
+ARG COMMIT_SHA=none
+ARG BUILD_TIME=unknown
+
 COPY go.mod go.sum* ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -o multicloud-exporter ./cmd/multicloud-exporter
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags "-w -s -X 'multicloud-exporter/internal/version.Version=${VERSION}' -X 'multicloud-exporter/internal/version.CommitSHA=${COMMIT_SHA}' -X 'multicloud-exporter/internal/version.BuildTime=${BUILD_TIME}'" \
+    -o multicloud-exporter ./cmd/multicloud-exporter
 
 FROM alpine:latest
 WORKDIR /app

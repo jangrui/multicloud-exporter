@@ -2,7 +2,6 @@ package aws
 
 import (
 	"context"
-	"strings"
 	"sync"
 	"time"
 
@@ -83,35 +82,6 @@ func parseDuration(s string) time.Duration {
 		return d
 	}
 	return 0
-}
-
-func (c *Collector) Collect(account config.CloudAccount) {
-	// 注意：分片逻辑已下沉到产品级（collectS3/collectALB 等），此处不做账号级分片
-	// 这样可以避免双重分片导致的任务丢失问题
-	for _, resource := range account.Resources {
-		r := strings.ToLower(strings.TrimSpace(resource))
-		switch r {
-		case "*":
-			c.collectS3(account)
-			c.collectALB(account)
-			c.collectCLB(account)
-			c.collectNLB(account)
-			c.collectGWLB(account)
-		case "s3":
-			c.collectS3(account)
-		case "alb":
-			c.collectALB(account)
-		case "clb":
-			c.collectCLB(account)
-		case "nlb":
-			c.collectNLB(account)
-		case "gwlb":
-			c.collectGWLB(account)
-		default:
-			ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "resource_type", resource)
-			ctxLog.Warnf("资源类型尚未实现")
-		}
-	}
 }
 
 // getAllRegions 通过 DescribeRegions 自动发现全部区域

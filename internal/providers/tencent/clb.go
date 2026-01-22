@@ -1,6 +1,7 @@
 package tencent
 
 import (
+	"context"
 	"time"
 
 	"multicloud-exporter/internal/config"
@@ -48,6 +49,10 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 	limit := int64(100) // 腾讯云 CLB API 默认单次最多返回 100 条
 	offset := int64(0)
 
+	// 使用通用重试配置
+	retryConfig := providerscommon.DefaultRetryConfig()
+	shouldRetry := providerscommon.ShouldRetryForLimitError(providerscommon.TencentClassifier)
+
 	for {
 		req := clb.NewDescribeLoadBalancersRequest()
 		req.Limit = common.Int64Ptr(limit)
@@ -55,26 +60,33 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 
 		start := time.Now()
 		var resp *clb.DescribeLoadBalancersResponse
-		var callErr error
-		for attempt := 0; attempt < 3; attempt++ {
-			resp, callErr = client.DescribeLoadBalancers(req)
-			if callErr == nil {
-				metrics.RequestTotal.WithLabelValues("tencent", "DescribeLoadBalancers", "success").Inc()
-				metrics.RecordRequest("tencent", "DescribeLoadBalancers", "success")
-				metrics.RequestDuration.WithLabelValues("tencent", "DescribeLoadBalancers").Observe(time.Since(start).Seconds())
-				if t.degradeMgr != nil {
-					t.degradeMgr.RecordSuccess(regionKey, providerscommon.ResourceTypeRegion)
+
+		callErr := providerscommon.RetryWithBackoff(context.TODO(), retryConfig, func() error {
+			var err error
+			resp, err = client.DescribeLoadBalancers(req)
+
+			// 记录指标
+			if err != nil {
+				status := providerscommon.ClassifyTencentError(err)
+				metrics.RequestTotal.WithLabelValues("tencent", "DescribeLoadBalancers", status).Inc()
+				metrics.RecordRequest("tencent", "DescribeLoadBalancers", status)
+				if status == providerscommon.ErrorStatusLimit {
+					metrics.RateLimitTotal.WithLabelValues("tencent", "DescribeLoadBalancers").Inc()
 				}
-				break
+				return err
 			}
-			status := providerscommon.ClassifyTencentError(callErr)
-			metrics.RequestTotal.WithLabelValues("tencent", "DescribeLoadBalancers", status).Inc()
-			metrics.RecordRequest("tencent", "DescribeLoadBalancers", status)
-			if status == "limit_error" {
-				// 记录限流指标
-				metrics.RateLimitTotal.WithLabelValues("tencent", "DescribeLoadBalancers").Inc()
+
+			metrics.RequestTotal.WithLabelValues("tencent", "DescribeLoadBalancers", "success").Inc()
+			metrics.RecordRequest("tencent", "DescribeLoadBalancers", "success")
+			metrics.RequestDuration.WithLabelValues("tencent", "DescribeLoadBalancers").Observe(time.Since(start).Seconds())
+			if t.degradeMgr != nil {
+				t.degradeMgr.RecordSuccess(regionKey, providerscommon.ResourceTypeRegion)
 			}
-			if status == "auth_error" {
+			return nil
+		}, shouldRetry)
+
+		if callErr != nil {
+			if providerscommon.ClassifyTencentError(callErr) == providerscommon.ErrorStatusAuth {
 				if t.degradeMgr != nil {
 					disabled := t.degradeMgr.RecordFailure(regionKey, providerscommon.ResourceTypeRegion, callErr.Error())
 					if disabled {
@@ -83,14 +95,6 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 				}
 				return []string{}
 			}
-			// 指数退避重试
-			sleep := time.Duration(200*(1<<attempt)) * time.Millisecond
-			if sleep > 5*time.Second {
-				sleep = 5 * time.Second
-			}
-			time.Sleep(sleep)
-		}
-		if callErr != nil {
 			ctxLog.Warnf("CLB 枚举 VIP - API: DescribeLoadBalancers - 失败 offset=%d: %v", offset, callErr)
 			if t.degradeMgr != nil {
 				disabled := t.degradeMgr.RecordFailure(regionKey, providerscommon.ResourceTypeRegion, callErr.Error())

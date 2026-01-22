@@ -29,6 +29,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.94.0
 	github.com/huaweicloud/huaweicloud-sdk-go-obs v3.24.6+incompatible
 	github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.1.127
+	github.com/prometheus/client_model v0.5.0
 	github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/cvm v1.3.2
 	github.com/tencentyun/cos-go-sdk-v5 v0.7.71
 	go.uber.org/zap v1.27.1
@@ -71,7 +72,6 @@ require (
 	github.com/mozillazg/go-httpheader v0.2.1 // indirect
 	github.com/opentracing/opentracing-go v1.2.1-0.20220228012449-10b1cf09e00b // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/prometheus/client_model v0.5.0 // indirect
 	github.com/prometheus/common v0.45.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
 	github.com/tjfoc/gmsm v1.4.1 // indirect

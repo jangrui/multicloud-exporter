@@ -1,10 +1,11 @@
 package aliyun
 
 import (
+	"testing"
+
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/discovery"
 	"multicloud-exporter/internal/providers"
-	"testing"
 
 	"github.com/stretchr/testify/assert"
 )

@@ -196,3 +196,12 @@ func ShouldRetryForNetworkError(classifier ErrorClassifier) func(error) bool {
 		return status == ErrorStatusNetwork
 	}
 }
+
+// ScaleBWPMetricForTest 测试辅助函数，模拟 BWP 指标缩放
+func ScaleBWPMetricForTest(metric string, val float64) float64 {
+	if metric == "InTraffic" || metric == "OutTraffic" {
+		// Mbps -> bit/s
+		return val * 1000000
+	}
+	return val
+}

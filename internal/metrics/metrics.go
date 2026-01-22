@@ -209,6 +209,125 @@ var (
 		},
 		[]string{"cloud_provider"},
 	)
+
+	// ========== 四层架构指标 ==========
+
+	// AccountStatusTotal 账户状态总数
+	AccountStatusTotal = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "multicloud_account_status_total",
+			Help: " - 账户状态统计（active/degraded/disabled）",
+		},
+		[]string{"account_id", "cloud_provider", "status"},
+	)
+
+	// AccountSkipTotal 跳过的账户次数
+	AccountSkipTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "multicloud_account_skip_total",
+			Help: " - 跳过的账户次数统计",
+		},
+		[]string{"account_id", "cloud_provider", "reason"},
+	)
+
+	// AccountDegradedTotal 降级的账户次数
+	AccountDegradedTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "multicloud_account_degraded_total",
+			Help: " - 降级的账户次数统计",
+		},
+		[]string{"account_id", "cloud_provider", "reason"},
+	)
+
+	// AccountStatusChange 账户状态变更次数
+	AccountStatusChange = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "multicloud_account_status_change",
+			Help: " - 账户状态变更次数统计",
+		},
+		[]string{"account_id", "cloud_provider", "old_status", "new_status", "reason"},
+	)
+
+	// ProductStatusTotal 产品状态总数
+	ProductStatusTotal = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "multicloud_product_status_total",
+			Help: " - 产品状态统计（active/degraded/disabled）",
+		},
+		[]string{"account_id", "product_id", "status"},
+	)
+
+	// ProductSkipTotal 跳过的产品次数
+	ProductSkipTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "multicloud_product_skip_total",
+			Help: " - 跳过的产品次数统计",
+		},
+		[]string{"account_id", "product_id", "reason"},
+	)
+
+	// ProductDegradedTotal 降级的产品次数
+	ProductDegradedTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "multicloud_product_degraded_total",
+			Help: " - 降级的产品次数统计",
+		},
+		[]string{"account_id", "product_id", "reason"},
+	)
+
+	// RegionStatusTotal 区域状态总数
+	RegionStatusTotal = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "multicloud_region_status_total",
+			Help: " - 区域状态统计（active/degraded/disabled）",
+		},
+		[]string{"account_id", "product_id", "region", "status"},
+	)
+
+	// RegionSkipTotal 跳过的区域次数
+	RegionSkipTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "multicloud_region_skip_total",
+			Help: " - 跳过的区域次数统计",
+		},
+		[]string{"account_id", "product_id", "region", "reason"},
+	)
+
+	// RegionDegradedTotal 降级的区域次数
+	RegionDegradedTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "multicloud_region_degraded_total",
+			Help: " - 降级的区域次数统计",
+		},
+		[]string{"account_id", "product_id", "region", "reason"},
+	)
+
+	// ResourceStatusTotal 资源状态总数
+	ResourceStatusTotal = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "multicloud_resource_status_total",
+			Help: " - 资源状态统计（active/degraded/disabled）",
+		},
+		[]string{"account_id", "product_id", "region", "resource_id", "status"},
+	)
+
+	// ResourceSkipTotal 跳过的资源次数
+	ResourceSkipTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "multicloud_resource_skip_total",
+			Help: " - 跳过的资源次数统计",
+		},
+		[]string{"account_id", "product_id", "region", "resource_id", "reason"},
+	)
+
+	// ResourceDegradedTotal 降级的资源次数
+	ResourceDegradedTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "multicloud_resource_degraded_total",
+			Help: " - 降级的资源次数统计",
+		},
+		[]string{"account_id", "product_id", "region", "resource_id", "reason"},
+	)
 )
 
 var (
@@ -472,3 +591,238 @@ func RecordCacheHit(cacheType string) {
 func RecordCacheMiss(cacheType string) {
 	CacheMissTotal.WithLabelValues(cacheType).Inc()
 }
+
+// RecordAccessDuration 记录四维访问延迟
+func RecordAccessDuration(dimension, accountID, productID, region, resourceID string, durationSeconds float64) {
+	AccessDurationSeconds.WithLabelValues(dimension, accountID, productID, region, resourceID).Observe(durationSeconds)
+}
+
+// RecordAccess 记录四维访问次数
+func RecordAccess(dimension, status string) {
+	AccessTotal.WithLabelValues(dimension, status).Inc()
+}
+
+// RecordLockContention 记录锁竞争
+func RecordLockContention(dimension string) {
+	LockContentionTotal.WithLabelValues(dimension).Inc()
+}
+
+// UpdateMemoryUsage 更新内存占用
+func UpdateMemoryUsage(dimension string, bytes int64) {
+	MemoryUsageBytes.WithLabelValues(dimension).Set(float64(bytes))
+}
+
+// UpdateObjectPoolSize 更新对象池大小
+func UpdateObjectPoolSize(poolType string, size float64) {
+	ObjectPoolSize.WithLabelValues(poolType).Set(size)
+}
+
+// RecordObjectPoolHit 记录对象池命中
+func RecordObjectPoolHit(poolType string) {
+	ObjectPoolHitsTotal.WithLabelValues(poolType).Inc()
+}
+
+// RecordObjectPoolMiss 记录对象池未命中
+func RecordObjectPoolMiss(poolType string) {
+	ObjectPoolMissesTotal.WithLabelValues(poolType).Inc()
+}
+
+// RecordLRUEvicted 记录 LRU 驱逐
+func RecordLRUEvicted(dimension string) {
+	LRUEvictedTotal.WithLabelValues(dimension).Inc()
+}
+
+// RecordLRUCleanupDuration 记录 LRU 清理耗时
+func RecordLRUCleanupDuration(dimension string, durationSeconds float64) {
+	LRUCleanupDurationSeconds.WithLabelValues(dimension).Observe(durationSeconds)
+}
+
+// UpdateDegradedResources 更新降级资源数
+func UpdateDegradedResources(dimension string, count float64) {
+	DegradedResourcesTotal.WithLabelValues(dimension).Set(count)
+}
+
+// FourDimensionSyncTotal 四维集群同步总数
+var FourDimensionSyncTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "multicloud_four_dimension_sync_total",
+		Help: " - 四维集群同步次数统计（batch/single）",
+	},
+	[]string{"sync_type"},
+)
+
+// FourDimensionSyncDurationSeconds 四维集群同步耗时
+var FourDimensionSyncDurationSeconds = prometheus.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Name:    "multicloud_four_dimension_sync_duration_seconds",
+		Help:    " - 四维集群同步耗时（秒）",
+		Buckets: prometheus.DefBuckets,
+	},
+	[]string{"dimension"},
+)
+
+// AccessDurationSeconds 四维访问延迟指标
+var AccessDurationSeconds = prometheus.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Name:    "multicloud_access_duration_seconds",
+		Help:    " - 四维访问延迟（秒）",
+		Buckets: []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5},
+	},
+	[]string{"dimension", "account_id", "product_id", "region", "resource_id"},
+)
+
+// AccessTotal 四维吞吐量指标
+var AccessTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "multicloud_access_total",
+		Help: " - 四维访问次数统计",
+	},
+	[]string{"dimension", "status"},
+)
+
+// LockContentionTotal 四维锁竞争指标
+var LockContentionTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "multicloud_lock_contention_total",
+		Help: " - 四维锁竞争次数统计",
+	},
+	[]string{"dimension"},
+)
+
+// MemoryUsageBytes 四维内存占用指标
+var MemoryUsageBytes = prometheus.NewGaugeVec(
+	prometheus.GaugeOpts{
+		Name: "multicloud_memory_usage_bytes",
+		Help: " - 四维内存占用（字节）",
+	},
+	[]string{"dimension"},
+)
+
+// ObjectPoolSize 对象池大小指标
+var ObjectPoolSize = prometheus.NewGaugeVec(
+	prometheus.GaugeOpts{
+		Name: "multicloud_pool_size",
+		Help: " - 对象池大小",
+	},
+	[]string{"pool_type"},
+)
+
+// ObjectPoolHitsTotal 对象池命中次数
+var ObjectPoolHitsTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "multicloud_pool_hits_total",
+		Help: " - 对象池命中次数统计",
+	},
+	[]string{"pool_type"},
+)
+
+// ObjectPoolMissesTotal 对象池未命中次数
+var ObjectPoolMissesTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "multicloud_pool_misses_total",
+		Help: " - 对象池未命中次数统计",
+	},
+	[]string{"pool_type"},
+)
+
+// LRUEvictedTotal LRU 清理驱逐次数
+var LRUEvictedTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "multicloud_lru_evicted_total",
+		Help: " - LRU 清理驱逐次数统计",
+	},
+	[]string{"dimension"},
+)
+
+// LRUCleanupDurationSeconds LRU 清理耗时
+var LRUCleanupDurationSeconds = prometheus.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Name:    "multicloud_lru_duration_seconds",
+		Help:    " - LRU 清理耗时（秒）",
+		Buckets: prometheus.DefBuckets,
+	},
+	[]string{"dimension"},
+)
+
+// DegradedResourcesTotal 四维降级资源数
+var DegradedResourcesTotal = prometheus.NewGaugeVec(
+	prometheus.GaugeOpts{
+		Name: "multicloud_degraded_resources_total",
+		Help: " - 降级资源总数",
+	},
+	[]string{"dimension"},
+)
+
+// DegradationTotal 降级总数
+var DegradationTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "multicloud_degradation_total",
+		Help: " - 降级次数统计（按维度和原因）",
+	},
+	[]string{"dimension", "reason"},
+)
+
+// DegradationRecoveredTotal 降级恢复总数
+var DegradationRecoveredTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "multicloud_degradation_recovered_total",
+		Help: " - 降级恢复次数统计（按维度）",
+	},
+	[]string{"dimension"},
+)
+
+// DegradationDurationSeconds 降级持续时间
+var DegradationDurationSeconds = prometheus.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Name:    "multicloud_degradation_duration_seconds",
+		Help:    " - 降级持续时间（秒）",
+		Buckets: prometheus.DefBuckets,
+	},
+	[]string{"dimension"},
+)
+
+// MemoryAlertTotal 内存告警总数
+var MemoryAlertTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "multicloud_memory_alert_total",
+		Help: " - 内存告警次数统计（按级别）",
+	},
+	[]string{"level"},
+)
+
+// IsolatedResourcesTotal 隔离资源总数
+var IsolatedResourcesTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "multicloud_isolated_resources_total",
+		Help: " - 隔离资源总数统计（按维度和原因）",
+	},
+	[]string{"dimension", "reason"},
+)
+
+// RecoveredResourcesTotal 恢复资源总数
+var RecoveredResourcesTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "multicloud_recovered_resources_total",
+		Help: " - 恢复资源总数统计（按维度）",
+	},
+	[]string{"dimension"},
+)
+
+// CollectionStartTotal 采集启动总数
+var CollectionStartTotal = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "multicloud_collection_start_total",
+		Help: " - 采集启动次数统计（按维度）",
+	},
+	[]string{"dimension", "key"},
+)
+
+// CollectionDurationSeconds 采集持续时间
+var CollectionDurationSeconds = prometheus.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Name:    "multicloud_collection_duration_seconds",
+		Help:    " - 采集持续时间（秒）",
+		Buckets: prometheus.DefBuckets,
+	},
+	[]string{"dimension", "key"},
+)

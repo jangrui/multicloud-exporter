@@ -1,4 +1,6 @@
 # golangci-lint 配置文件
+# Documentation: https://golangci-lint.run/usage/configuration/
+
 version: 2
 
 run:
@@ -8,18 +10,11 @@ run:
   concurrency: 4
   # 跳过测试文件（可选，根据项目需要）
   tests: false
-  # 跳过目录
-  skip-dirs:
-    - bin
-    - scripts
-    - charts
-    - docs
-    - .local
   # Go 版本
   go: "1.25"
 
 output:
-  # 输出格式：colored-line-number|line-number|json|tab|checkstyle|code-climate
+  # 输出格式
   format: colored-line-number
   # 打印检查的 linter 数量
   print-linter-name: true
@@ -175,12 +170,20 @@ linters-settings:
   # 静态检查
   staticcheck:
     # Go 版本
-    go: "1.25"
+    checks: ["all"]
 
 issues:
   # 显示所有问题
   max-issues-per-linter: 0
   max-same-issues: 0
+  
+  # 排除目录
+  exclude-dirs:
+    - bin
+    - scripts
+    - charts
+    - docs
+    - .local
 
   # 排除规则
   exclude-rules:

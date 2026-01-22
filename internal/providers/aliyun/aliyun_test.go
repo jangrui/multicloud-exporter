@@ -2,10 +2,11 @@ package aliyun
 
 import (
 	"encoding/json"
+	"testing"
+
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/providers/common"
 	"multicloud-exporter/internal/utils"
-	"testing"
 
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/cms"
 )

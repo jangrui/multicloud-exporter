@@ -4,8 +4,9 @@ import (
 	"context"
 	"time"
 
-	"multicloud-exporter/internal/config"
 	"testing"
+
+	"multicloud-exporter/internal/config"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -18,10 +19,10 @@ func TestGetScrapeInterval(t *testing.T) {
 		expectedDuration int
 	}{
 		{"default config", &config.Config{}, "", 60},
-		{"config value", &config.Config{ServerConf: &config.ServerConf{ScrapeInterval: "30s"}}, "", 30},
-		{"env override", &config.Config{ServerConf: &config.ServerConf{ScrapeInterval: "30s"}}, "120", 120},
+		{"config value", &config.Config{Server: &config.ServerConf{ScrapeInterval: "30s"}}, "", 30},
+		{"env override", &config.Config{Server: &config.ServerConf{ScrapeInterval: "30s"}}, "120", 120},
 		{"env duration parses to seconds", &config.Config{}, "2m", 2},
-		{"invalid config", &config.Config{ServerConf: &config.ServerConf{ScrapeInterval: "invalid"}}, "", 60},
+		{"invalid config", &config.Config{Server: &config.ServerConf{ScrapeInterval: "invalid"}}, "", 60},
 		{"env pure seconds", &config.Config{}, "300", 300},
 	}
 
@@ -46,8 +47,8 @@ func TestGetServerPort(t *testing.T) {
 		expected string
 	}{
 		{"default", &config.Config{}, "", "9101"},
-		{"config value", &config.Config{ServerConf: &config.ServerConf{Port: 8080}}, "", "8080"},
-		{"env override", &config.Config{ServerConf: &config.ServerConf{Port: 8080}}, "9090", "9090"},
+		{"config value", &config.Config{Server: &config.ServerConf{Port: 8080}}, "", "8080"},
+		{"env override", &config.Config{Server: &config.ServerConf{Port: 8080}}, "9090", "9090"},
 		{"env only", &config.Config{}, "9090", "9090"},
 	}
 

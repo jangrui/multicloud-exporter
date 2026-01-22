@@ -408,13 +408,13 @@ canonical:
       dimensions:
         - userId
         - instanceId
-      unit: '%'
+      unit: percent
       scale: 1
     tencent:
       metric: IntrafficVipRatio
       dimensions:
         - eip
-      unit: '%'
+      unit: percent
       scale: 1
 
   traffic_tx_utilization_pct:
@@ -424,13 +424,13 @@ canonical:
       dimensions:
         - userId
         - instanceId
-      unit: '%'
+      unit: percent
       scale: 1
     tencent:
       metric: OuttrafficVipRatio
       dimensions:
         - eip
-      unit: '%'
+      unit: percent
       scale: 1
 
   # ========================================

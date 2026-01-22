@@ -3,10 +3,13 @@ services:
     container_name: multicloud-exporter
     image: ghcr.io/jangrui/multicloud-exporter:latest
     pull_policy: always
-    # environment:
-      # - SERVER_PATH=/app/configs/server.yaml
-      # 可选：若提供账号配置文件
-      # - ACCOUNTS_PATH=/app/configs/accounts.yaml
+     # environment:
+       # - SERVER_PATH=/app/configs/server.yaml
+       # 可选：若提供账号配置文件
+       # - ACCOUNTS_PATH=/app/configs/accounts.yaml
+       # - FOURE_DIMENSION_CONCURRENCY_MODE=auto
+       # - FOURE_DIMENSION_MAX_CONCURRENCY=20
+       # - FOURE_DIMENSION_PERFORMANCE_TUNING=true
     volumes:
       # - ./configs/server.yaml:/app/configs/server.yaml:ro
       # 可选：若提供账号配置文件

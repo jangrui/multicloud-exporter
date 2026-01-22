@@ -290,13 +290,22 @@ func TestCollector_Collect(t *testing.T) {
 	c.clientFactory = factory
 
 	// Execute Collect
-	c.Collect(config.CloudAccount{
+	regions := c.getAllRegions(config.CloudAccount{
 		AccountID:       "test-acc",
 		AccessKeyID:     "ak",
 		AccessKeySecret: "sk",
 		Regions:         []string{"*"},
 		Resources:       []string{"*"},
 	})
+	for _, region := range regions {
+		c.collectCMSMetrics(config.CloudAccount{
+			AccountID:       "test-acc",
+			AccessKeyID:     "ak",
+			AccessKeySecret: "sk",
+			Regions:         []string{"*"},
+			Resources:       []string{"*"},
+		}, region, "")
+	}
 }
 
 func TestCollector_ALIYUN_CLB_Utilization_Estimate(t *testing.T) {
@@ -397,13 +406,17 @@ func TestCollector_ALIYUN_CLB_Utilization_Estimate(t *testing.T) {
 	})
 	c := NewCollector(cfg, mgr, nil)
 	c.clientFactory = factory
-	c.Collect(config.CloudAccount{
+	acc := config.CloudAccount{
 		AccountID:       "test-acc",
 		AccessKeyID:     "ak",
 		AccessKeySecret: "sk",
 		Regions:         []string{"*"},
 		Resources:       []string{"*"},
-	})
+	}
+	regions := c.getAllRegions(acc)
+	for _, region := range regions {
+		c.collectCMSMetrics(acc, region, "")
+	}
 	// Check metric is registered
 	mfs, err := prometheus.DefaultGatherer.Gather()
 	assert.NoError(t, err)

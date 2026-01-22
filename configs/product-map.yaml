@@ -8,6 +8,7 @@ products:
     aliyun: clb
     tencent: clb
     aws: clb
+    huawei: elb
   bwp:
     aliyun: cbwp
     tencent: bwp

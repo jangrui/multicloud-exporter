@@ -3,10 +3,11 @@ package aliyun
 import (
 	"encoding/json"
 	"fmt"
-	"multicloud-exporter/internal/config"
-	"multicloud-exporter/internal/logger"
 	"os"
 	"testing"
+
+	"multicloud-exporter/internal/config"
+	"multicloud-exporter/internal/logger"
 
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/cms"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/ecs"
@@ -49,7 +50,7 @@ func TestListOSSIDs_Pagination(t *testing.T) {
 func TestListCBWPIDs(t *testing.T) {
 	// Set PageSize to 1 to test pagination loop
 	c := NewCollector(&config.Config{
-		ServerConf: &config.ServerConf{
+		Server: &config.ServerConf{
 			PageSize: 1,
 		},
 	}, nil, nil)
@@ -156,7 +157,7 @@ func TestListSLBIDs(t *testing.T) {
 func TestListSLBIDs_Pagination(t *testing.T) {
 	// Set PageSize to 1 to test pagination loop
 	c := NewCollector(&config.Config{
-		ServerConf: &config.ServerConf{
+		Server: &config.ServerConf{
 			PageSize: 1,
 		},
 	}, nil, nil)

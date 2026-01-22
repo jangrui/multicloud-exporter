@@ -106,27 +106,6 @@ func parseDuration(s string) time.Duration {
 	return 0
 }
 
-// Collect 根据账号配置遍历区域与资源类型并采集
-// 注意：分片逻辑已下沉到产品级（collectELB/collectOBS），此处不做区域级分片
-// 这样可以避免双重分片导致的任务丢失问题
-// 注意：产品级状态隔离已实施，区域过滤在各产品的 listXXXIDs 方法中通过专属 RegionManager 进行
-func (h *Collector) Collect(account config.CloudAccount) {
-	regions := account.Regions
-	if len(regions) == 0 || (len(regions) == 1 && regions[0] == "*") {
-		regions = defaultHuaweiRegions
-	}
-
-	var wg sync.WaitGroup
-	for _, region := range regions {
-		wg.Add(1)
-		go func(r string) {
-			defer wg.Done()
-			h.collectRegion(account, r)
-		}(region)
-	}
-	wg.Wait()
-}
-
 // collectRegion 采集指定区域的资源
 func (h *Collector) collectRegion(account config.CloudAccount, region string) {
 	ctxLog := logger.NewContextLogger("Huawei", "account_id", account.AccountID, "region", region, "resource_type", "RegionCollector")

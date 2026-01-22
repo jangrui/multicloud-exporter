@@ -49,7 +49,7 @@ func logAccountStats(cfg *config.Config) {
 			if i > 0 {
 				accountInfo.WriteString(", ")
 			}
-			accountInfo.WriteString(fmt.Sprintf("%s=%d", provider, accountsByProvider[provider]))
+			fmt.Fprintf(&accountInfo, "%s=%d", provider, accountsByProvider[provider])
 		}
 		accountInfo.WriteString(")")
 	}
@@ -113,7 +113,7 @@ func loadMappingsFromPath(mappingPath string) {
 }
 
 // loadDefaultMappings 从默认位置加载指标映射
-func loadDefaultMappings(cfg *config.Config) {
+func loadDefaultMappings(_ *config.Config) {
 	mappingDir := "configs/mappings"
 	if err := config.ValidateAllMappings(mappingDir); err != nil {
 		ctxLog := logger.NewContextLogger("Setup", "resource_type", "MetricMapping")
@@ -129,12 +129,6 @@ func loadDefaultMappings(cfg *config.Config) {
 			loadSingleMapping(f)
 		}
 		return
-	}
-
-	// Fallback to legacy single file check
-	defaultPath := "configs/mappings/clb.metrics.yaml"
-	if _, err := os.Stat(defaultPath); err == nil {
-		loadSingleMapping(defaultPath)
 	}
 }
 

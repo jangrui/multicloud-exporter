@@ -3,8 +3,9 @@ package discovery
 import (
 	"context"
 	"errors"
-	"multicloud-exporter/internal/config"
 	"testing"
+
+	"multicloud-exporter/internal/config"
 
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/cms"
 	"github.com/stretchr/testify/assert"

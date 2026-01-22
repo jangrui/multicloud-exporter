@@ -1,13 +1,14 @@
 package aliyun
 
 import (
-	"multicloud-exporter/internal/config"
 	"testing"
 	"time"
+
+	"multicloud-exporter/internal/config"
 )
 
 func TestCacheTTL(t *testing.T) {
-	cfg := &config.Config{ServerConf: &config.ServerConf{DiscoveryTTL: "1s"}}
+	cfg := &config.Config{Server: &config.ServerConf{DiscoveryTTL: "1s"}}
 	a := NewCollector(cfg, nil, nil)
 	acc := config.CloudAccount{AccountID: "a"}
 	a.setCachedIDs(acc, "cn", "acs_ecs_dashboard", "ecs", []string{"i-1"}, map[string]interface{}{"i-1": nil})

@@ -42,8 +42,10 @@ func TestValidate_RegionDiscoveryIntervalWarning(t *testing.T) {
 func TestValidate_FirstRunMaxDelayNegative(t *testing.T) {
 	cfg := &Config{
 		Server: &ServerConf{
-			Port:             9101,
-			FirstRunMaxDelay: -10, // 负数
+			Port: 9101,
+			FirstRun: &FirstRunConf{
+				MaxDelay: -10, // 负数
+			},
 		},
 		AccountsByProvider: map[string][]CloudAccount{
 			"aliyun": {
@@ -63,8 +65,8 @@ func TestValidate_FirstRunMaxDelayNegative(t *testing.T) {
 	}
 
 	// 验证值被修正为 180
-	if cfg.Server.FirstRunMaxDelay != 180 {
-		t.Errorf("FirstRunMaxDelay should be corrected to 180, got: %d", cfg.Server.FirstRunMaxDelay)
+	if cfg.Server.FirstRun.MaxDelay != 180 {
+		t.Errorf("FirstRunMaxDelay should be corrected to 180, got: %d", cfg.Server.FirstRun.MaxDelay)
 	}
 }
 
@@ -72,8 +74,10 @@ func TestValidate_FirstRunMaxDelayNegative(t *testing.T) {
 func TestValidate_InvalidFirstRunStrategy(t *testing.T) {
 	cfg := &Config{
 		Server: &ServerConf{
-			Port:             9101,
-			FirstRunStrategy: "invalid", // 无效策略
+			Port: 9101,
+			FirstRun: &FirstRunConf{
+				Strategy: "invalid", // 无效策略
+			},
 		},
 		AccountsByProvider: map[string][]CloudAccount{
 			"aliyun": {
@@ -93,8 +97,8 @@ func TestValidate_InvalidFirstRunStrategy(t *testing.T) {
 	}
 
 	// 验证值被修正为 "auto"
-	if cfg.Server.FirstRunStrategy != "auto" {
-		t.Errorf("FirstRunStrategy should be corrected to 'auto', got: %s", cfg.Server.FirstRunStrategy)
+	if cfg.Server.FirstRun.Strategy != "auto" {
+		t.Errorf("FirstRunStrategy should be corrected to 'auto', got: %s", cfg.Server.FirstRun.Strategy)
 	}
 }
 
@@ -156,10 +160,12 @@ func TestValidate_MissingRequiredFields(t *testing.T) {
 func TestValidate_ValidConfig(t *testing.T) {
 	cfg := &Config{
 		Server: &ServerConf{
-			Port:             9101,
-			ScrapeInterval:   "5m",
-			FirstRunStrategy: "auto",
-			FirstRunMaxDelay: 180,
+			Port:           9101,
+			ScrapeInterval: "5m",
+			FirstRun: &FirstRunConf{
+				Strategy: "auto",
+				MaxDelay: 180,
+			},
 			RegionDiscovery: &RegionDiscoveryConf{
 				Enabled:           true,
 				DiscoveryInterval: "1h", // 大于采集周期，不会警告

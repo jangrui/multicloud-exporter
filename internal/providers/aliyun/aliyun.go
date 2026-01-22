@@ -308,43 +308,6 @@ func (a *Collector) clearTagCache(account config.CloudAccount, region string, rt
 	}
 }
 
-// Collect 根据账号配置遍历区域与资源类型并采集
-func (a *Collector) Collect(account config.CloudAccount) {
-	regions := account.Regions
-	if len(regions) == 0 || (len(regions) == 1 && regions[0] == "*") {
-		regions = a.getAllRegions(account)
-	}
-
-	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID)
-	ctxLog.Debugf("开始账号采集，区域数=%d", len(regions))
-	limit := 4
-	if a.cfg != nil && a.cfg.Server != nil && a.cfg.Server.RegionConcurrency > 0 {
-		limit = a.cfg.Server.RegionConcurrency
-	} else if server := a.cfg.GetServer(); server != nil && server.RegionConcurrency > 0 {
-		limit = server.RegionConcurrency
-	}
-	if limit < 1 {
-		limit = 1
-	}
-	// 注意：分片逻辑已下沉到产品级（collectCMSMetrics 内部），此处不做区域级分片
-	// 这样可以避免双重分片导致的任务丢失问题
-	sem := make(chan struct{}, limit)
-	var wg sync.WaitGroup
-	for _, region := range regions {
-		wg.Add(1)
-		sem <- struct{}{}
-		go func(r string) {
-			defer wg.Done()
-			defer func() { <-sem }()
-			regionLog := ctxLog.With("region", r)
-			regionLog.Debugf("开始区域采集")
-			a.collectCMSMetrics(account, r)
-			regionLog.Debugf("完成区域采集")
-		}(region)
-	}
-	wg.Wait()
-}
-
 // getAllRegions 通过 DescribeRegions 自动发现全部区域，并使用区域管理器进行智能过滤
 func (a *Collector) getAllRegions(account config.CloudAccount) []string {
 	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID)
@@ -397,14 +360,23 @@ func (a *Collector) getAllRegions(account config.CloudAccount) []string {
 	return regions
 }
 
-func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string) {
+func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string, namespace string) {
 	if a.cfg == nil {
 		return
 	}
 	var prods []config.Product
 	if a.disc != nil {
 		if ps, ok := a.disc.Get()["aliyun"]; ok && len(ps) > 0 {
-			prods = ps
+			// 如果指定了 namespace，则进行过滤
+			if namespace != "" {
+				for _, p := range ps {
+					if p.Namespace == namespace {
+						prods = append(prods, p)
+					}
+				}
+			} else {
+				prods = ps
+			}
 		}
 	}
 	if len(prods) == 0 {
@@ -915,7 +887,7 @@ func chooseDimKeyForNamespace(namespace string, dims []string) string {
 	if v := pick(candidates); v != "" {
 		return v
 	}
-	// 兼容旧逻辑的兜底（防止云侧返回大小写/别名差异）
+	// 维度匹配兜底（防止云侧返回大小写/别名差异）
 	switch namespace {
 	case "acs_bandwidth_package":
 		if v := pick([]string{"BandwidthPackageId", "bandwidthPackageId", "sharebandwidthpackages"}); v != "" {
@@ -2150,6 +2122,11 @@ func (a *Collector) processMetricBatch(client CMSClient, req *cms.DescribeMetric
 			metrics.RequestTotal.WithLabelValues("aliyun", "DescribeMetricLast", "success").Inc()
 			metrics.RequestDuration.WithLabelValues("aliyun", "DescribeMetricLast").Observe(time.Since(startReq).Seconds())
 			metrics.RecordRequest("aliyun", "DescribeMetricLast", "success")
+
+			if a.degradeMgr != nil {
+				accountKey := account.Provider + ":" + account.AccountID
+				a.degradeMgr.RecordSuccess(accountKey, common.ResourceTypeAccount)
+			}
 		} else {
 			ctxLog.Errorf("拉取指标失败 error=%v", callErr)
 			if a.degradeMgr != nil {
@@ -2162,13 +2139,6 @@ func (a *Collector) processMetricBatch(client CMSClient, req *cms.DescribeMetric
 			// API 调用失败时，不暴露指标（而不是设置 0 值）
 			// 根据 Prometheus 最佳实践：API 调用失败时，不应该暴露指标
 			break
-		}
-
-		if callErr == nil {
-			if a.degradeMgr != nil {
-				accountKey := account.Provider + ":" + account.AccountID
-				a.degradeMgr.RecordSuccess(accountKey, common.ResourceTypeAccount)
-			}
 		}
 
 		var points []map[string]interface{}

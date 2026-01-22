@@ -2,8 +2,9 @@ package discovery
 
 import (
 	"encoding/json"
-	"multicloud-exporter/internal/config"
 	"os"
+
+	"multicloud-exporter/internal/config"
 )
 
 type MetricMeta struct {

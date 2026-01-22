@@ -8,11 +8,17 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
-	"multicloud-exporter/internal/cluster"
+	"go.uber.org/zap"
+
+	"multicloud-exporter/internal/cluster/four_dimension_sync"
 	"multicloud-exporter/internal/collector"
 	"multicloud-exporter/internal/logger"
-	"multicloud-exporter/internal/providers/common"
+	_ "multicloud-exporter/internal/providers/aliyun"
+	_ "multicloud-exporter/internal/providers/aws"
+	_ "multicloud-exporter/internal/providers/huawei"
+	_ "multicloud-exporter/internal/providers/tencent"
 	"multicloud-exporter/internal/utils"
 )
 
@@ -78,43 +84,46 @@ func main() {
 		os.Exit(1)
 	}
 
-	// 6. 初始化集群同步管理器（如果启用）
-	var clusterMgr *cluster.SyncManager
+	// 6. 初始化四维集群同步管理器（如果启用）
+	var fourDimSync *four_dimension_sync.FourDimensionSync
 	if cfg.GetServer() != nil && cfg.GetServer().Cluster != nil && cfg.GetServer().Cluster.Enabled {
 		ctxLog := logger.NewContextLogger("Main", "resource_type", "Cluster")
-		ctxLog.Info("初始化集群同步管理器...")
-		clusterMgr = cluster.NewSyncManager(
+		ctxLog.Info("初始化四维集群同步管理器...")
+		fourDimSync = four_dimension_sync.NewFourDimensionSync(
 			cfg.GetServer().Cluster.ServiceName,
 			cfg.GetServer().Cluster.Port,
 			cfg.GetServer().Cluster.Secret,
 		)
-		// 启动自动发现（后台协程）
-		go clusterMgr.Start(shutdownCtx)
+		// 启动集群同步（后台协程）
+		go fourDimSync.Start(shutdownCtx)
 	}
 
-	// 7. 创建采集器
-	coll := collector.NewCollector(cfg, mgr, clusterMgr)
+	// 7. 创建四维采集器
+	zapLogger := zap.NewNop()
+	if logger.Log != nil {
+		zapLogger = zap.New(logger.Log.Desugar().Core(), zap.AddCaller())
+	}
+
+	coll := collector.NewFourDimensionCollector(collector.FourDimensionCollectorConfig{
+		Config:         cfg,
+		SyncManager:    fourDimSync,
+		DiscoveryMgr:   mgr,
+		TagCacheTTL:    30 * time.Minute,
+		MaxConcurrency: cfg.GetFourDimensionConfig().MaxConcurrency,
+		CollectionMode: os.Getenv("COLLECTION_MODE"),
+		Logger:         zapLogger,
+	})
 
 	// 8. 注册 Prometheus 指标
 	registerPrometheusMetrics()
 
-	// 9. 启动自动恢复协程（如果有降级管理器）
-	degradeMgr := coll.GetDegradationManager()
-	if degradeMgr != nil {
-		ctxLog := logger.NewContextLogger("Main", "resource_type", "AutoRecovery")
-		recoverFunc := func(key string, rtype common.ResourceType) bool {
-			ctxLog.Infof("尝试恢复资源: key=%s type=%s", key, rtype)
-			return true
-		}
-		go degradeMgr.StartAutoRecovery(recoverFunc, shutdownCtx)
-		ctxLog.Info("自动恢复协程已启动")
-	}
+	// 9. 四维架构的降级管理器已在 NewFourDimensionCollector 中启动，无需额外处理
 
 	// 10. 启动周期性采集（支持优雅停止）
 	startCollectionLoop(shutdownCtx, cfg, coll, mgr, interval)
 
 	// 10. 设置 HTTP 路由
-	setupHTTPHandlers(cfg, coll, mgr, clusterMgr)
+	setupHTTPHandlers(cfg, coll, mgr, fourDimSync)
 
 	// 11. 启动 HTTP 服务器
 	ctxLog = logger.NewContextLogger("Main", "resource_type", "HTTPServer")

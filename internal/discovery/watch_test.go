@@ -2,11 +2,12 @@ package discovery
 
 import (
 	"context"
-	"multicloud-exporter/internal/config"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"multicloud-exporter/internal/config"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

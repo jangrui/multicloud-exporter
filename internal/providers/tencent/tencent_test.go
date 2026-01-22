@@ -178,10 +178,23 @@ func TestCollect(t *testing.T) {
 	}
 
 	// Just ensure no panic
-	collector.Collect(account)
+	regions := collector.getAllRegions(account)
+	for _, region := range regions {
+		collector.collectRegion(account, region)
+	}
 
 	account.Regions = []string{"*"}
-	collector.Collect(account)
+	regions = collector.getAllRegions(account)
+	for _, region := range regions {
+		collector.collectRegion(account, region)
+	}
+
+	// Test Collect with specific region
+	account.Regions = []string{"ap-guangzhou"}
+	regions = collector.getAllRegions(account)
+	for _, region := range regions {
+		collector.collectRegion(account, region)
+	}
 }
 
 func TestCollectRegion_MoreResources(t *testing.T) {
@@ -243,18 +256,7 @@ func TestGetCachedIDs(t *testing.T) {
 	assert.False(t, ok)
 	assert.Nil(t, cached)
 
-	// Test TTL Config (ServerConf)
-	collector.cfg.ServerConf = &config.ServerConf{
-		DiscoveryTTL: "1ms",
-	}
-	collector.setCachedIDs(account, region, ns, rtype, ids)
-	time.Sleep(2 * time.Millisecond)
-	cached, ok = collector.getCachedIDs(account, region, ns, rtype)
-	assert.False(t, ok)
-	assert.Nil(t, cached)
-
 	// Test TTL Config (Server)
-	collector.cfg.ServerConf = nil
 	collector.cfg.Server = &config.ServerConf{
 		DiscoveryTTL: "1ms",
 	}

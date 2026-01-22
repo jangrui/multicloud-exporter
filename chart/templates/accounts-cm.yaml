@@ -6,12 +6,15 @@ metadata:
 data:
   accounts.yaml: |
     accounts:
-{{- if gt (len .Values.accounts.grouped.aliyun) 0 }}
-      aliyun:
-{{- range $i, $a := .Values.accounts.grouped.aliyun }}
-        - account_id: ${ALY_ACC_{{ $i }}_ID}
-          access_key_id: ${ALY_ACC_{{ $i }}_AK}
-          access_key_secret: ${ALY_ACC_{{ $i }}_SK}
+{{- $providers := list "aliyun" "tencent" "huawei" "aws" }}
+{{- range $provider := $providers }}
+{{- $accList := index $.Values.accounts.grouped $provider }}
+{{- if gt (len $accList) 0 }}
+      {{ $provider }}:
+{{- range $i, $a := $accList }}
+        - account_id: ${ {{ $provider | upper }}_ACC_{{ $i }}_ID}
+          access_key_id: ${ {{ $provider | upper }}_ACC_{{ $i }}_AK}
+          access_key_secret: ${ {{ $provider | upper }}_ACC_{{ $i }}_SK}
 {{- if $a.regions }}
           regions: {{ toYaml $a.regions | nindent 12 -}}
 {{- end }}
@@ -20,54 +23,7 @@ data:
 {{- end }}
 {{- end }}
 {{- else }}
-      aliyun: []
+      {{ $provider }}: []
 {{- end }}
-{{- if gt (len .Values.accounts.grouped.tencent) 0 }}
-      tencent:
-{{- range $i, $a := .Values.accounts.grouped.tencent }}
-        - account_id: ${TCE_ACC_{{ $i }}_ID}
-          access_key_id: ${TCE_ACC_{{ $i }}_AK}
-          access_key_secret: ${TCE_ACC_{{ $i }}_SK}
-{{- if $a.regions }}
-          regions: {{ toYaml $a.regions | nindent 12 -}}
-{{- end }}
-{{- if $a.resources }}
-          resources: {{ toYaml $a.resources | nindent 12 -}}
-{{- end }}
-{{- end }}
-{{- else }}
-      tencent: []
-{{- end }}
-{{- if gt (len .Values.accounts.grouped.huawei) 0 }}
-      huawei:
-{{- range $i, $a := .Values.accounts.grouped.huawei }}
-        - account_id: ${HUA_ACC_{{ $i }}_ID}
-          access_key_id: ${HUA_ACC_{{ $i }}_AK}
-          access_key_secret: ${HUA_ACC_{{ $i }}_SK}
-{{- if $a.regions }}
-          regions: {{ toYaml $a.regions | nindent 12 -}}
-{{- end }}
-{{- if $a.resources }}
-          resources: {{ toYaml $a.resources | nindent 12 -}}
-{{- end }}
-{{- end }}
-{{- else }}
-      huawei: []
-{{- end }}
-{{- if gt (len .Values.accounts.grouped.aws) 0 }}
-      aws:
-{{- range $i, $a := .Values.accounts.grouped.aws }}
-        - account_id: ${AWS_ACC_{{ $i }}_ID}
-          access_key_id: ${AWS_ACC_{{ $i }}_AK}
-          access_key_secret: ${AWS_ACC_{{ $i }}_SK}
-{{- if $a.regions }}
-          regions: {{ toYaml $a.regions | nindent 12 -}}
-{{- end }}
-{{- if $a.resources }}
-          resources: {{ toYaml $a.resources | nindent 12 -}}
-{{- end }}
-{{- end }}
-{{- else }}
-      aws: []
 {{- end }}
 {{- end }}

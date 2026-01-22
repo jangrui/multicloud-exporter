@@ -24,8 +24,11 @@ spec:
 {{- end }}
 {{- end }}
     spec:
+      serviceAccountName: {{ include "multicloud-exporter.serviceAccountName" . }}
+      securityContext: {{- toYaml .Values.securityContext | nindent 8 }}
       containers:
         - name: exporter
+          securityContext: {{- toYaml .Values.containerSecurityContext | nindent 12 }}
           image: "{{ .Values.image.registry | default "ghcr.io/jangrui" }}/{{ default .Chart.Name .Values.image.repository }}:{{ default .Chart.AppVersion .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
@@ -121,104 +124,33 @@ spec:
 {{- if and .Values.accounts .Values.accounts.grouped }}
             - name: ACCOUNTS_PATH
               value: "/app/configs/accounts.yaml"
-{{- range $i, $a := .Values.accounts.grouped.aliyun }}
-            - name: ALY_ACC_{{ $i }}_ID
+{{- $providers := list "aliyun" "tencent" "huawei" "aws" }}
+{{- range $provider := $providers }}
+{{- $accList := index $.Values.accounts.grouped $provider }}
+{{- range $i, $a := $accList }}
+            - name: {{ $provider | upper }}_ACC_{{ $i }}_ID
               valueFrom:
                 secretKeyRef:
                   name: {{ $a.name }}
                   key: account_id
-            - name: ALY_ACC_{{ $i }}_AK
+            - name: {{ $provider | upper }}_ACC_{{ $i }}_AK
               valueFrom:
                 secretKeyRef:
                   name: {{ $a.name }}
                   key: access_key_id
-            - name: ALY_ACC_{{ $i }}_SK
+            - name: {{ $provider | upper }}_ACC_{{ $i }}_SK
               valueFrom:
                 secretKeyRef:
                   name: {{ $a.name }}
                   key: access_key_secret
 {{- if $a.regions }}
-            - name: ALY_REGIONS_{{ $i }}
+            - name: {{ $provider | upper }}_REGIONS_{{ $i }}
               value: {{ printf "%s" (toYaml $a.regions) | quote }}
 {{- end }}
 {{- if $a.resources }}
-            - name: ALY_RESOURCES_{{ $i }}
+            - name: {{ $provider | upper }}_RESOURCES_{{ $i }}
               value: {{ printf "%s" (toYaml $a.resources) | quote }}
 {{- end }}
-{{- end }}
-{{- range $i, $a := .Values.accounts.grouped.tencent }}
-            - name: TCE_ACC_{{ $i }}_ID
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $a.name }}
-                  key: account_id
-            - name: TCE_ACC_{{ $i }}_AK
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $a.name }}
-                  key: access_key_id
-            - name: TCE_ACC_{{ $i }}_SK
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $a.name }}
-                  key: access_key_secret
-{{- if $a.regions }}
-            - name: TCE_REGIONS_{{ $i }}
-              value: {{ printf "%s" (toYaml $a.regions) | quote }}
-{{- end }}
-{{- if $a.resources }}
-            - name: TCE_RESOURCES_{{ $i }}
-              value: {{ printf "%s" (toYaml $a.resources) | quote }}
-{{- end }}
-{{- end }}
-{{- range $i, $a := .Values.accounts.grouped.huawei }}
-            - name: HUA_ACC_{{ $i }}_ID
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $a.name }}
-                  key: account_id
-            - name: HUA_ACC_{{ $i }}_AK
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $a.name }}
-                  key: access_key_id
-            - name: HUA_ACC_{{ $i }}_SK
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $a.name }}
-                  key: access_key_secret
-{{- if $a.regions }}
-            - name: HUA_REGIONS_{{ $i }}
-              value: {{ printf "%s" (toYaml $a.regions) | quote }}
-{{- end }}
-{{- if $a.resources }}
-            - name: HUA_RESOURCES_{{ $i }}
-              value: {{ printf "%s" (toYaml $a.resources) | quote }}
-{{- end }}
-{{- end }}
-{{- range $i, $a := .Values.accounts.grouped.aws }}
-            - name: AWS_ACC_{{ $i }}_ID
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $a.name }}
-                  key: account_id
-            - name: AWS_ACC_{{ $i }}_AK
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $a.name }}
-                  key: access_key_id
-            - name: AWS_ACC_{{ $i }}_SK
-              valueFrom:
-                secretKeyRef:
-                  name: {{ $a.name }}
-                  key: access_key_secret
-{{- if $a.regions }}
-            - name: AWS_REGIONS_{{ $i }}
-              value: {{ printf "%s" (toYaml $a.regions) | quote }}
-{{- end }}
-{{- if $a.resources }}
-            - name: AWS_RESOURCES_{{ $i }}
-              value: {{ printf "%s" (toYaml $a.resources) | quote }}
 {{- end }}
 {{- end }}
 {{- end }}
