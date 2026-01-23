@@ -335,6 +335,12 @@ func (c *Collector) collectLBGeneric(account config.CloudAccount, namespace stri
 		go func(region string) {
 			defer wg.Done()
 			defer func() { <-sem }()
+			// Recover from panics
+			defer func() {
+				if r := recover(); r != nil {
+					logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", region, "namespace", namespace).Errorf("LB collection panic: %v", r)
+				}
+			}()
 			c.processRegionLB(account, region, prod, lister)
 		}(region)
 	}

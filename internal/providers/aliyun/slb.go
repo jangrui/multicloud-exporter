@@ -136,6 +136,11 @@ func (a *Collector) listSLBIDs(account config.CloudAccount, region string) ([]st
 			go func(lbId string) {
 				defer wg.Done()
 				defer func() { <-sem }()
+				defer func() {
+					if r := recover(); r != nil {
+						ctxLog.Errorf("SLB DescribeLoadBalancerAttribute panic: %v", r)
+					}
+				}()
 
 				req := slb.CreateDescribeLoadBalancerAttributeRequest()
 				req.LoadBalancerId = lbId

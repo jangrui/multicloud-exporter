@@ -199,6 +199,11 @@ func (t *Collector) fetchCOSBucketCodeNames(account config.CloudAccount, region 
 		go func(bucket string) {
 			defer wg.Done()
 			defer func() { <-sem }()
+			defer func() {
+				if r := recover(); r != nil {
+					logger.Log.Errorf("Tencent fetchCOSBucketCodeNames panic: %v", r)
+				}
+			}()
 			var tags map[string]string
 			var callErr error
 			for attempt := 0; attempt < 3; attempt++ {

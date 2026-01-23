@@ -424,6 +424,11 @@ func (rm *SmartRegionManager) StartRediscoveryScheduler() {
 			rm.config.DiscoveryInterval, rm.config.CleanupInterval)
 
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					ctxLog.Errorf("RegionManager Scheduler panic: %v", r)
+				}
+			}()
 			// 使用较小的间隔，统一执行所有任务
 			tickInterval := rm.config.CleanupInterval
 			if tickInterval > rm.config.DiscoveryInterval {
@@ -616,6 +621,12 @@ func (rm *SmartRegionManager) CleanupInactiveAccounts(olderThan time.Duration) i
 
 // UpdatePrometheusMetrics 更新 Prometheus 指标
 func (rm *SmartRegionManager) UpdatePrometheusMetrics() {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Log.Errorf("RegionManager UpdatePrometheusMetrics panic: %v", r)
+		}
+	}()
+
 	if rm.providerName == "" || rm.productName == "" {
 		return
 	}

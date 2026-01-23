@@ -172,16 +172,16 @@ func TestClusterConfigCache_TTL(t *testing.T) {
 	if total1 != 2 || index1 != 0 {
 		t.Errorf("第1次调用: ClusterConfig() = (%d, %d); want (2, 0)", total1, index1)
 	}
-	if callCount != 1 {
-		t.Errorf("第1次调用: DNS 查询次数 = %d; want 1", callCount)
+	if callCount != 3 {
+		t.Errorf("第1次调用: DNS 查询次数 = %d; want 3", callCount)
 	}
 
 	total2, index2 := ClusterConfig()
 	if total2 != 2 || index2 != 0 {
 		t.Errorf("第2次调用: ClusterConfig() = (%d, %d); want (2, 0)", total2, index2)
 	}
-	if callCount != 2 {
-		t.Errorf("第2次调用: DNS 查询次数 = %d; want 2 (缓存禁用)", callCount)
+	if callCount != 6 {
+		t.Errorf("第2次调用: DNS 查询次数 = %d; want 6 (缓存禁用)", callCount)
 	}
 
 	// 测试 2: 启用缓存（TTL = 1小时），第二次调用应该命中缓存
@@ -198,16 +198,16 @@ func TestClusterConfigCache_TTL(t *testing.T) {
 	if total3 != 2 || index3 != 0 {
 		t.Errorf("第3次调用: ClusterConfig() = (%d, %d); want (2, 0)", total3, index3)
 	}
-	if callCount != 1 {
-		t.Errorf("第3次调用: DNS 查询次数 = %d; want 1", callCount)
+	if callCount != 3 {
+		t.Errorf("第3次调用: DNS 查询次数 = %d; want 3", callCount)
 	}
 
 	total4, index4 := ClusterConfig()
 	if total4 != 2 || index4 != 0 {
 		t.Errorf("第4次调用: ClusterConfig() = (%d, %d); want (2, 0)", total4, index4)
 	}
-	if callCount != 1 {
-		t.Errorf("第4次调用: DNS 查询次数 = %d; want 1 (应该命中缓存)", callCount)
+	if callCount != 3 {
+		t.Errorf("第4次调用: DNS 查询次数 = %d; want 3 (应该命中缓存)", callCount)
 	}
 }
 
@@ -247,8 +247,8 @@ func TestClusterConfigCache_Expiry(t *testing.T) {
 	if total1 != 2 || index1 != 0 {
 		t.Errorf("第1次调用: ClusterConfig() = (%d, %d); want (2, 0)", total1, index1)
 	}
-	if callCount != 1 {
-		t.Errorf("第1次调用: DNS 查询次数 = %d; want 1", callCount)
+	if callCount != 3 {
+		t.Errorf("第1次调用: DNS 查询次数 = %d; want 3", callCount)
 	}
 
 	// 第二次调用，缓存应该已过期，需要重新查询
@@ -256,8 +256,8 @@ func TestClusterConfigCache_Expiry(t *testing.T) {
 	if total2 != 2 || index2 != 0 {
 		t.Errorf("第2次调用: ClusterConfig() = (%d, %d); want (2, 0)", total2, index2)
 	}
-	if callCount != 2 {
-		t.Errorf("第2次调用: DNS 查询次数 = %d; want 2 (缓存已过期)", callCount)
+	if callCount != 6 {
+		t.Errorf("第2次调用: DNS 查询次数 = %d; want 6 (缓存已过期)", callCount)
 	}
 }
 
@@ -312,8 +312,8 @@ func TestClusterConfigCache_DNSFailureFallback(t *testing.T) {
 	if total2 != 3 || index2 != 1 {
 		t.Errorf("第2次调用（DNS失败）: ClusterConfig() = (%d, %d); want (3, 1) (应该使用缓存配置)", total2, index2)
 	}
-	// 应该尝试了 3 次 DNS 查询（重试机制）
-	if callCount != 3 {
-		t.Errorf("DNS 失败时的查询次数 = %d; want 3 (应该重试3次)", callCount)
+	// 应该尝试了 1 次 DNS 查询（当前实现遇到错误立即中断）
+	if callCount != 1 {
+		t.Errorf("DNS 失败时的查询次数 = %d; want 1", callCount)
 	}
 }

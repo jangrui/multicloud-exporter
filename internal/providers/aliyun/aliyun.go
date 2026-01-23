@@ -567,6 +567,13 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 
 						ctxLog := logger.NewContextLogger("Aliyun", "account_id", accountID, "region", region, "namespace", ns, "metric", m)
 
+						// Recover from panics in metric collection
+						defer func() {
+							if r := recover(); r != nil {
+								ctxLog.With("panic", r).Errorf("Aliyun metric collection panic: %v", r)
+							}
+						}()
+
 						msem <- struct{}{}
 						defer func() { <-msem }()
 

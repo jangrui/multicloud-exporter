@@ -176,11 +176,21 @@ func (m *Manager) Refresh(ctx context.Context) error {
 	m.cfg.Mu.RLock()
 	for _, name := range GetAllDiscoverers() {
 		if d, ok := GetDiscoverer(name); ok {
-			providerStart := time.Now()
-			if ps := d.Discover(ctx, m.cfg); len(ps) > 0 {
-				prods[name] = ps
-			}
-			providerDurations[name] = time.Since(providerStart)
+			// 使用匿名函数包裹并添加 recover，防止单个 Provider 发现异常导致整个进程崩溃
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						ctxLog := logger.NewContextLogger("Discovery", "resource_type", "Manager")
+						ctxLog.Errorf("Critical: Panic during discovery for provider %s: %v", name, r)
+					}
+				}()
+
+				providerStart := time.Now()
+				if ps := d.Discover(ctx, m.cfg); len(ps) > 0 {
+					prods[name] = ps
+				}
+				providerDurations[name] = time.Since(providerStart)
+			}()
 		}
 	}
 	m.cfg.Mu.RUnlock()

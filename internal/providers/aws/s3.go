@@ -464,6 +464,13 @@ func (c *Collector) fetchS3BucketCodeNames(ctx context.Context, client S3API, bu
 		wg.Add(1)
 		go func(bucket string) {
 			defer wg.Done()
+			// Recover from panics
+			defer func() {
+				if r := recover(); r != nil {
+					logger.NewContextLogger("AWS", "bucket", bucket).Errorf("S3 tag fetching panic: %v", r)
+				}
+			}()
+
 			sem <- struct{}{}
 			defer func() { <-sem }()
 

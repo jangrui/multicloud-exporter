@@ -363,11 +363,30 @@ func (c *FourDimensionCollector) Collect() {
 
 	accounts := c.getAccounts()
 	var wg sync.WaitGroup
+	// 账号级并发控制（使用全局 maxConcurrency）
+	concurrency := c.maxConcurrency
+	if concurrency <= 0 {
+		concurrency = 20 // 默认值
+	}
+	sem := make(chan struct{}, concurrency)
 
 	for _, account := range accounts {
 		wg.Add(1)
 		go func(acc config.CloudAccount) {
 			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			defer func() {
+				if r := recover(); r != nil {
+					c.zapLogger.Error("采集账号 panic",
+						zap.String("account_id", acc.AccountID),
+						zap.String("provider", acc.Provider),
+						zap.Any("panic", r),
+					)
+				}
+			}()
+
 			if err := c.CollectAccount(acc); err != nil {
 				c.zapLogger.Error("采集账号失败",
 					zap.String("account_id", acc.AccountID),
@@ -377,7 +396,6 @@ func (c *FourDimensionCollector) Collect() {
 			}
 		}(account)
 	}
-
 	wg.Wait()
 
 	c.statusLock.Lock()
@@ -524,10 +542,26 @@ func (c *FourDimensionCollector) CollectProduct(account config.CloudAccount, pro
 
 	// 遍历区域进行采集
 	var wg sync.WaitGroup
+	// 区域级并发控制
+	regConc := 1
+	if c.cfg != nil && c.cfg.Server != nil && c.cfg.Server.RegionConcurrency > 0 {
+		regConc = c.cfg.Server.RegionConcurrency
+	}
+	sem := make(chan struct{}, regConc)
+
 	for _, region := range regions {
 		wg.Add(1)
 		go func(r string) {
 			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			defer func() {
+				if r := recover(); r != nil {
+					c.zapLogger.Error("采集区域 panic", zap.String("region", r.(string)), zap.Any("panic", r))
+				}
+			}()
+
 			if err := c.CollectRegion(account, productID, r); err != nil {
 				// 区域级错误不直接导致产品级降级，除非所有区域都失败（这里暂不实现复杂的聚合逻辑）
 				c.zapLogger.Warn("采集区域失败", zap.String("region", r), zap.Error(err))

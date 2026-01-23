@@ -240,24 +240,57 @@ func ClusterConfig() (int, int) {
 		svc := os.Getenv("CLUSTER_SVC")
 		selfIP := os.Getenv("POD_IP")
 		if svc != "" && selfIP != "" {
+			// 增强版：执行稳定性检测
+			// 连续多次查询 DNS，只有结果一致时才认为集群稳定
+			const stabilityAttempts = 3
+			const stabilityInterval = 1 * time.Second
+
+			var consistentIPs []string
+			isStable := true
 			var ips []net.IP
 			var err error
-			for i := range 3 {
+
+			for i := 0; i < stabilityAttempts; i++ {
 				ips, err = lookupIPFunc(svc)
-				if err == nil && len(ips) > 0 {
+				if err != nil {
+					isStable = false
 					break
 				}
-				if i < 2 {
-					time.Sleep(100 * time.Millisecond)
+				if len(ips) == 0 {
+					isStable = false
+					break
+				}
+
+				var currentList []string
+				for _, ip := range ips {
+					currentList = append(currentList, ip.String())
+				}
+				sort.Strings(currentList)
+
+				if i == 0 {
+					consistentIPs = currentList
+				} else {
+					if len(currentList) != len(consistentIPs) {
+						isStable = false
+						shardLog.With("attempt", i, "prev_count", len(consistentIPs), "curr_count", len(currentList)).Warn("集群拓扑不稳定：Pod 数量变化")
+						break
+					}
+					for j, ip := range currentList {
+						if ip != consistentIPs[j] {
+							isStable = false
+							shardLog.With("attempt", i, "prev_ip", consistentIPs[j], "curr_ip", ip).Warn("集群拓扑不稳定：Pod IP 变化")
+							break
+						}
+					}
+				}
+
+				if i < stabilityAttempts-1 {
+					time.Sleep(stabilityInterval)
 				}
 			}
 
-			if err == nil && len(ips) > 0 {
-				var list []string
-				for _, ip := range ips {
-					list = append(list, ip.String())
-				}
-				sort.Strings(list)
+			if isStable && len(consistentIPs) > 0 {
+				list := consistentIPs
 
 				found := false
 				var idx int
@@ -294,6 +327,8 @@ func ClusterConfig() (int, int) {
 			} else {
 				if err != nil {
 					shardLog.With("service", svc).Warnf("DNS 查询失败: %v", err)
+				} else if !isStable {
+					shardLog.With("service", svc).Warn("集群拓扑不稳定（DNS 抖动），保持当前配置")
 				} else {
 					shardLog.With("service", svc).Warn("DNS 查询返回空列表")
 				}

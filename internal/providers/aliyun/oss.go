@@ -233,6 +233,11 @@ func (a *Collector) fetchOSSBucketTags(account config.CloudAccount, region strin
 		go func(bucket string) {
 			defer wg.Done()
 			defer func() { <-sem }()
+			defer func() {
+				if r := recover(); r != nil {
+					logger.Log.Errorf("OSS fetchOSSBucketTags panic: %v", r)
+				}
+			}()
 			res, err := client.GetBucketTagging(bucket)
 			if err != nil {
 				return
