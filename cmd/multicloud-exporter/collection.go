@@ -40,7 +40,7 @@ func startCollectionLoop(ctx context.Context, cfg *config.Config, coll *collecto
 
 		// ========== 智能首次采集策略 ==========
 		// 计算首次采集延迟（集成集群稳定性检测）
-		firstRunDelay := calculateFirstRunDelay(interval)
+		firstRunDelay, firstRunTotal, firstRunIndex, firstRunStable := calculateFirstRunDelay(interval)
 
 		if firstRunDelay > 0 {
 			ctxLog := logger.NewContextLogger("Collection", "resource_type", "FirstRun")
@@ -60,6 +60,37 @@ func startCollectionLoop(ctx context.Context, cfg *config.Config, coll *collecto
 		ctxLog.Info("开始首次采集...")
 
 		// 记录分片配置信息和指标
+		if os.Getenv("CLUSTER_DISCOVERY") == "headless" && !firstRunStable {
+			checkIntervalSeconds := getEnvIntOrDefault("CLUSTER_STABILITY_CHECK_INTERVAL", 2)
+			requiredStable := getEnvIntOrDefault("CLUSTER_STABILITY_REQUIRED_STABLE", 3)
+			checkInterval := time.Duration(checkIntervalSeconds) * time.Second
+
+			ctxLog.Warnf("首次采集跳过：集群未稳定或未加入分片配置，将持续重试直到成功加入")
+			metrics.ClusterHeadlessJoined.Set(0)
+			metrics.CollectionSkippedTotal.WithLabelValues("first_run", "cluster_not_ready").Inc()
+			for {
+				select {
+				case <-ctx.Done():
+					ctxLog.Info("收到停止信号，取消首次采集")
+					return
+				default:
+				}
+
+				if total, index, ok := utils.TryStableHeadlessClusterConfig(requiredStable, checkInterval); ok {
+					metrics.ClusterConfigTotal.Set(float64(total))
+					metrics.ClusterConfigIndex.Set(float64(index))
+					metrics.ClusterHeadlessJoined.Set(1)
+					break
+				}
+
+				time.Sleep(checkInterval)
+			}
+		} else {
+			metrics.ClusterConfigTotal.Set(float64(firstRunTotal))
+			metrics.ClusterConfigIndex.Set(float64(firstRunIndex))
+			metrics.ClusterHeadlessJoined.Set(1)
+		}
+
 		total, index := utils.ClusterConfig()
 		ctxLog.Infof("分片配置: total=%d, index=%d", total, index)
 
@@ -93,6 +124,23 @@ func startCollectionLoop(ctx context.Context, cfg *config.Config, coll *collecto
 				collectionLog.Infof("开始采集，周期=%v", interval)
 
 				// 记录当前分片配置和指标
+				if os.Getenv("CLUSTER_DISCOVERY") == "headless" {
+					checkIntervalSeconds := getEnvIntOrDefault("CLUSTER_STABILITY_CHECK_INTERVAL", 2)
+					requiredStable := getEnvIntOrDefault("CLUSTER_STABILITY_REQUIRED_STABLE", 3)
+					checkInterval := time.Duration(checkIntervalSeconds) * time.Second
+
+					if total, index, ok := utils.TryStableHeadlessClusterConfig(requiredStable, checkInterval); ok {
+						metrics.ClusterConfigTotal.Set(float64(total))
+						metrics.ClusterConfigIndex.Set(float64(index))
+						metrics.ClusterHeadlessJoined.Set(1)
+					} else {
+						collectionLog.Warn("跳过本轮采集：尚未加入 headless 分片配置或集群拓扑抖动")
+						metrics.ClusterHeadlessJoined.Set(0)
+						metrics.CollectionSkippedTotal.WithLabelValues("loop", "cluster_not_ready").Inc()
+						continue
+					}
+				}
+
 				total, index := utils.ClusterConfig()
 				collectionLog.Infof("当前分片配置: total=%d, index=%d", total, index)
 
@@ -259,7 +307,7 @@ func parseIntervalSeconds(s string) (time.Duration, error) {
 //
 // 返回：
 //   - 首次采集延迟时间（0 表示立即采集）
-func calculateFirstRunDelay(interval time.Duration) time.Duration {
+func calculateFirstRunDelay(interval time.Duration) (time.Duration, int, int, bool) {
 	ctxLog := logger.NewContextLogger("Collection", "resource_type", "FirstRunStrategy")
 
 	// 从环境变量读取策略配置
@@ -275,7 +323,8 @@ func calculateFirstRunDelay(interval time.Duration) time.Duration {
 	// 策略 1: immediate - 跳过稳定性检测，立即采集
 	if strategy == "immediate" {
 		ctxLog.Info("策略选择: immediate - 跳过集群稳定性检测，立即开始采集")
-		return 0
+		total, index := utils.ClusterConfig()
+		return 0, total, index, true
 	}
 
 	// 策略 2 和 3: 需要等待集群稳定
@@ -307,14 +356,18 @@ func calculateFirstRunDelay(interval time.Duration) time.Duration {
 		if stable {
 			ctxLog.Infof("集群稳定性检测完成: 集群已稳定, total=%d, index=%d, 耗时=%v",
 				totalShards, shardIndex, stabilityCheckDuration)
+			metrics.ClusterStabilityCheckTotal.WithLabelValues("success").Inc()
 		} else {
 			ctxLog.Warnf("集群稳定性检测超时: 使用当前配置, total=%d, index=%d, 耗时=%v",
 				totalShards, shardIndex, stabilityCheckDuration)
+			metrics.ClusterStabilityCheckTotal.WithLabelValues("timeout").Inc()
 		}
 	} else {
 		ctxLog.Info("集群稳定性检测已禁用，直接获取集群配置")
 		totalShards, shardIndex = utils.ClusterConfig()
 		ctxLog.Infof("集群配置: total=%d, index=%d", totalShards, shardIndex)
+		stable = true
+		metrics.ClusterStabilityCheckTotal.WithLabelValues("disabled").Inc()
 	}
 
 	// 策略 2: staggered - 强制线性错峰
@@ -322,14 +375,14 @@ func calculateFirstRunDelay(interval time.Duration) time.Duration {
 		delay := calculateStaggeredDelay(totalShards, shardIndex, maxDelay)
 		ctxLog.Infof("策略选择: staggered - 线性错峰延迟, total=%d, index=%d, delay=%v",
 			totalShards, shardIndex, delay)
-		return delay
+		return delay, totalShards, shardIndex, stable
 	}
 
 	// 策略 3: auto - 自动判断（默认）
 	delay := calculateAutoDelay(totalShards, shardIndex, maxDelay)
 	ctxLog.Infof("策略选择: auto - 自动判断延迟, total=%d, index=%d, delay=%v",
 		totalShards, shardIndex, delay)
-	return delay
+	return delay, totalShards, shardIndex, stable
 }
 
 // calculateAutoDelay 自动判断延迟策略（根据 Pod 数量）

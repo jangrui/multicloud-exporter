@@ -41,8 +41,9 @@ type FourDimensionCollector struct {
 	adaptMu        sync.RWMutex
 	collectionMode string
 
-	zapLogger *zap.Logger
-	stopped   int32
+	zapLogger  *zap.Logger
+	stopped    int32
+	collecting int32
 
 	maxConcurrency int // 最大并发度
 
@@ -356,6 +357,11 @@ func (c *FourDimensionCollector) Collect() {
 	if atomic.LoadInt32(&c.stopped) == 1 {
 		return
 	}
+	if !atomic.CompareAndSwapInt32(&c.collecting, 0, 1) {
+		c.zapLogger.Warn("采集已在运行，跳过本次采集")
+		return
+	}
+	defer atomic.StoreInt32(&c.collecting, 0)
 
 	c.statusLock.Lock()
 	c.status.LastStart = time.Now()
@@ -407,6 +413,11 @@ func (c *FourDimensionCollector) Collect() {
 
 // CollectFiltered 按条件采集
 func (c *FourDimensionCollector) CollectFiltered(provider, resource string) {
+	if !atomic.CompareAndSwapInt32(&c.collecting, 0, 1) {
+		return
+	}
+	defer atomic.StoreInt32(&c.collecting, 0)
+
 	if atomic.LoadInt32(&c.stopped) == 1 {
 		return
 	}
@@ -417,7 +428,11 @@ func (c *FourDimensionCollector) CollectFiltered(provider, resource string) {
 
 	accounts := c.getAccounts()
 	var wg sync.WaitGroup
-	sem := make(chan struct{}, c.maxConcurrency)
+	concurrency := c.maxConcurrency
+	if concurrency <= 0 {
+		concurrency = 20
+	}
+	sem := make(chan struct{}, concurrency)
 
 	for _, account := range accounts {
 		if provider != "" && account.Provider != provider {
@@ -437,10 +452,10 @@ func (c *FourDimensionCollector) CollectFiltered(provider, resource string) {
 		}
 
 		wg.Add(1)
+		sem <- struct{}{}
 		go func(acc config.CloudAccount) {
 			defer wg.Done()
-			sem <- struct{}{}        // 获取令牌
-			defer func() { <-sem }() // 释放令牌
+			defer func() { <-sem }()
 
 			if err := c.CollectAccount(acc); err != nil {
 				c.zapLogger.Error("采集账号失败",
@@ -492,10 +507,17 @@ func (c *FourDimensionCollector) CollectAccount(account config.CloudAccount) err
 
 	// 2. 遍历产品进行采集
 	var wg sync.WaitGroup
+	productConc := 1
+	if c.cfg != nil && c.cfg.Server != nil && c.cfg.Server.ProductConcurrency > 0 {
+		productConc = c.cfg.Server.ProductConcurrency
+	}
+	psem := make(chan struct{}, productConc)
 	for _, resource := range resources {
 		wg.Add(1)
+		psem <- struct{}{}
 		go func(productID string) {
 			defer wg.Done()
+			defer func() { <-psem }()
 			if err := c.CollectProduct(account, productID); err != nil {
 				ctxLog.Warnf("采集产品失败: %s, %v", productID, err)
 			}
@@ -552,14 +574,14 @@ func (c *FourDimensionCollector) CollectProduct(account config.CloudAccount, pro
 
 	for _, region := range regions {
 		wg.Add(1)
+		sem <- struct{}{}
 		go func(r string) {
 			defer wg.Done()
-			sem <- struct{}{}
 			defer func() { <-sem }()
 
 			defer func() {
-				if r := recover(); r != nil {
-					c.zapLogger.Error("采集区域 panic", zap.String("region", r.(string)), zap.Any("panic", r))
+				if panicVal := recover(); panicVal != nil {
+					c.zapLogger.Error("采集区域 panic", zap.String("region", r), zap.Any("panic", panicVal))
 				}
 			}()
 
@@ -669,7 +691,7 @@ func (c *FourDimensionCollector) CollectResource(account config.CloudAccount, pr
 // GetStatus 获取采集器状态
 func (c *FourDimensionCollector) GetStatus() FourDimensionStatus {
 	c.statusLock.RLock()
-	defer c.statusLock.Unlock()
+	defer c.statusLock.RUnlock()
 	return FourDimensionStatus{
 		LastStart:    c.status.LastStart,
 		LastEnd:      c.status.LastEnd,

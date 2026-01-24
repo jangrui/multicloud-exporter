@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
 	"multicloud-exporter/internal/cluster/four_dimension_sync"
@@ -63,7 +64,8 @@ func main() {
 
 	// 设置分片配置缓存 TTL 为采集间隔的 1/2
 	// 这样可以在滚动更新时更快感知到拓扑变化，减少分片不一致的时间窗口
-	utils.SetClusterConfigTTL(interval / 2)
+	cacheTTL := interval / 2
+	utils.SetClusterConfigTTL(cacheTTL)
 
 	// 记录集群配置信息
 	discoveryType := os.Getenv("CLUSTER_DISCOVERY")
@@ -71,7 +73,7 @@ func main() {
 	ctxLog := logger.NewContextLogger("Main", "resource_type", "ClusterConfig")
 	if discoveryType != "" {
 		ctxLog.Infof("集群配置初始化: 发现方式=%s, 总Pod数=%d, 当前索引=%d, 缓存TTL=%v",
-			discoveryType, total, index, interval)
+			discoveryType, total, index, cacheTTL)
 	} else {
 		ctxLog.Infof("集群配置初始化: 单实例模式, total=%d, index=%d", total, index)
 	}
@@ -115,7 +117,16 @@ func main() {
 	})
 
 	// 8. 注册 Prometheus 指标
-	registerPrometheusMetrics()
+	if err := registerPrometheusMetrics(prometheus.DefaultRegisterer); err != nil {
+		ctxLog := logger.NewContextLogger("Main", "resource_type", "Metrics")
+		ctxLog.Errorf("注册 Prometheus 指标失败: %v", err)
+		os.Exit(1)
+	}
+	if err := verifyCriticalMetricFamilies(prometheus.DefaultGatherer); err != nil {
+		ctxLog := logger.NewContextLogger("Main", "resource_type", "Metrics")
+		ctxLog.Errorf("Prometheus 指标自检失败: %v", err)
+		os.Exit(1)
+	}
 
 	// 9. 四维架构的降级管理器已在 NewFourDimensionCollector 中启动，无需额外处理
 

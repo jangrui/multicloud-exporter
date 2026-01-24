@@ -84,7 +84,7 @@ func TestCalculateFirstRunDelay(t *testing.T) {
 			t.Setenv("FIRST_RUN_STRATEGY", tt.strategy)
 			t.Setenv("CLUSTER_STABILITY_CHECK_ENABLED", "false")
 			t.Setenv("CLUSTER_STABILITY_MAX_WAIT", "10")
-			result := calculateFirstRunDelay(tt.interval)
+			result, _, _, _ := calculateFirstRunDelay(tt.interval)
 			assert.GreaterOrEqual(t, result, tt.expectedMin)
 			assert.LessOrEqual(t, result, tt.expectedMax)
 		})

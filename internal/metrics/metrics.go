@@ -71,7 +71,7 @@ var (
 	// RegionDiscovery 区域发现状态统计（扩展支持产品维度）
 	RegionDiscoveryStatus = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "multicloud_region_status_total",
+			Name: "multicloud_region_discovery_status_total",
 			Help: " - 区域状态统计（active/empty/unknown）",
 		},
 		[]string{"cloud_provider", "product", "status"},
@@ -88,7 +88,7 @@ var (
 	// RegionSkippedTotal 跳过的空区域次数（扩展支持产品维度）
 	RegionSkippedTotal = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "multicloud_region_skip_total",
+			Name: "multicloud_region_discovery_skipped_total",
 			Help: " - 跳过的空区域次数",
 		},
 		[]string{"cloud_provider", "product"},
@@ -152,6 +152,29 @@ var (
 			Help: " - 首次采集延迟时间（秒）",
 		},
 		[]string{"pod_index", "strategy"},
+	)
+	// ClusterStabilityCheckTotal 集群稳定性检测次数
+	ClusterStabilityCheckTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "multicloud_cluster_stability_check_total",
+			Help: " - 集群稳定性检测次数统计（success/timeout/disabled）",
+		},
+		[]string{"result"},
+	)
+	// ClusterHeadlessJoined 是否已加入 headless 分片配置
+	ClusterHeadlessJoined = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "multicloud_cluster_headless_joined",
+			Help: " - 是否已加入 headless 分片配置（1/0）",
+		},
+	)
+	// CollectionSkippedTotal 跳过采集次数
+	CollectionSkippedTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "multicloud_collection_skipped_total",
+			Help: " - 跳过采集次数统计",
+		},
+		[]string{"phase", "reason"},
 	)
 	// CacheHitRatio 缓存命中率
 	CacheHitRatio = prometheus.NewGaugeVec(
@@ -569,6 +592,11 @@ func metricHelpForNamespace(namespace, metric string) string {
 func Reset() {
 	ResourceMetric.Reset()
 	NamespaceMetric.Reset()
+	RegionDiscoveryStatus.Reset()
+	AccountStatusTotal.Reset()
+	ProductStatusTotal.Reset()
+	RegionStatusTotal.Reset()
+	ResourceStatusTotal.Reset()
 	nsGaugesMu.Lock()
 	defer nsGaugesMu.Unlock()
 	for _, info := range nsGauges {

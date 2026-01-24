@@ -37,6 +37,26 @@ func TestFourDimensionCollector_New(t *testing.T) {
 	collector.Stop()
 }
 
+func TestFourDimensionCollector_GetStatus_NoCrash(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	syncMgr := four_dimension_sync.NewFourDimensionSync("test-service", "8080", "")
+
+	cfg := FourDimensionCollectorConfig{
+		Config:         nil,
+		SyncManager:    syncMgr,
+		TagCacheTTL:    30 * time.Minute,
+		MaxConcurrency: 20,
+		Logger:         logger,
+	}
+
+	coll := NewFourDimensionCollector(cfg)
+	defer coll.Stop()
+
+	for range 1000 {
+		_ = coll.GetStatus()
+	}
+}
+
 func TestFourDimensionCollector_CollectAccount(t *testing.T) {
 	logger := zaptest.NewLogger(t)
 	syncMgr := four_dimension_sync.NewFourDimensionSync("test-service", "8080", "")

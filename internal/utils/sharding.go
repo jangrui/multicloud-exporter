@@ -77,6 +77,59 @@ func setClusterConfig(total, index int) {
 	clusterCfgUpdatedAt = time.Now()
 }
 
+func TryStableHeadlessClusterConfig(stabilityAttempts int, stabilityInterval time.Duration) (int, int, bool) {
+	svc := os.Getenv("CLUSTER_SVC")
+	selfIP := os.Getenv("POD_IP")
+	if svc == "" || selfIP == "" {
+		return 1, 0, true
+	}
+
+	var consistentIPs []string
+	for i := 0; i < stabilityAttempts; i++ {
+		ips, err := lookupIPFunc(svc)
+		if err != nil || len(ips) == 0 {
+			return 0, 0, false
+		}
+
+		currentList := make([]string, 0, len(ips))
+		for _, ip := range ips {
+			currentList = append(currentList, ip.String())
+		}
+		sort.Strings(currentList)
+
+		if i == 0 {
+			consistentIPs = currentList
+		} else {
+			if len(currentList) != len(consistentIPs) {
+				return 0, 0, false
+			}
+			for j := range currentList {
+				if currentList[j] != consistentIPs[j] {
+					return 0, 0, false
+				}
+			}
+		}
+
+		if i < stabilityAttempts-1 {
+			time.Sleep(stabilityInterval)
+		}
+	}
+
+	index := -1
+	for i, ip := range consistentIPs {
+		if ip == selfIP {
+			index = i
+			break
+		}
+	}
+	if index == -1 {
+		return 0, 0, false
+	}
+
+	setClusterConfig(len(consistentIPs), index)
+	return len(consistentIPs), index, true
+}
+
 // WaitForStableCluster 等待集群拓扑稳定
 // 通过连续多次 DNS 查询，确保返回的 Pod 数量一致，避免滚动启动时的重复采集问题
 // 参数:
@@ -158,8 +211,9 @@ func WaitForStableCluster(maxWait, checkInterval time.Duration, requiredStable i
 
 				if index == -1 {
 					ctxLog.Warnf("集群已稳定但未在 DNS 列表中找到 selfIP: %s，列表: %v", selfIP, list)
-					// 降级为单实例模式
-					return 1, 0, false
+					stableCount = 0
+					time.Sleep(checkInterval)
+					continue
 				}
 
 				ctxLog.Infof("集群已稳定：total=%d, index=%d, 检查次数=%d, 耗时=%v", currentTotal, index, checkCount, time.Since(deadline.Add(-maxWait)))
@@ -192,9 +246,8 @@ func WaitForStableCluster(maxWait, checkInterval time.Duration, requiredStable i
 			ctxLog.Warnf("DNS 查询失败，使用缓存配置: total=%d, index=%d", total, index)
 			return total, index, false
 		}
-		// 降级为单实例模式
-		ctxLog.Warnf("DNS 查询失败且无缓存，降级为单实例模式")
-		return 1, 0, false
+		ctxLog.Warnf("DNS 查询失败且无缓存，无法确定分片配置")
+		return 0, 0, false
 	}
 
 	var list []string
@@ -212,8 +265,12 @@ func WaitForStableCluster(maxWait, checkInterval time.Duration, requiredStable i
 	}
 
 	if index == -1 {
-		ctxLog.Warnf("未在 DNS 列表中找到 selfIP: %s，降级为单实例模式", selfIP)
-		return 1, 0, false
+		if total, cachedIndex, ok := getLastClusterConfig(); ok {
+			ctxLog.Warnf("未在 DNS 列表中找到 selfIP: %s，使用缓存配置: total=%d, index=%d", selfIP, total, cachedIndex)
+			return total, cachedIndex, false
+		}
+		ctxLog.Warnf("未在 DNS 列表中找到 selfIP: %s，无法确定分片配置", selfIP)
+		return 0, 0, false
 	}
 
 	setClusterConfig(len(list), index)
