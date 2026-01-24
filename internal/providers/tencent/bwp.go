@@ -61,7 +61,9 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 		start := time.Now()
 		var resp *vpc.DescribeBandwidthPackagesResponse
 
-		callErr := providerscommon.RetryWithBackoff(context.TODO(), retryConfig, func() error {
+		// 使用带超时的上下文
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		callErr := providerscommon.RetryWithBackoff(ctx, retryConfig, func() error {
 			var err error
 			resp, err = client.DescribeBandwidthPackages(req)
 
@@ -84,6 +86,7 @@ func (t *Collector) listBWPIDs(account config.CloudAccount, region string) []str
 			}
 			return nil
 		}, shouldRetry)
+		cancel()
 
 		if callErr != nil {
 			if providerscommon.ClassifyTencentError(callErr) == providerscommon.ErrorStatusAuth {
@@ -219,19 +222,35 @@ func (t *Collector) fetchBWPMonitor(account config.CloudAccount, region string, 
 			req.EndTime = common.StringPtr(end.UTC().Format("2006-01-02T15:04:05Z"))
 
 			reqStart := time.Now()
-			resp, err := client.GetMonitorData(req)
-			if err != nil {
-				status := providerscommon.ClassifyTencentError(err)
-				metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", status).Inc()
-				metrics.RecordRequest("tencent", "GetMonitorData", status)
-				if status == "limit_error" {
-					metrics.RateLimitTotal.WithLabelValues("tencent", "GetMonitorData").Inc()
+			var resp *monitor.GetMonitorDataResponse
+
+			retryConfig := providerscommon.DefaultRetryConfig()
+			shouldRetry := providerscommon.ShouldRetryForLimitError(providerscommon.TencentClassifier)
+
+			// 使用带超时的上下文
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			err := providerscommon.RetryWithBackoff(ctx, retryConfig, func() error {
+				var callErr error
+				resp, callErr = client.GetMonitorData(req)
+				if callErr != nil {
+					status := providerscommon.ClassifyTencentError(callErr)
+					metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", status).Inc()
+					metrics.RecordRequest("tencent", "GetMonitorData", status)
+					if status == providerscommon.ErrorStatusLimit {
+						metrics.RateLimitTotal.WithLabelValues("tencent", "GetMonitorData").Inc()
+					}
+					return callErr
 				}
+				metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", "success").Inc()
+				metrics.RecordRequest("tencent", "GetMonitorData", "success")
+				metrics.RequestDuration.WithLabelValues("tencent", "GetMonitorData").Observe(time.Since(reqStart).Seconds())
+				return nil
+			}, shouldRetry)
+			cancel()
+
+			if err != nil {
 				continue
 			}
-			metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", "success").Inc()
-			metrics.RecordRequest("tencent", "GetMonitorData", "success")
-			metrics.RequestDuration.WithLabelValues("tencent", "GetMonitorData").Observe(time.Since(reqStart).Seconds())
 
 			if resp == nil || resp.Response == nil || resp.Response.DataPoints == nil || len(resp.Response.DataPoints) == 0 {
 				continue

@@ -461,24 +461,29 @@ func (c *Collector) fetchS3BucketCodeNames(ctx context.Context, client S3API, bu
 	var wg sync.WaitGroup
 
 	for _, b := range buckets {
+		// 限制并发数，避免创建过多 goroutine
+		sem <- struct{}{}
 		wg.Add(1)
 		go func(bucket string) {
 			defer wg.Done()
-			// Recover from panics
+			defer func() { <-sem }()
+
+			// 捕获 panic
 			defer func() {
 				if r := recover(); r != nil {
 					logger.NewContextLogger("AWS", "bucket", bucket).Errorf("S3 tag fetching panic: %v", r)
 				}
 			}()
 
-			sem <- struct{}{}
-			defer func() { <-sem }()
+			// 为 API 调用添加超时控制，防止请求挂起
+			reqCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+			defer cancel()
 
 			reqStart := time.Now()
 			var resp *s3.GetBucketTaggingOutput
 			var err error
 			for attempt := 0; attempt < 3; attempt++ {
-				resp, err = client.GetBucketTagging(ctx, &s3.GetBucketTaggingInput{Bucket: aws.String(bucket)})
+				resp, err = client.GetBucketTagging(reqCtx, &s3.GetBucketTaggingInput{Bucket: aws.String(bucket)})
 				if err == nil {
 					metrics.RequestTotal.WithLabelValues("aws", "GetBucketTagging", "success").Inc()
 					metrics.RecordRequest("aws", "GetBucketTagging", "success")

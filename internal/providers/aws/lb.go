@@ -92,7 +92,7 @@ func (l *clbLister) List(ctx context.Context, region string, account config.Clou
 		}
 	}
 
-	// Fetch tags for CLBs
+	// 获取 CLB 标签
 	if len(lbs) > 0 {
 		var names []string
 		lbMap := make(map[string]*lbInfo)
@@ -101,7 +101,7 @@ func (l *clbLister) List(ctx context.Context, region string, account config.Clou
 			lbMap[lbs[i].Name] = &lbs[i]
 		}
 
-		// Batch describe tags (limit 20)
+		// 批量获取标签（限制 20 个）
 		for i := 0; i < len(names); i += 20 {
 			end := i + 20
 			if end > len(names) {
@@ -208,7 +208,7 @@ func (l *elbv2Lister) List(ctx context.Context, region string, account config.Cl
 	ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", region, "resource_type", string(l.lbType))
 	ctxLog.Debugf("发现负载均衡器，数量=%d，类型=%s，区域=%s", len(lbs), l.lbType, region)
 
-	// Fetch tags for ELBv2
+	// 获取 ELBv2 标签
 	if len(lbs) > 0 {
 		var arns []string
 		lbMap := make(map[string]*lbInfo)
@@ -217,7 +217,7 @@ func (l *elbv2Lister) List(ctx context.Context, region string, account config.Cl
 			lbMap[lbs[i].ARN] = &lbs[i]
 		}
 
-		// Batch describe tags (limit 20)
+		// 批量获取标签（限制 20 个）
 		for i := 0; i < len(arns); i += 20 {
 			end := i + 20
 			if end > len(arns) {
@@ -313,7 +313,7 @@ func (c *Collector) collectLBGeneric(account config.CloudAccount, namespace stri
 	wTotal, wIndex := utils.ClusterConfig()
 
 	var wg sync.WaitGroup
-	// Limit concurrency for regions
+	// 限制区域并发数
 	sem := make(chan struct{}, 5)
 
 	regions := account.Regions
@@ -331,11 +331,12 @@ func (c *Collector) collectLBGeneric(account config.CloudAccount, namespace stri
 			continue
 		}
 		wg.Add(1)
+		// 限制并发数：必须在 go func 外部获取信号量
 		sem <- struct{}{}
 		go func(region string) {
 			defer wg.Done()
 			defer func() { <-sem }()
-			// Recover from panics
+			// 捕获 panic
 			defer func() {
 				if r := recover(); r != nil {
 					logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", region, "namespace", namespace).Errorf("LB collection panic: %v", r)
@@ -348,8 +349,9 @@ func (c *Collector) collectLBGeneric(account config.CloudAccount, namespace stri
 }
 
 func (c *Collector) processRegionLB(account config.CloudAccount, region string, prod *config.Product, lister ResourceLister) {
-	// 创建上下文用于 LB 采集
-	ctx := context.Background()
+	// 创建上下文用于 LB 采集，设置 60s 超时防止挂起
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
 
 	// 获取 LB 产品的 RegionManager
 	lbRM := c.getProductRegionManager(AWSProductLB)
@@ -407,10 +409,10 @@ func (c *Collector) processRegionLB(account config.CloudAccount, region string, 
 		return
 	}
 
-	// Batch metrics collection
-	// CloudWatch GetMetricData supports up to 500 metrics per request.
-	// We have N LBs * M metrics.
-	// We need to batch queries.
+	// 批量指标采集
+	// CloudWatch GetMetricData 每次请求最多支持 500 个指标
+	// 我们有 N 个 LB * M 个指标
+	// 需要批量查询
 
 	var queries []cwtypes.MetricDataQuery
 	var queryMap = make(map[string]struct {
@@ -420,35 +422,35 @@ func (c *Collector) processRegionLB(account config.CloudAccount, region string, 
 		CodeName   string
 	})
 
-	period := int32(60) // Default 60s
-	// Try to find smallest period from config or use default
-	// Here simply use 60s or config default if available.
-	// In the future, we should respect mapping config period.
+	period := int32(60) // 默认 60s
+	// 尝试从配置中找到最小周期或使用默认值
+	// 这里简单使用 60s 或配置默认值
+	// 未来应尊重映射配置周期
 
 	now := time.Now()
 	endTime := now
 	startTime := now.Add(-time.Duration(period) * time.Second)
 
-	// Build queries
+	// 构建查询
 	for _, lb := range lbs {
 		for _, mGroup := range prod.MetricInfo {
 			for _, metricName := range mGroup.MetricList {
-				// ID must start with a lowercase letter and contain only alphanumeric characters and underscores.
+				// ID 必须以小写字母开头，仅包含字母数字字符和下划线
 				id := fmt.Sprintf("q%d", len(queries))
 
 				var dims []cwtypes.Dimension
-				// Map dimensions
+				// 映射维度
 				// CLB: LoadBalancerName
-				// ALB/NLB/GWLB: LoadBalancer (ARN suffix)
-				// For ALB/NLB, dimension is "LoadBalancer". Value is the "app/my-load-balancer/50dc6c495c0c9188" part of ARN.
-				// For CLB, dimension is "LoadBalancerName". Value is Name.
+				// ALB/NLB/GWLB: LoadBalancer (ARN 后缀)
+				// 对于 ALB/NLB，维度是 "LoadBalancer"。值是 ARN 的 "app/my-load-balancer/50dc6c495c0c9188" 部分
+				// 对于 CLB，维度是 "LoadBalancerName"。值是 Name
+				// ARN 格式: arn:aws:elasticloadbalancing:region:account-id:loadbalancer/app/my-load-balancer/50dc6c495c0c9188
 
 				dimValue := lb.Name
 				dimName := "LoadBalancerName"
 				if prod.Namespace != "AWS/ELB" {
 					dimName = "LoadBalancer"
-					// For v2, value is the resource ID part of ARN, e.g. "app/my-load-balancer/50dc6c495c0c9188"
-					// ARN format: arn:aws:elasticloadbalancing:region:account-id:loadbalancer/app/my-load-balancer/50dc6c495c0c9188
+					// 对于 v2，值是 ARN 的资源 ID 部分
 					parts := strings.Split(lb.ARN, ":loadbalancer/")
 					if len(parts) == 2 {
 						dimValue = parts[1]
@@ -462,21 +464,21 @@ func (c *Collector) processRegionLB(account config.CloudAccount, region string, 
 					Value: aws.String(dimValue),
 				})
 
-				stat := "Sum" // Default
-				// Determine stat (Sum, Average, Max, SampleCount)
-				// Usually Sum for counts/bytes, Average for latency/concurrency.
+				stat := "Sum" // 默认
+				// 确定统计方式 (Sum, Average, Max, SampleCount)
+				// 通常计数/字节用 Sum，延迟/并发用 Average
 				if strings.Contains(metricName, "ActiveConnection") || strings.Contains(metricName, "ActiveFlow") || strings.Contains(metricName, "Latency") || strings.Contains(metricName, "Time") || strings.Contains(metricName, "HostCount") {
 					stat = "Average"
 				}
 
-				// Initialize gauge to 0 to ensure metric is exposed even if CloudWatch returns no data
+				// 初始化 gauge 为 0，确保即使 CloudWatch 没有返回数据也能暴露指标
 				vec, labelCount := metrics.NamespaceGauge(prod.Namespace, metricName)
 				codeName := lb.CodeName
 				if codeName == "" {
 					codeName = lb.Name
 				}
 
-				// Build label values array matching the expected label count
+				// 构建标签值数组以匹配预期的标签数量
 				labelValues := []string{
 					"aws",
 					account.AccountID,
@@ -488,7 +490,7 @@ func (c *Collector) processRegionLB(account config.CloudAccount, region string, 
 					codeName,
 				}
 
-				// Pad with empty strings if more labels are expected (for extra dimensions)
+				// 如果预期有更多标签（用于额外维度），用空字符串填充
 				for len(labelValues) < labelCount {
 					labelValues = append(labelValues, "")
 				}
@@ -517,7 +519,7 @@ func (c *Collector) processRegionLB(account config.CloudAccount, region string, 
 		}
 	}
 
-	// Execute queries in batches of 500
+	// 分批执行查询（每批 500 个）
 	batchSize := 500
 	for i := 0; i < len(queries); i += batchSize {
 		end := i + batchSize

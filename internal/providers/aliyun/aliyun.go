@@ -562,20 +562,20 @@ func (a *Collector) collectCMSMetrics(account config.CloudAccount, region string
 					// 修复：将标签获取移到 goroutine 内部，避免阻塞主循环
 					// 这样主循环不会被 getOrFetchTags 或 msem 阻塞，可以快速启动所有指标的 goroutine
 					mwg.Add(1)
+					// 限制并发数：必须在 go func 外部获取信号量
+					msem <- struct{}{}
 					go func(ns, m string, dkey string, rtype string, ids []string, p string, stats []string, meta map[string]interface{}, metricDims []string, accountID string, metricIdx int) {
 						defer mwg.Done()
+						defer func() { <-msem }()
 
 						ctxLog := logger.NewContextLogger("Aliyun", "account_id", accountID, "region", region, "namespace", ns, "metric", m)
 
-						// Recover from panics in metric collection
+						// 从指标采集 panic 中恢复
 						defer func() {
 							if r := recover(); r != nil {
-								ctxLog.With("panic", r).Errorf("Aliyun metric collection panic: %v", r)
+								ctxLog.With("panic", r).Errorf("阿里云指标采集 panic: %v", r)
 							}
 						}()
-
-						msem <- struct{}{}
-						defer func() { <-msem }()
 
 						// 在 goroutine 内部获取标签（第一次会调用API并缓存，后续使用缓存）
 						tagLabels := a.getOrFetchTags(account, region, rtype, ids)

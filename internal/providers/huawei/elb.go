@@ -110,7 +110,11 @@ func (h *Collector) listELBInstances(account config.CloudAccount, region string)
 		retryConfig := providerscommon.DefaultRetryConfig()
 		shouldRetry := providerscommon.ShouldRetryForLimitError(providerscommon.HuaweiClassifier)
 
-		callErr := providerscommon.RetryWithBackoff(context.TODO(), retryConfig, func() error {
+		// 设置超时上下文
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		callErr := providerscommon.RetryWithBackoff(ctx, retryConfig, func() error {
 			var err error
 			resp, err = client.ListLoadBalancers(req)
 
@@ -307,7 +311,11 @@ func (h *Collector) fetchELBMonitor(account config.CloudAccount, region string, 
 				retryConfig := providerscommon.DefaultRetryConfig()
 				shouldRetry := providerscommon.ShouldRetryForLimitError(providerscommon.HuaweiClassifier)
 
-				err := providerscommon.RetryWithBackoff(context.TODO(), retryConfig, func() error {
+				// 设置超时上下文
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+
+				err := providerscommon.RetryWithBackoff(ctx, retryConfig, func() error {
 					var apiErr error
 					resp, apiErr = client.BatchListMetricData(req)
 

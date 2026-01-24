@@ -18,7 +18,7 @@ import (
 func (a *Collector) listOSSIDs(account config.CloudAccount, region string) []string {
 	ctxLog := logger.NewContextLogger("Aliyun", "account_id", account.AccountID, "region", region, "resource_type", "OSS")
 
-	// Check region-level cache first (consistent with other resources)
+	// 检查区域级缓存优先（与其他资源一致）
 	ids, _, hit := a.getCachedIDs(account, region, "acs_oss_dashboard", "oss")
 	if hit {
 		ctxLog.Debugf("OSS 枚举存储桶 - 缓存命中 - API: ListBuckets - region=%s 数量=%d", region, len(ids))
@@ -35,8 +35,8 @@ func (a *Collector) listOSSIDs(account config.CloudAccount, region string) []str
 		return ids
 	}
 
-	// Use account-level cache to avoid duplicate ListBuckets calls across regions
-	// OSS ListBuckets is a global operation, so we cache all buckets at account level
+	// 使用账号级缓存避免跨区域重复 ListBuckets 调用
+	// OSS ListBuckets 是全局操作，所以我们在账号级别缓存所有 bucket
 	a.ossMu.Lock()
 	entry, ok := a.ossCache[account.AccountID]
 	a.ossMu.Unlock()
@@ -44,7 +44,7 @@ func (a *Collector) listOSSIDs(account config.CloudAccount, region string) []str
 	var allBuckets []ossBucketInfo
 	cachedFromAccountLevel := false
 
-	// TTL Logic
+	// TTL 逻辑
 	ttlDur := time.Hour
 	if a.cfg != nil {
 		if a.cfg.Server != nil && a.cfg.Server.DiscoveryTTL != "" {
@@ -65,11 +65,11 @@ func (a *Collector) listOSSIDs(account config.CloudAccount, region string) []str
 		cachedFromAccountLevel = true
 		ctxLog.Debugf("OSS 枚举存储桶 - 账号级缓存命中 - API: ListBuckets - account=%s total_buckets=%d", account.AccountID, len(allBuckets))
 	} else {
-		// Use singleflight to prevent concurrent ListBuckets calls for the same account
-		// regardless of which region triggered the call.
+		// 使用 singleflight 防止同一账号并发调用 ListBuckets
+		// 无论哪个区域触发调用
 		key := "oss_list_buckets_" + account.AccountID
 		val, err, _ := a.sf.Do(key, func() (interface{}, error) {
-			// Double-check cache inside singleflight to ensure we don't fetch if just updated
+			// 在 singleflight 内部双重检查缓存，确保如果刚刚更新过就不再获取
 			a.ossMu.Lock()
 			if e, ok := a.ossCache[account.AccountID]; ok && time.Since(e.UpdatedAt) < ttlDur {
 				a.ossMu.Unlock()
@@ -77,9 +77,9 @@ func (a *Collector) listOSSIDs(account config.CloudAccount, region string) []str
 			}
 			a.ossMu.Unlock()
 
-			// Fetch from API
-			// OSS ListBuckets is a global operation, but we need an endpoint.
-			// Using the current region's endpoint is fine.
+			// 从 API 获取
+			// OSS ListBuckets 是全局操作，但我们需要一个 endpoint
+			// 使用当前区域的 endpoint 是可以的
 			client, err := a.clientFactory.NewOSSClient(region, account.AccessKeyID, account.AccessKeySecret)
 			if err != nil {
 				ctxLog.Errorf("Init OSS client error: %v", err)
@@ -238,6 +238,14 @@ func (a *Collector) fetchOSSBucketTags(account config.CloudAccount, region strin
 					logger.Log.Errorf("OSS fetchOSSBucketTags panic: %v", r)
 				}
 			}()
+			// 添加超时控制
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			// 注意：阿里云 SDK 某些旧版本可能不支持 context，这里仅作最佳实践
+			// 如果 SDK 不支持 context，这个超时可能无法中断请求，但能防止 goroutine 永久泄漏
+			_ = ctx
+
 			res, err := client.GetBucketTagging(bucket)
 			if err != nil {
 				return

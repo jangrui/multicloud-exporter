@@ -106,34 +106,33 @@ func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) [
 	// 注意：腾讯云 COS GetService API 遵循 S3 兼容协议，一次性返回所有 bucket，不支持分页
 	// 通常一个账号的 bucket 数量不会太多（通常 < 1000），所以单次返回是合理的
 	var s *cos.ServiceGetResult
-	var callErr error
-	for attempt := 0; attempt < 3; attempt++ {
-		s, _, callErr = client.GetService(context.Background())
-		if callErr == nil {
-			metrics.RequestTotal.WithLabelValues("tencent", "ListBuckets", "success").Inc()
-			metrics.RequestDuration.WithLabelValues("tencent", "ListBuckets").Observe(time.Since(start).Seconds())
-			metrics.RecordRequest("tencent", "ListBuckets", "success")
-			break
+
+	retryCfg := providerscommon.DefaultRetryConfig()
+	shouldRetry := providerscommon.ShouldRetryForLimitError(providerscommon.TencentClassifier)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	callErr := providerscommon.RetryWithBackoff(ctx, retryCfg, func() error {
+		var err error
+		s, _, err = client.GetService(ctx)
+		if err != nil {
+			status := providerscommon.ClassifyTencentError(err)
+			metrics.RequestTotal.WithLabelValues("tencent", "ListBuckets", status).Inc()
+			metrics.RecordRequest("tencent", "ListBuckets", status)
+			if status == providerscommon.ErrorStatusLimit {
+				metrics.RateLimitTotal.WithLabelValues("tencent", "ListBuckets").Inc()
+			}
+			return err
 		}
-		status := providerscommon.ClassifyTencentError(callErr)
-		metrics.RequestTotal.WithLabelValues("tencent", "ListBuckets", status).Inc()
-		metrics.RecordRequest("tencent", "ListBuckets", status)
-		if status == "limit_error" {
-			// 记录限流指标
-			metrics.RateLimitTotal.WithLabelValues("tencent", "ListBuckets").Inc()
-		}
-		if status == "auth_error" {
-			ctxLog.Errorf("COS 枚举存储桶 - API: GetService - 认证错误: %v", callErr)
-			return []string{}
-		}
-		// 指数退避重试
-		sleep := time.Duration(200*(1<<attempt)) * time.Millisecond
-		if sleep > 5*time.Second {
-			sleep = 5 * time.Second
-		}
-		time.Sleep(sleep)
-	}
-	if callErr != nil {
+		return nil
+	}, shouldRetry)
+
+	if callErr == nil {
+		metrics.RequestTotal.WithLabelValues("tencent", "ListBuckets", "success").Inc()
+		metrics.RequestDuration.WithLabelValues("tencent", "ListBuckets").Observe(time.Since(start).Seconds())
+		metrics.RecordRequest("tencent", "ListBuckets", "success")
+	} else {
 		ctxLog.Errorf("COS 枚举存储桶 - API: GetService - 失败: %v", callErr)
 		return []string{}
 	}
@@ -190,24 +189,32 @@ func (t *Collector) fetchCOSBucketCodeNames(account config.CloudAccount, region 
 	if err != nil {
 		return out
 	}
+	// 限制并发数
 	limit := 5
 	sem := make(chan struct{}, limit)
 	var wg sync.WaitGroup
 	for _, b := range buckets {
 		wg.Add(1)
+		// 限制并发数：必须在 go func 外部获取信号量，防止无限创建 goroutine
 		sem <- struct{}{}
 		go func(bucket string) {
 			defer wg.Done()
 			defer func() { <-sem }()
+			// 捕获 panic
 			defer func() {
 				if r := recover(); r != nil {
 					logger.Log.Errorf("Tencent fetchCOSBucketCodeNames panic: %v", r)
 				}
 			}()
+
+			// 添加 API 调用超时控制，防止请求挂起
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
 			var tags map[string]string
 			var callErr error
 			for attempt := 0; attempt < 3; attempt++ {
-				tags, callErr = client.GetBucketTagging(context.Background(), bucket, region)
+				tags, callErr = client.GetBucketTagging(ctx, bucket, region)
 				if callErr == nil {
 					break
 				}
@@ -311,16 +318,30 @@ func (t *Collector) fetchCOSMonitor(account config.CloudAccount, region string, 
 				req.EndTime = common.StringPtr(endT.UTC().Format("2006-01-02T15:04:05Z"))
 
 				reqStart := time.Now()
-				resp, err := client.GetMonitorData(req)
-				if err != nil {
-					status := providerscommon.ClassifyTencentError(err)
-					metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", status).Inc()
-					metrics.RecordRequest("tencent", "GetMonitorData", status)
-					if status == "limit_error" {
-						// 记录限流指标
-						metrics.RateLimitTotal.WithLabelValues("tencent", "GetMonitorData").Inc()
+				ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel()
+
+				retryCfg := providerscommon.DefaultRetryConfig()
+				shouldRetry := providerscommon.ShouldRetryForLimitError(providerscommon.TencentClassifier)
+
+				var resp *monitor.GetMonitorDataResponse
+				callErr := providerscommon.RetryWithBackoff(ctx, retryCfg, func() error {
+					var err error
+					resp, err = client.GetMonitorData(req)
+					if err != nil {
+						status := providerscommon.ClassifyTencentError(err)
+						metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", status).Inc()
+						metrics.RecordRequest("tencent", "GetMonitorData", status)
+						if status == providerscommon.ErrorStatusLimit {
+							metrics.RateLimitTotal.WithLabelValues("tencent", "GetMonitorData").Inc()
+						}
+						return err
 					}
-					ctxLog.Warnf("GetMonitorData API 调用错误，指标=%s: %v", m, err)
+					return nil
+				}, shouldRetry)
+
+				if callErr != nil {
+					ctxLog.Warnf("GetMonitorData API 调用错误，指标=%s: %v", m, callErr)
 					continue
 				}
 				metrics.RequestTotal.WithLabelValues("tencent", "GetMonitorData", "success").Inc()
@@ -335,7 +356,7 @@ func (t *Collector) fetchCOSMonitor(account config.CloudAccount, region string, 
 					if point == nil || len(point.Values) == 0 {
 						continue
 					}
-					// Find bucket name from dimensions
+					// 通过维度找到 bucket 名称
 					var bucketName string
 					if point.Dimensions != nil {
 						for _, d := range point.Dimensions {
@@ -349,7 +370,7 @@ func (t *Collector) fetchCOSMonitor(account config.CloudAccount, region string, 
 						continue
 					}
 
-					// Use the latest value
+					// 使用最新值
 					// 如果最后一个值为 nil，表示没有数据，跳过指标（而不是设置为 0）
 					lastVal := point.Values[len(point.Values)-1]
 					if lastVal == nil {

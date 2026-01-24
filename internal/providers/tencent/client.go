@@ -48,22 +48,30 @@ type defaultClientFactory struct{}
 
 func (f *defaultClientFactory) NewCVMClient(region, ak, sk string) (CVMClient, error) {
 	credential := common.NewCredential(ak, sk)
-	return cvm.NewClient(credential, region, profile.NewClientProfile())
+	cpf := profile.NewClientProfile()
+	cpf.HttpProfile.ReqTimeout = 30
+	return cvm.NewClient(credential, region, cpf)
 }
 
 func (f *defaultClientFactory) NewCLBClient(region, ak, sk string) (CLBClient, error) {
 	credential := common.NewCredential(ak, sk)
-	return clb.NewClient(credential, region, profile.NewClientProfile())
+	cpf := profile.NewClientProfile()
+	cpf.HttpProfile.ReqTimeout = 30
+	return clb.NewClient(credential, region, cpf)
 }
 
 func (f *defaultClientFactory) NewVPCClient(region, ak, sk string) (VPCClient, error) {
 	credential := common.NewCredential(ak, sk)
-	return vpc.NewClient(credential, region, profile.NewClientProfile())
+	cpf := profile.NewClientProfile()
+	cpf.HttpProfile.ReqTimeout = 30
+	return vpc.NewClient(credential, region, cpf)
 }
 
 func (f *defaultClientFactory) NewMonitorClient(region, ak, sk string) (MonitorClient, error) {
 	credential := common.NewCredential(ak, sk)
-	return monitor.NewClient(credential, region, profile.NewClientProfile())
+	cpf := profile.NewClientProfile()
+	cpf.HttpProfile.ReqTimeout = 30
+	return monitor.NewClient(credential, region, cpf)
 }
 
 type defaultCOSClient struct {

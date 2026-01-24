@@ -1,6 +1,7 @@
 package tencent
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"strconv"
@@ -323,7 +324,9 @@ var (
 	periodCache             = make(map[string]int64)
 	describeBaseMetricsJSON = func(region, ak, sk, namespace string) ([]byte, error) {
 		cred := common.NewCredential(ak, sk)
-		client, err := monitor.NewClient(cred, region, profile.NewClientProfile())
+		cpf := profile.NewClientProfile()
+		cpf.HttpProfile.ReqTimeout = 30
+		client, err := monitor.NewClient(cred, region, cpf)
 		if err != nil {
 			return nil, err
 		}
@@ -331,35 +334,35 @@ var (
 		req.Namespace = common.StringPtr(namespace)
 		start := time.Now()
 		var resp *monitor.DescribeBaseMetricsResponse
-		var callErr error
-		for attempt := 0; attempt < 3; attempt++ {
-			resp, callErr = client.DescribeBaseMetrics(req)
-			if callErr == nil && resp != nil && resp.Response != nil {
-				metrics.RequestTotal.WithLabelValues("tencent", "DescribeBaseMetrics", "success").Inc()
-				metrics.RequestDuration.WithLabelValues("tencent", "DescribeBaseMetrics").Observe(time.Since(start).Seconds())
-				metrics.RecordRequest("tencent", "DescribeBaseMetrics", "success")
-				break
-			}
-			if callErr != nil {
-				status := providerscommon.ClassifyTencentError(callErr)
+
+		retryConfig := providerscommon.DefaultRetryConfig()
+		shouldRetry := providerscommon.ShouldRetryForLimitError(providerscommon.TencentClassifier)
+
+		// 使用带超时的上下文
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		callErr := providerscommon.RetryWithBackoff(ctx, retryConfig, func() error {
+			var err error
+			resp, err = client.DescribeBaseMetrics(req)
+			if err != nil {
+				status := providerscommon.ClassifyTencentError(err)
 				metrics.RequestTotal.WithLabelValues("tencent", "DescribeBaseMetrics", status).Inc()
 				metrics.RecordRequest("tencent", "DescribeBaseMetrics", status)
-				if status == "limit_error" {
-					// 记录限流指标
+				if status == providerscommon.ErrorStatusLimit {
 					metrics.RateLimitTotal.WithLabelValues("tencent", "DescribeBaseMetrics").Inc()
 				}
-				if status == "auth_error" {
-					return nil, callErr
-				}
-				time.Sleep(time.Duration(200*(attempt+1)) * time.Millisecond)
-			} else {
-				return nil, callErr
+				return err
 			}
+			return nil
+		}, shouldRetry)
+		cancel()
+
+		if callErr == nil && resp != nil && resp.Response != nil {
+			metrics.RequestTotal.WithLabelValues("tencent", "DescribeBaseMetrics", "success").Inc()
+			metrics.RequestDuration.WithLabelValues("tencent", "DescribeBaseMetrics").Observe(time.Since(start).Seconds())
+			metrics.RecordRequest("tencent", "DescribeBaseMetrics", "success")
+			return json.Marshal(resp.Response)
 		}
-		if callErr != nil || resp == nil || resp.Response == nil {
-			return nil, callErr
-		}
-		return json.Marshal(resp.Response)
+		return nil, callErr
 	}
 )
 

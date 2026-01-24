@@ -372,9 +372,10 @@ func (c *FourDimensionCollector) Collect() {
 
 	for _, account := range accounts {
 		wg.Add(1)
+		// 限制并发数：必须在 go func 外部获取信号量
+		sem <- struct{}{}
 		go func(acc config.CloudAccount) {
 			defer wg.Done()
-			sem <- struct{}{}
 			defer func() { <-sem }()
 
 			defer func() {
