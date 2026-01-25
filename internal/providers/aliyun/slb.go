@@ -11,7 +11,6 @@ import (
 	"multicloud-exporter/internal/logger"
 	"multicloud-exporter/internal/metrics"
 	"multicloud-exporter/internal/providers/common"
-	"multicloud-exporter/internal/utils"
 
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/slb"
@@ -196,24 +195,6 @@ func (a *Collector) listSLBIDs(account config.CloudAccount, region string) ([]st
 			}(id)
 		}
 		wg.Wait()
-	}
-
-	wTotal, wIndex := utils.ClusterConfig()
-	if wTotal > 1 {
-		filteredIDs := []string{}
-		filteredMeta := make(map[string]interface{})
-		for _, id := range ids {
-			instanceKey := account.AccountID + "|" + region + "|" + "acs_slb_dashboard" + "|" + id
-			if utils.ShouldProcess(instanceKey, wTotal, wIndex) {
-				filteredIDs = append(filteredIDs, id)
-				if listenerData, exists := meta[id]; exists {
-					filteredMeta[id] = listenerData
-				}
-			}
-		}
-		ids = filteredIDs
-		meta = filteredMeta
-		ctxLog.Debugf("实例级分片过滤后 account=%s region=%s 原始数量=%d 过滤后数量=%d", account.AccountID, region, len(filteredIDs), len(ids))
 	}
 
 	ctxLog.Debugf("枚举SLB实例完成 实例数=%d 带监听器数=%d", len(ids), len(meta))

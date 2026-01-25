@@ -9,7 +9,6 @@ import (
 	"multicloud-exporter/internal/logger"
 	"multicloud-exporter/internal/metrics"
 	"multicloud-exporter/internal/providers/common"
-	"multicloud-exporter/internal/utils"
 
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/vpc"
@@ -141,20 +140,6 @@ func (a *Collector) listCBWPIDs(account config.CloudAccount, region string) []st
 	}
 	if page > maxPages {
 		ctxLog.Errorf("CBWP 分页超过最大页数限制 %d，强制退出", maxPages)
-	}
-
-	wTotal, wIndex := utils.ClusterConfig()
-	if wTotal > 1 {
-		filteredIDs := []string{}
-		for _, id := range ids {
-			instanceKey := account.AccountID + "|" + region + "|" + "acs_bandwidth_package" + "|" + id
-			if utils.ShouldProcess(instanceKey, wTotal, wIndex) {
-				filteredIDs = append(filteredIDs, id)
-			}
-		}
-		originalCount := len(ids)
-		ids = filteredIDs
-		ctxLog.Infof("实例级分片过滤后 account=%s region=%s 原始数量=%d 过滤后数量=%d 分片配置=total=%d index=%d", account.AccountID, region, originalCount, len(filteredIDs), wTotal, wIndex)
 	}
 
 	// 打印缩略的 ID 列表，便于定位

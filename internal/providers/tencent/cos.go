@@ -11,7 +11,6 @@ import (
 	"multicloud-exporter/internal/metrics"
 	providerscommon "multicloud-exporter/internal/providers/common"
 	"multicloud-exporter/internal/utils"
-
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
 	monitor "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/monitor/v20180724"
 	"github.com/tencentyun/cos-go-sdk-v5"
@@ -144,18 +143,6 @@ func (t *Collector) listCOSBuckets(account config.CloudAccount, region string) [
 		if b.Region == region {
 			buckets = append(buckets, b.Name)
 		}
-	}
-
-	wTotal, wIndex := utils.ClusterConfig()
-	if wTotal > 1 {
-		filteredBuckets := []string{}
-		for _, bucketName := range buckets {
-			instanceKey := account.AccountID + "|" + region + "|" + "QCE/COS" + "|" + bucketName
-			if utils.ShouldProcess(instanceKey, wTotal, wIndex) {
-				filteredBuckets = append(filteredBuckets, bucketName)
-			}
-		}
-		buckets = filteredBuckets
 	}
 
 	t.setCachedIDs(account, region, "QCE/COS", "cos", buckets)

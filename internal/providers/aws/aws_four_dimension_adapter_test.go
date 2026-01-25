@@ -4,9 +4,10 @@ import (
 	"context"
 	"testing"
 
-	"multicloud-exporter/internal/config"
-	"go.uber.org/zap"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
+
+	"multicloud-exporter/internal/config"
 )
 
 func TestFourDimensionAdapter_CollectRegionMetrics_SwitchCase(t *testing.T) {
@@ -14,10 +15,10 @@ func TestFourDimensionAdapter_CollectRegionMetrics_SwitchCase(t *testing.T) {
 	cfg := &config.Config{}
 	// NewCollector 初始化
 	collector := NewCollector(cfg, nil, nil)
-	
+
 	// 初始化 Logger
 	l, _ := zap.NewDevelopment()
-	
+
 	adapter := NewFourDimensionAdapter(collector, l)
 
 	account := config.CloudAccount{
@@ -32,8 +33,8 @@ func TestFourDimensionAdapter_CollectRegionMetrics_SwitchCase(t *testing.T) {
 	// Test "lb" mapping to CLB (default)
 	err = adapter.CollectRegionMetrics(context.Background(), account, "lb", "us-west-2")
 	assert.NoError(t, err)
-    
-    // Test "alb" mapping to ALB
-    err = adapter.CollectRegionMetrics(context.Background(), account, "alb", "us-west-2")
-    assert.NoError(t, err)
+
+	// Test "alb" mapping to ALB
+	err = adapter.CollectRegionMetrics(context.Background(), account, "alb", "us-west-2")
+	assert.NoError(t, err)
 }

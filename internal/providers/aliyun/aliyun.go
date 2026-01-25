@@ -1182,18 +1182,6 @@ func (a *Collector) listALBIDs(account config.CloudAccount, region string) []str
 		}
 	}
 
-	wTotal, wIndex := utils.ClusterConfig()
-	if wTotal > 1 {
-		filteredOut := []string{}
-		for _, id := range out {
-			instanceKey := account.AccountID + "|" + region + "|" + "acs_alb" + "|" + id
-			if utils.ShouldProcess(instanceKey, wTotal, wIndex) {
-				filteredOut = append(filteredOut, id)
-			}
-		}
-		out = filteredOut
-	}
-
 	// 只有在成功枚举到资源或确认该区域确实没有资源时才缓存
 	// 如果是因为 API 调用失败导致的空结果，不缓存，允许下次重新尝试
 	a.setCachedIDs(account, region, "acs_alb", "alb", out, meta)
@@ -1351,18 +1339,6 @@ func (a *Collector) listNLBIDs(account config.CloudAccount, region string) []str
 		}
 	}
 
-	wTotal, wIndex := utils.ClusterConfig()
-	if wTotal > 1 {
-		filteredOut := []string{}
-		for _, id := range out {
-			instanceKey := account.AccountID + "|" + region + "|" + "acs_nlb" + "|" + id
-			if utils.ShouldProcess(instanceKey, wTotal, wIndex) {
-				filteredOut = append(filteredOut, id)
-			}
-		}
-		out = filteredOut
-	}
-
 	// 只有在成功枚举到资源或确认该区域确实没有资源时才缓存
 	// 如果是因为 API 调用失败导致的空结果，不缓存，允许下次重新尝试
 	a.setCachedIDs(account, region, "acs_nlb", "nlb", out, meta)
@@ -1400,18 +1376,6 @@ func (a *Collector) listAliGWLBIDs(account config.CloudAccount, region string) [
 	}
 	metric := "ActiveConnection"
 	out := a.listIDsByCMS(client, region, "acs_gwlb", metric, "instanceId")
-
-	wTotal, wIndex := utils.ClusterConfig()
-	if wTotal > 1 {
-		filteredOut := []string{}
-		for _, id := range out {
-			instanceKey := account.AccountID + "|" + region + "|" + "acs_gwlb" + "|" + id
-			if utils.ShouldProcess(instanceKey, wTotal, wIndex) {
-				filteredOut = append(filteredOut, id)
-			}
-		}
-		out = filteredOut
-	}
 
 	// 缓存前更新区域状态
 	if rm != nil {

@@ -8,7 +8,6 @@ import (
 	"multicloud-exporter/internal/logger"
 	"multicloud-exporter/internal/metrics"
 	providerscommon "multicloud-exporter/internal/providers/common"
-	"multicloud-exporter/internal/utils"
 
 	clb "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/clb/v20180317"
 	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
@@ -150,18 +149,6 @@ func (t *Collector) listCLBVips(account config.CloudAccount, region string) []st
 		offset += limit
 		ctxLog.Debugf("CLB 分页采集 offset=%d current_count=%d total_collected=%d", offset, currentCount, len(vips))
 		time.Sleep(50 * time.Millisecond)
-	}
-
-	wTotal, wIndex := utils.ClusterConfig()
-	if wTotal > 1 {
-		filteredVIPs := []string{}
-		for _, vip := range vips {
-			instanceKey := account.AccountID + "|" + region + "|" + "QCE/LB" + "|" + vip
-			if utils.ShouldProcess(instanceKey, wTotal, wIndex) {
-				filteredVIPs = append(filteredVIPs, vip)
-			}
-		}
-		vips = filteredVIPs
 	}
 
 	t.setCachedIDs(account, region, "QCE/LB", "clb", vips)

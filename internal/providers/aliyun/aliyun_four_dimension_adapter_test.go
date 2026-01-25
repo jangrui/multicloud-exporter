@@ -3,9 +3,10 @@ package aliyun
 import (
 	"testing"
 
-	"multicloud-exporter/internal/config"
-	"go.uber.org/zap"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
+
+	"multicloud-exporter/internal/config"
 )
 
 func TestFourDimensionAdapter_mapProductIDToNamespace(t *testing.T) {
@@ -13,10 +14,10 @@ func TestFourDimensionAdapter_mapProductIDToNamespace(t *testing.T) {
 	cfg := &config.Config{}
 	// NewCollector 初始化
 	collector := NewCollector(cfg, nil, nil)
-	
+
 	// 初始化 Logger
 	l, _ := zap.NewDevelopment()
-	
+
 	adapter := NewFourDimensionAdapter(collector, l)
 
 	tests := []struct {

@@ -383,25 +383,6 @@ func (c *Collector) processRegionLB(account config.CloudAccount, region string, 
 		return
 	}
 
-	wTotal, wIndex := utils.ClusterConfig()
-	if wTotal > 1 {
-		filteredLBs := []lbInfo{}
-		for _, lb := range lbs {
-			resourceID := lb.Name
-			if lb.ARN != "" {
-				resourceID = lb.ARN
-			}
-			instanceKey := account.AccountID + "|" + region + "|" + prod.Namespace + "|" + resourceID
-			if utils.ShouldProcess(instanceKey, wTotal, wIndex) {
-				filteredLBs = append(filteredLBs, lb)
-			}
-		}
-		lbs = filteredLBs
-		if len(lbs) == 0 {
-			return
-		}
-	}
-
 	cwClient, err := c.clientFactory.NewCloudWatchClient(ctx, region, account.AccessKeyID, account.AccessKeySecret)
 	if err != nil {
 		ctxLog := logger.NewContextLogger("AWS", "account_id", account.AccountID, "region", region, "namespace", prod.Namespace)

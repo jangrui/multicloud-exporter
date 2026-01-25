@@ -7,7 +7,7 @@ import (
 
 var (
 	// These variables are replaced by ldflags at build time
-	Version   = "v0.5.4"
+	Version   = "v0.5.5"
 	CommitSHA = "none"
 	BuildTime = "unknown"
 )
