@@ -79,7 +79,12 @@ func (a *FourDimensionAdapter) CollectProductMetrics(ctx context.Context, accoun
 		regionLog := ctxLog.With("region", region)
 		regionLog.Debug("采集产品指标")
 
-		a.collector.collectCMSMetrics(account, region, productID)
+		namespace := a.mapProductIDToNamespace(productID)
+		if namespace == "" {
+			regionLog.Warnf("未知的阿里云产品ID，跳过采集")
+			continue
+		}
+		a.collector.collectCMSMetrics(account, region, namespace)
 	}
 
 	ctxLog.Infof("完成产品级指标采集 regions=%d", len(regions))
@@ -91,7 +96,12 @@ func (a *FourDimensionAdapter) CollectRegionMetrics(ctx context.Context, account
 	ctxLog := logger.NewContextLogger("AliyunAdapter", "account_id", account.AccountID, "product_id", productID, "region", region)
 	ctxLog.Info("开始采集区域级指标")
 
-	a.collector.collectCMSMetrics(account, region, productID)
+	namespace := a.mapProductIDToNamespace(productID)
+	if namespace == "" {
+		ctxLog.Warnf("未知的阿里云产品ID，跳过采集")
+		return nil
+	}
+	a.collector.collectCMSMetrics(account, region, namespace)
 
 	ctxLog.Info("完成区域级指标采集")
 	return nil
@@ -102,10 +112,34 @@ func (a *FourDimensionAdapter) CollectResourceMetrics(ctx context.Context, accou
 	ctxLog := logger.NewContextLogger("AliyunAdapter", "account_id", account.AccountID, "product_id", productID, "region", region, "resource_id", resourceID)
 	ctxLog.Info("开始采集资源级指标")
 
-	a.collector.collectCMSMetrics(account, region, productID)
+	namespace := a.mapProductIDToNamespace(productID)
+	if namespace == "" {
+		ctxLog.Warnf("未知的阿里云产品ID，跳过采集")
+		return nil
+	}
+	a.collector.collectCMSMetrics(account, region, namespace)
 
 	ctxLog.Info("完成资源级指标采集")
 	return nil
+}
+
+func (a *FourDimensionAdapter) mapProductIDToNamespace(productID string) string {
+	switch productID {
+	case AliyunProductSLB, "clb":
+		return "acs_slb_dashboard"
+	case AliyunProductOSS, "s3":
+		return "acs_oss_dashboard"
+	case AliyunProductCBWP, "bwp":
+		return "acs_bandwidth_package"
+	case AliyunProductALB:
+		return "acs_alb"
+	case AliyunProductNLB:
+		return "acs_nlb"
+	case AliyunProductAliGWLB, "gwlb":
+		return "acs_gwlb"
+	default:
+		return ""
+	}
 }
 
 // DiscoverResources 发现该账号下所有资源

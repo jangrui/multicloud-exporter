@@ -81,7 +81,7 @@ func (a *FourDimensionAdapter) CollectProductMetrics(ctx context.Context, accoun
 	switch productID {
 	case AWSProductS3:
 		a.collector.collectS3(account)
-	case AWSProductLB:
+	case AWSProductLB, "clb":
 		a.collector.collectCLB(account)
 	case "alb":
 		a.collector.collectALB(account)
@@ -89,6 +89,8 @@ func (a *FourDimensionAdapter) CollectProductMetrics(ctx context.Context, accoun
 		a.collector.collectNLB(account)
 	case "gwlb":
 		a.collector.collectGWLB(account)
+	default:
+		ctxLog.Warnf("未知的AWS产品ID，跳过采集")
 	}
 
 	ctxLog.Info("完成产品级指标采集")

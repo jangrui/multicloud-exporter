@@ -80,10 +80,12 @@ func (h *FourDimensionAdapter) CollectProductMetrics(ctx context.Context, accoun
 		regionLog.Debug("采集产品指标")
 
 		switch productID {
-		case HuaweiProductELB:
+		case HuaweiProductELB, "clb":
 			h.collector.collectELB(account, region)
-		case HuaweiProductOBS:
+		case HuaweiProductOBS, "s3":
 			h.collector.collectOBS(account, region)
+		default:
+			regionLog.Warnf("未知的华为云产品ID，跳过采集")
 		}
 	}
 
@@ -97,10 +99,12 @@ func (h *FourDimensionAdapter) CollectRegionMetrics(ctx context.Context, account
 	ctxLog.Info("开始采集区域级指标")
 
 	switch productID {
-	case HuaweiProductELB:
+	case HuaweiProductELB, "clb":
 		h.collector.collectELB(account, region)
-	case HuaweiProductOBS:
+	case HuaweiProductOBS, "s3":
 		h.collector.collectOBS(account, region)
+	default:
+		ctxLog.Warnf("未知的华为云产品ID，跳过采集")
 	}
 
 	ctxLog.Info("完成区域级指标采集")
@@ -113,10 +117,12 @@ func (h *FourDimensionAdapter) CollectResourceMetrics(ctx context.Context, accou
 	ctxLog.Info("开始采集资源级指标")
 
 	switch productID {
-	case HuaweiProductELB:
+	case HuaweiProductELB, "clb":
 		h.collector.collectELB(account, region)
-	case HuaweiProductOBS:
+	case HuaweiProductOBS, "s3":
 		h.collector.collectOBS(account, region)
+	default:
+		ctxLog.Warnf("未知的华为云产品ID，跳过采集")
 	}
 
 	ctxLog.Info("完成资源级指标采集")

@@ -90,10 +90,12 @@ func (t *FourDimensionAdapter) CollectProductMetrics(ctx context.Context, accoun
 			t.collector.collectCLB(account, region)
 		case TencentProductBWP:
 			t.collector.collectBWP(account, region)
-		case TencentProductCOS:
+		case TencentProductCOS, "s3":
 			t.collector.collectCOS(account, region)
 		case TencentProductGWLB:
 			t.collector.collectGWLB(account, region)
+		default:
+			regionLog.Warnf("未知的腾讯云产品ID，跳过采集")
 		}
 	}
 
