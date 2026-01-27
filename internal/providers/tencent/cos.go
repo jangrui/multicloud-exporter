@@ -6,14 +6,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
+	monitor "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/monitor/v20180724"
+	"github.com/tencentyun/cos-go-sdk-v5"
+
 	"multicloud-exporter/internal/config"
 	"multicloud-exporter/internal/logger"
 	"multicloud-exporter/internal/metrics"
 	providerscommon "multicloud-exporter/internal/providers/common"
 	"multicloud-exporter/internal/utils"
-	"github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/common"
-	monitor "github.com/tencentcloud/tencentcloud-sdk-go/tencentcloud/monitor/v20180724"
-	"github.com/tencentyun/cos-go-sdk-v5"
 )
 
 func (t *Collector) collectCOS(account config.CloudAccount, region string) {

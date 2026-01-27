@@ -51,8 +51,14 @@ func TestGetAllRegions_FallbackOnError(t *testing.T) {
 func TestGetDefaultResources(t *testing.T) {
 	c := &Collector{}
 	rd := c.GetDefaultResources()
-	if len(rd) != 1 || rd[0] != "s3" {
-		t.Fatalf("GetDefaultResources mismatch: %v", rd)
+	expected := []string{"s3", "alb", "clb", "nlb", "gwlb"}
+	if len(rd) != len(expected) {
+		t.Fatalf("GetDefaultResources length mismatch: got=%d want=%d, got=%v", len(rd), len(expected), rd)
+	}
+	for i, v := range rd {
+		if v != expected[i] {
+			t.Fatalf("GetDefaultResources element mismatch at index %d: got=%s want=%s", i, v, expected[i])
+		}
 	}
 }
 

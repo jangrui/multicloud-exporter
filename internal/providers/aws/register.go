@@ -10,7 +10,7 @@ import (
 
 // GetDefaultResources 返回 AWS 默认采集的资源类型
 func (c *Collector) GetDefaultResources() []string {
-	return []string{"s3"}
+	return []string{"s3", "alb", "clb", "nlb", "gwlb"}
 }
 
 // SupportsInternalSharding 返回是否支持内部分片

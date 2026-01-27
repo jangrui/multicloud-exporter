@@ -15,14 +15,22 @@ import (
 )
 
 const (
-	AWSProductS3 = "s3"
-	AWSProductLB = "lb"
+	AWSProductS3   = "s3"
+	AWSProductLB   = "lb"
+	AWSProductALB  = "alb"
+	AWSProductCLB  = "clb"
+	AWSProductNLB  = "nlb"
+	AWSProductGWLB = "gwlb"
 )
 
 var (
 	productToNamespaceMapAWS = map[string]string{
-		AWSProductS3: "AWS/S3",
-		AWSProductLB: "AWS/ELB",
+		AWSProductS3:   "AWS/S3",
+		AWSProductLB:   "AWS/ELB",
+		AWSProductALB:  "AWS/ApplicationELB",
+		AWSProductCLB:  "AWS/ELB",
+		AWSProductNLB:  "AWS/NetworkELB",
+		AWSProductGWLB: "AWS/GatewayELB",
 	}
 )
 
