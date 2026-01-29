@@ -172,11 +172,6 @@ spec:
 # values.yaml
 replicaCount: 3
 
-redis:
-  enabled: true
-  addr: "redis:6379"
-  password: ""
-
 server:
   cluster_enabled: true
   first_run:

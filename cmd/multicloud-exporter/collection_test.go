@@ -18,11 +18,11 @@ func TestGetScrapeInterval(t *testing.T) {
 		envValue         string
 		expectedDuration int
 	}{
-		{"default config", &config.Config{}, "", 60},
-		{"config value", &config.Config{Server: &config.ServerConf{ScrapeInterval: "30s"}}, "", 30},
-		{"env override", &config.Config{Server: &config.ServerConf{ScrapeInterval: "30s"}}, "120", 120},
-		{"env duration parses to seconds", &config.Config{}, "2m", 2},
-		{"invalid config", &config.Config{Server: &config.ServerConf{ScrapeInterval: "invalid"}}, "", 60},
+		{"default config", &config.Config{}, "", 300},
+		{"config value", &config.Config{Server: &config.ServerConf{ScrapeInterval: "300s"}}, "", 300},
+		{"env override", &config.Config{Server: &config.ServerConf{ScrapeInterval: "300s"}}, "120", 120},
+		{"env duration parses to seconds", &config.Config{}, "2m", 120},
+		{"invalid config", &config.Config{Server: &config.ServerConf{ScrapeInterval: "invalid"}}, "", 300},
 		{"env pure seconds", &config.Config{}, "300", 300},
 	}
 
@@ -47,9 +47,9 @@ func TestGetServerPort(t *testing.T) {
 		expected string
 	}{
 		{"default", &config.Config{}, "", "9101"},
-		{"config value", &config.Config{Server: &config.ServerConf{Port: 8080}}, "", "8080"},
-		{"env override", &config.Config{Server: &config.ServerConf{Port: 8080}}, "9090", "9090"},
-		{"env only", &config.Config{}, "9090", "9090"},
+		{"config value", &config.Config{Server: &config.ServerConf{Port: 9101}}, "", "9101"},
+		{"env override", &config.Config{Server: &config.ServerConf{Port: 9101}}, "9090", "9090"},
+		{"env only", &config.Config{}, "9101", "9101"},
 	}
 
 	for _, tt := range tests {

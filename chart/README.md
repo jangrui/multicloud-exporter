@@ -141,6 +141,7 @@ Exporter 暴露了 `/metrics` 端点，其中包含自身运行状态指标：
 
 - 账号 Secret 引用
   - `accounts.grouped`：按云平台分组的账号配置（推荐），Chart 会生成 `accounts.yaml` 并注入对应环境变量
+    - 支持在账号下配置 `product_metric`，透传到 `accounts.yaml` 的 `product_metric`
 
     ```yaml
     accounts:
@@ -149,6 +150,15 @@ Exporter 暴露了 `/metrics` 端点，其中包含自身运行状态指标：
           - name: aliyun-acc-0  # Secret 名称
             regions: ["*"]
             resources: ["bwp", "clb", "s3", "alb", "nlb", "gwlb"]
+            product_metric:
+              s3:
+                - period: 3600
+                  scrape_interval: 1h
+                  metric_list: ["UserStorage", "ObjectNumber"]
+              bwp:
+                - period: 600
+                  scrape_interval: 10m
+                  metric_list: ["InBandwidth", "OutBandwidth"]
         tencent:
           - name: tencent-acc-0
             regions: ["*"]

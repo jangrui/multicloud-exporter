@@ -1,7 +1,9 @@
 package collector
 
 import (
+	"context"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -12,6 +14,36 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
+
+type mockFourDimensionAdapter struct {
+	regions              []string
+	collectRegionCounter int32
+}
+
+func (m *mockFourDimensionAdapter) CollectAccountMetrics(ctx context.Context, account config.CloudAccount) error {
+	return nil
+}
+
+func (m *mockFourDimensionAdapter) CollectProductMetrics(ctx context.Context, account config.CloudAccount, productID string) error {
+	return nil
+}
+
+func (m *mockFourDimensionAdapter) CollectRegionMetrics(ctx context.Context, account config.CloudAccount, productID, region string) error {
+	atomic.AddInt32(&m.collectRegionCounter, 1)
+	return nil
+}
+
+func (m *mockFourDimensionAdapter) CollectResourceMetrics(ctx context.Context, account config.CloudAccount, productID, region, resourceID string) error {
+	return nil
+}
+
+func (m *mockFourDimensionAdapter) DiscoverResources(ctx context.Context, account config.CloudAccount) (map[string]map[string][]string, error) {
+	return map[string]map[string][]string{}, nil
+}
+
+func (m *mockFourDimensionAdapter) GetRegions(ctx context.Context, account config.CloudAccount) ([]string, error) {
+	return m.regions, nil
+}
 
 func TestFourDimensionCollector_New(t *testing.T) {
 	logger := zaptest.NewLogger(t)
@@ -110,6 +142,48 @@ func TestFourDimensionCollector_CollectProduct(t *testing.T) {
 	err := collector.CollectProduct(account, "slb")
 	if err != nil {
 		t.Errorf("CollectProduct failed: %v", err)
+	}
+}
+
+func TestFourDimensionCollector_ProductScrapeIntervalSkip(t *testing.T) {
+	logger := zaptest.NewLogger(t)
+	syncMgr := four_dimension_sync.NewFourDimensionSync("test-service", "8080", "")
+
+	cfg := FourDimensionCollectorConfig{
+		Config:         nil,
+		SyncManager:    syncMgr,
+		TagCacheTTL:    30 * time.Minute,
+		MaxConcurrency: 20,
+		Logger:         logger,
+	}
+
+	collector := NewFourDimensionCollector(cfg)
+	defer collector.Stop()
+
+	adapter := &mockFourDimensionAdapter{regions: []string{"cn-hangzhou"}}
+	collector.adapters["aliyun"] = adapter
+
+	account := config.CloudAccount{
+		Provider:  "aliyun",
+		AccountID: "test-account-1",
+		Regions:   []string{"cn-hangzhou"},
+		Resources: []string{"s3"},
+		ProductMetric: map[string][]config.MetricGroupConfig{
+			"s3": {
+				{MetricList: []string{"BucketSizeBytes", "NumberOfObjects"}, ScrapeInterval: "1h"},
+			},
+		},
+	}
+
+	if err := collector.CollectProduct(account, "s3"); err != nil {
+		t.Fatalf("CollectProduct failed: %v", err)
+	}
+	if err := collector.CollectProduct(account, "s3"); err != nil {
+		t.Fatalf("CollectProduct failed: %v", err)
+	}
+
+	if count := atomic.LoadInt32(&adapter.collectRegionCounter); count != 1 {
+		t.Fatalf("expected CollectRegionMetrics called once, got %d", count)
 	}
 }
 

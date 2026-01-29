@@ -21,6 +21,9 @@ data:
 {{- if $a.resources }}
           resources: {{ toYaml $a.resources | nindent 12 -}}
 {{- end }}
+{{- if $a.product_metric }}
+          product_metric: {{ toYaml $a.product_metric | nindent 12 -}}
+{{- end }}
 {{- end }}
 {{- else }}
       {{ $provider }}: []

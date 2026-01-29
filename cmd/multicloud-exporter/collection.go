@@ -240,7 +240,7 @@ func buildProductStats(productsByProvider map[string]int) string {
 
 // getScrapeInterval 获取采集间隔（优先级：环境变量 > 配置文件 > 默认值）
 func getScrapeInterval(cfg *config.Config) time.Duration {
-	interval := 60 * time.Second
+	interval := 5 * time.Minute
 
 	// 1. 优先从配置文件读取
 	if server := cfg.GetServer(); server != nil && server.ScrapeInterval != "" {
@@ -254,10 +254,10 @@ func getScrapeInterval(cfg *config.Config) time.Duration {
 
 	// 2. 环境变量覆盖
 	if envInterval := getEnv("SCRAPE_INTERVAL"); envInterval != "" {
-		if i, err := parseIntervalSeconds(envInterval); err == nil {
-			interval = i
-		} else if d, err := time.ParseDuration(envInterval); err == nil {
+		if d, err := time.ParseDuration(envInterval); err == nil {
 			interval = d
+		} else if i, err := parseIntervalSeconds(envInterval); err == nil {
+			interval = i
 		} else {
 			ctxLog := logger.NewContextLogger("Collection", "resource_type", "Config")
 			ctxLog.Warnf("警告: 环境变量 SCRAPE_INTERVAL 无效: %v", err)

@@ -11,14 +11,22 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// MetricGroupConfig 定义单个产品级别的指标配置
+type MetricGroupConfig struct {
+	Period         *int     `yaml:"period"`          // 采集周期（秒）
+	ScrapeInterval string   `yaml:"scrape_interval"` // 产品采集频率（如 1h、10m）
+	MetricList     []string `yaml:"metric_list"`     // 指标列表
+}
+
 // CloudAccount 描述单个云账号的采集范围与凭证
 type CloudAccount struct {
-	Provider        string   `yaml:"provider"`
-	AccountID       string   `yaml:"account_id"`
-	AccessKeyID     string   `yaml:"access_key_id"`
-	AccessKeySecret string   `yaml:"access_key_secret"`
-	Regions         []string `yaml:"regions"`
-	Resources       []string `yaml:"resources"`
+	Provider        string                         `yaml:"provider"`
+	AccountID       string                         `yaml:"account_id"`
+	AccessKeyID     string                         `yaml:"access_key_id"`
+	AccessKeySecret string                         `yaml:"access_key_secret"`
+	Regions         []string                       `yaml:"regions"`
+	Resources       []string                       `yaml:"resources"`
+	ProductMetric   map[string][]MetricGroupConfig `yaml:"product_metric"` // 产品级指标配置（key: 产品名称，如 "s3"、"oss" 等）
 }
 
 // expandEnv 根据当前环境变量的值替换字符串中的 ${var} 或 $var
@@ -55,6 +63,11 @@ func parseDuration(s string) (time.Duration, error) {
 
 	// 使用标准库解析其他格式
 	return time.ParseDuration(s)
+}
+
+// ParseDuration 解析时间间隔字符串，支持 d(天) 单位
+func ParseDuration(s string) (time.Duration, error) {
+	return parseDuration(s)
 }
 
 // Config 汇总所有云账号配置
@@ -102,12 +115,20 @@ func DefaultResourceDimMapping() map[string][]string {
 func (c *Config) Validate() error {
 	var errs []string
 	var warnings []string
+	var globalScrapeDuration time.Duration
+	var globalScrapeInterval string
 
 	// 验证 Server 配置
 	if c.Server == nil {
 		errs = append(errs, "server config is required")
 	} else {
 		server := c.GetServer()
+		if server.ScrapeInterval != "" {
+			if d, err := parseDuration(server.ScrapeInterval); err == nil {
+				globalScrapeDuration = d
+				globalScrapeInterval = server.ScrapeInterval
+			}
+		}
 		// 验证端口
 		if server.Port <= 0 || server.Port > 65535 {
 			errs = append(errs, fmt.Sprintf("invalid port: %d (must be 1-65535)", server.Port))
@@ -277,6 +298,44 @@ func (c *Config) Validate() error {
 			}
 			if len(acc.Regions) == 0 {
 				errs = append(errs, fmt.Sprintf("%s: account[%d].regions is empty", provider, i))
+			}
+
+			// 验证 ProductMetric 配置
+			if len(acc.ProductMetric) > 0 {
+				for productName, metricGroups := range acc.ProductMetric {
+					var productScrapeInterval time.Duration
+					var productScrapeIntervalSet bool
+					for j, mg := range metricGroups {
+						// 验证 MetricList 非空
+						if len(mg.MetricList) == 0 {
+							errs = append(errs, fmt.Sprintf("%s: account[%d].product_metric[%s][%d].metric_list is empty", provider, i, productName, j))
+						}
+
+						// 验证 Period 为正整数（如果设置了）
+						if mg.Period != nil && *mg.Period <= 0 {
+							errs = append(errs, fmt.Sprintf("%s: account[%d].product_metric[%s][%d].period must be positive", provider, i, productName, j))
+						}
+
+						if mg.ScrapeInterval != "" {
+							interval, err := parseDuration(mg.ScrapeInterval)
+							if err != nil {
+								errs = append(errs, fmt.Sprintf("%s: account[%d].product_metric[%s][%d].scrape_interval is invalid: %v", provider, i, productName, j, err))
+							} else if interval <= 0 {
+								errs = append(errs, fmt.Sprintf("%s: account[%d].product_metric[%s][%d].scrape_interval must be positive", provider, i, productName, j))
+							} else {
+								if !productScrapeIntervalSet {
+									productScrapeInterval = interval
+									productScrapeIntervalSet = true
+								} else if productScrapeInterval != interval {
+									errs = append(errs, fmt.Sprintf("%s: account[%d].product_metric[%s] has inconsistent scrape_interval", provider, i, productName))
+								}
+								if globalScrapeDuration > 0 && interval < globalScrapeDuration {
+									warnings = append(warnings, fmt.Sprintf("%s: account[%d].product_metric[%s][%d].scrape_interval (%s) is less than server.scrape_interval (%s), may not take effect", provider, i, productName, j, mg.ScrapeInterval, globalScrapeInterval))
+								}
+							}
+						}
+					}
+				}
 			}
 		}
 	}

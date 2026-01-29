@@ -31,6 +31,7 @@
 - 启动与一次性刷新：创建 `Manager` 并立即刷新；引用 `internal/discovery/manager.go:56-84`。
 - 文件监听触发：`watchAccounts` 检查 `mtime`，签名变化时调用 `Refresh`；引用 `internal/discovery/manager.go:131-156`。
 - TTL 与缓存：资源枚举结果按 `server.discovery_ttl` 控制；腾讯采集器缓存接口见 `internal/providers/tencent/tencent.go:223-240,250-253`。
+- 元数据发现缓存：`internal/discovery/cache.go` 使用纯内存缓存，缓存键为 `provider|namespace|account_id`，TTL 复用 `server.discovery_ttl`，配置指纹变化时自动失效。
 - Period 自动适配（腾讯）：包级缓存最小周期选择，应用于 CLB/BWP；引用 `internal/providers/tencent/tencent.go:136-197`，CLB/BWP 调用点 `internal/providers/tencent/clb.go:79-83`、`internal/providers/tencent/bwp.go:75-79`。
 
 ## 配置来源

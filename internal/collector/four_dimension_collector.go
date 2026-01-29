@@ -45,7 +45,9 @@ type FourDimensionCollector struct {
 	stopped    int32
 	collecting int32
 
-	maxConcurrency int // 最大并发度
+	maxConcurrency     int // 最大并发度
+	productCollectMu   sync.Mutex
+	productLastCollect map[string]time.Time
 
 	status     FourDimensionStatus
 	statusLock sync.RWMutex
@@ -90,18 +92,19 @@ func NewFourDimensionCollector(cfg FourDimensionCollectorConfig) *FourDimensionC
 	}
 
 	collector := &FourDimensionCollector{
-		cfg:             cfg.Config,
-		syncMgr:         cfg.SyncManager,
-		discoveryMgr:    cfg.DiscoveryMgr,
-		accountManagers: make(map[string]*layer.AccountManager),
-		tagCache:        tagCache,
-		degradeMgr:      degradeMgr,
-		memoryMgr:       memoryMgr,
-		faultTolerance:  faultTolerance,
-		cloudProviders:  make(map[string]providers.Provider),
-		adapters:        make(map[string]providers.FourDimensionAdapter),
-		collectionMode:  mode,
-		zapLogger:       cfg.Logger,
+		cfg:                cfg.Config,
+		syncMgr:            cfg.SyncManager,
+		discoveryMgr:       cfg.DiscoveryMgr,
+		accountManagers:    make(map[string]*layer.AccountManager),
+		tagCache:           tagCache,
+		degradeMgr:         degradeMgr,
+		memoryMgr:          memoryMgr,
+		faultTolerance:     faultTolerance,
+		cloudProviders:     make(map[string]providers.Provider),
+		adapters:           make(map[string]providers.FourDimensionAdapter),
+		collectionMode:     mode,
+		zapLogger:          cfg.Logger,
+		productLastCollect: make(map[string]time.Time),
 	}
 
 	go collector.degradeMgr.StartRecoveryScheduler()
@@ -549,6 +552,15 @@ func (c *FourDimensionCollector) CollectProduct(account config.CloudAccount, pro
 		return nil
 	}
 
+	if interval, ok, err := c.getProductScrapeInterval(account, productID); err != nil {
+		return err
+	} else if ok {
+		if !c.shouldCollectProduct(account, productID, interval) {
+			metrics.RecordFourDimensionProductSkip(account.AccountID, productID, "product_interval")
+			return nil
+		}
+	}
+
 	adapter, ok := c.getAdapter(account.Provider)
 	if !ok {
 		metrics.RecordFourDimensionProductSkip(account.AccountID, productID, "adapter_not_found")
@@ -597,6 +609,84 @@ func (c *FourDimensionCollector) CollectProduct(account config.CloudAccount, pro
 	metrics.RecordFourDimensionProductStatus(account.AccountID, productID, "active")
 
 	return nil
+}
+
+func (c *FourDimensionCollector) getProductScrapeInterval(account config.CloudAccount, productID string) (time.Duration, bool, error) {
+	if len(account.ProductMetric) == 0 {
+		return 0, false, nil
+	}
+
+	keys := getProductMetricKeys(account.Provider, productID)
+	var interval time.Duration
+	var set bool
+	for _, key := range keys {
+		metricGroups, ok := account.ProductMetric[key]
+		if !ok {
+			continue
+		}
+		for _, group := range metricGroups {
+			if group.ScrapeInterval == "" {
+				continue
+			}
+			d, err := config.ParseDuration(group.ScrapeInterval)
+			if err != nil {
+				return 0, false, fmt.Errorf("invalid product_metric scrape_interval for %s: %w", key, err)
+			}
+			if d <= 0 {
+				return 0, false, fmt.Errorf("product_metric scrape_interval must be positive for %s", key)
+			}
+			if !set {
+				interval = d
+				set = true
+			} else if interval != d {
+				return 0, false, fmt.Errorf("inconsistent product_metric scrape_interval for %s", productID)
+			}
+		}
+	}
+	return interval, set, nil
+}
+
+func getProductMetricKeys(provider, productID string) []string {
+	keys := []string{productID}
+	if productID == "s3" {
+		switch provider {
+		case "aliyun":
+			keys = append(keys, "oss")
+		case "tencent":
+			keys = append(keys, "cos")
+		case "huawei":
+			keys = append(keys, "obs")
+		}
+	}
+	if productID == "oss" && provider == "aliyun" {
+		keys = append(keys, "s3")
+	}
+	if productID == "cos" && provider == "tencent" {
+		keys = append(keys, "s3")
+	}
+	if productID == "obs" && provider == "huawei" {
+		keys = append(keys, "s3")
+	}
+	return keys
+}
+
+func (c *FourDimensionCollector) shouldCollectProduct(account config.CloudAccount, productID string, interval time.Duration) bool {
+	key := fmt.Sprintf("%s:%s:%s", account.Provider, account.AccountID, productID)
+	if account.AccountID == "" {
+		key = fmt.Sprintf("%s:%s", account.Provider, productID)
+	}
+	now := time.Now()
+
+	c.productCollectMu.Lock()
+	defer c.productCollectMu.Unlock()
+
+	if last, ok := c.productLastCollect[key]; ok {
+		if now.Sub(last) < interval {
+			return false
+		}
+	}
+	c.productLastCollect[key] = now
+	return true
 }
 
 // CollectRegion 采集区域级指标

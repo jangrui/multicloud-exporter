@@ -3,6 +3,7 @@ package discovery
 
 import (
 	"context"
+	"sort"
 	"strings"
 
 	"multicloud-exporter/internal/config"
@@ -63,6 +64,7 @@ func (d *HuaweiDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 	if len(accounts) == 0 {
 		return nil
 	}
+	cache := getDiscoveryMetaCache(cfg)
 
 	needELB := false
 	needOBS := false
@@ -81,180 +83,439 @@ func (d *HuaweiDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 	prods := make([]config.Product, 0)
 
 	if needELB {
-		region := "cn-north-4"
-		if len(accounts) > 0 && len(accounts[0].Regions) > 0 && accounts[0].Regions[0] != "*" {
-			region = accounts[0].Regions[0]
-		}
-		ak := accounts[0].AccessKeyID
-		sk := accounts[0].AccessKeySecret
-
-		// ELB 兜底指标
-		fallback := []string{
-			"m1_cps", "m2_act_conn", "m3_inact_conn", "m4_ncps",
-			"m5_in_pps", "m6_out_pps", "m7_in_Bps", "m8_out_Bps",
-			"m9_abnormal_servers", "ma_normal_servers",
-			"mb_l7_qps", "mc_l7_http_2xx", "md_l7_http_3xx",
-			"me_l7_http_4xx", "mf_l7_http_5xx",
-			"m14_l7_rt", "m15_l7_upstream_4xx", "m16_l7_upstream_5xx",
-			"m17_l7_upstream_rt", "m21_client_rps",
-			"m22_in_bandwidth", "m23_out_bandwidth",
-		}
-
-		var metrics []string
-		client, err := newHuaweiCESClient(region, ak, sk)
-		if err != nil {
-			ctxLog := logger.NewContextLogger("Huawei", "resource_type", "Discovery", "namespace", "SYS.ELB")
-			ctxLog.Warnf("CES 客户端创建失败，错误=%v", err)
-		} else {
-			ns := "SYS.ELB"
-			req := &cesmodel.ListMetricsRequest{
-				Namespace: &ns,
-			}
-			resp, err := client.ListMetrics(req)
-			if err != nil {
+		if checkCustomProductMetricForHuawei(accounts, "elb") {
+			elbProd := buildELBProductWithCustomConfig(accounts)
+			if elbProd.Namespace != "" {
+				prods = append(prods, elbProd)
 				ctxLog := logger.NewContextLogger("Huawei", "resource_type", "Discovery", "namespace", "SYS.ELB")
-				ctxLog.Warnf("ListMetrics API调用错误，错误=%v", err)
+				ctxLog.Infof("发现服务完成，使用自定义配置，MetricGroup 数量=%d", len(elbProd.MetricInfo))
 			}
-			if resp != nil && resp.Metrics != nil {
-				for _, m := range *resp.Metrics {
-					if m.MetricName != "" {
-						metrics = append(metrics, m.MetricName)
-					}
+		} else {
+			cached := false
+			if cache != nil {
+				if cachedGroups, ok := cache.Get("huawei", "SYS.ELB", accounts[0]); ok {
+					prods = append(prods, config.Product{Namespace: "SYS.ELB", AutoDiscover: true, MetricInfo: cachedGroups})
+					ctxLog := logger.NewContextLogger("Huawei", "resource_type", "Discovery", "namespace", "SYS.ELB")
+					ctxLog.Infof("发现服务命中缓存，MetricGroup 数量=%d", len(cachedGroups))
+					cached = true
 				}
 			}
-		}
+			if cached {
+				// 已使用缓存
+			} else {
+				region := "cn-north-4"
+				if len(accounts) > 0 && len(accounts[0].Regions) > 0 && accounts[0].Regions[0] != "*" {
+					region = accounts[0].Regions[0]
+				}
+				ak := accounts[0].AccessKeyID
+				sk := accounts[0].AccessKeySecret
 
-		// 合并兜底指标
-		cur := make(map[string]struct{}, len(metrics))
-		for _, m := range metrics {
-			cur[m] = struct{}{}
-		}
-		for _, m := range fallback {
-			if _, ok := cur[m]; !ok {
-				metrics = append(metrics, m)
+				// ELB 兜底指标
+				fallback := []string{
+					"m1_cps", "m2_act_conn", "m3_inact_conn", "m4_ncps",
+					"m5_in_pps", "m6_out_pps", "m7_in_Bps", "m8_out_Bps",
+					"m9_abnormal_servers", "ma_normal_servers",
+					"mb_l7_qps", "mc_l7_http_2xx", "md_l7_http_3xx",
+					"me_l7_http_4xx", "mf_l7_http_5xx",
+					"m14_l7_rt", "m15_l7_upstream_4xx", "m16_l7_upstream_5xx",
+					"m17_l7_upstream_rt", "m21_client_rps",
+					"m22_in_bandwidth", "m23_out_bandwidth",
+				}
+
+				var metrics []string
+				client, err := newHuaweiCESClient(region, ak, sk)
+				if err != nil {
+					ctxLog := logger.NewContextLogger("Huawei", "resource_type", "Discovery", "namespace", "SYS.ELB")
+					ctxLog.Warnf("CES 客户端创建失败，错误=%v", err)
+				} else {
+					ns := "SYS.ELB"
+					req := &cesmodel.ListMetricsRequest{
+						Namespace: &ns,
+					}
+					resp, err := client.ListMetrics(req)
+					if err != nil {
+						ctxLog := logger.NewContextLogger("Huawei", "resource_type", "Discovery", "namespace", "SYS.ELB")
+						ctxLog.Warnf("ListMetrics API调用错误，错误=%v", err)
+					}
+					if resp != nil && resp.Metrics != nil {
+						for _, m := range *resp.Metrics {
+							if m.MetricName != "" {
+								metrics = append(metrics, m.MetricName)
+							}
+						}
+					}
+				}
+
+				// 合并兜底指标
+				cur := make(map[string]struct{}, len(metrics))
+				for _, m := range metrics {
+					cur[m] = struct{}{}
+				}
+				for _, m := range fallback {
+					if _, ok := cur[m]; !ok {
+						metrics = append(metrics, m)
+					}
+				}
+				if len(metrics) > 0 {
+					prod := buildELBProductDefault(metrics)
+					prods = append(prods, prod)
+					if cache != nil {
+						cache.Set("huawei", "SYS.ELB", accounts[0], prod.MetricInfo)
+					}
+					ctxLog := logger.NewContextLogger("Huawei", "resource_type", "Discovery", "namespace", "SYS.ELB")
+					ctxLog.Infof("发现服务完成，指标数量=%d", len(metrics))
+				} else {
+					ctxLog := logger.NewContextLogger("Huawei", "resource_type", "Discovery", "namespace", "SYS.ELB")
+					ctxLog.Warnf("发现服务未发现指标")
+				}
 			}
-		}
-		if len(metrics) > 0 {
-			prods = append(prods, config.Product{Namespace: "SYS.ELB", AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: metrics}}})
-			ctxLog := logger.NewContextLogger("Huawei", "resource_type", "Discovery", "namespace", "SYS.ELB")
-			ctxLog.Infof("发现服务完成，指标数量=%d", len(metrics))
-		} else {
-			ctxLog := logger.NewContextLogger("Huawei", "resource_type", "Discovery", "namespace", "SYS.ELB")
-			ctxLog.Warnf("发现服务未发现指标")
 		}
 	}
 
 	if needOBS {
-		region := "cn-north-4"
-		if len(accounts) > 0 && len(accounts[0].Regions) > 0 && accounts[0].Regions[0] != "*" {
-			region = accounts[0].Regions[0]
-		}
-		ak := accounts[0].AccessKeyID
-		sk := accounts[0].AccessKeySecret
-
-		// OBS 容量类指标（每日更新，需要 Period=86400）
-		capacityFallback := []string{
-			"capacity_total", "capacity_standard", "capacity_infrequent_access",
-			"capacity_archive", "capacity_deep_archive",
-			"object_num_all", "object_num_standard_total",
-		}
-
-		// OBS 请求类指标（实时更新，使用 Period=300）
-		requestFallback := []string{
-			"get_request_count", "put_request_count", "head_request_count",
-			"download_bytes", "upload_bytes",
-			"download_bytes_extranet", "upload_bytes_extranet",
-			"download_bytes_intranet", "upload_bytes_intranet",
-			"first_byte_latency", "total_request_latency",
-			"request_success_rate", "request_count_4xx",
-			"request_count_monitor_2XX", "request_count_monitor_3XX",
-			"request_count_monitor_4XX",
-		}
-
-		var capacityMetrics, requestMetrics []string
-		client, err := newHuaweiCESClient(region, ak, sk)
-		if err != nil {
-			ctxLog := logger.NewContextLogger("Huawei", "resource_type", "Discovery", "namespace", "SYS.OBS")
-			ctxLog.Warnf("CES 客户端创建失败，错误=%v", err)
-			// 使用兜底指标
-			capacityMetrics = capacityFallback
-			requestMetrics = requestFallback
-		} else {
-			ns := "SYS.OBS"
-			req := &cesmodel.ListMetricsRequest{
-				Namespace: &ns,
-			}
-			resp, err := client.ListMetrics(req)
-			if err != nil {
+		if checkCustomProductMetricForHuawei(accounts, "obs") {
+			obsProd := buildOBSProductWithCustomConfig(accounts)
+			if obsProd.Namespace != "" {
+				prods = append(prods, obsProd)
 				ctxLog := logger.NewContextLogger("Huawei", "resource_type", "Discovery", "namespace", "SYS.OBS")
-				ctxLog.Warnf("ListMetrics API调用错误，错误=%v", err)
+				ctxLog.Infof("发现服务完成，使用自定义配置，MetricGroup 数量=%d", len(obsProd.MetricInfo))
 			}
-			if resp != nil && resp.Metrics != nil {
-				for _, m := range *resp.Metrics {
-					if m.MetricName == "" {
-						continue
-					}
-					// 根据指标名称分类
-					if strings.HasPrefix(m.MetricName, "capacity_") || strings.HasPrefix(m.MetricName, "object_num_") {
-						capacityMetrics = append(capacityMetrics, m.MetricName)
-					} else {
-						requestMetrics = append(requestMetrics, m.MetricName)
-					}
+		} else {
+			cached := false
+			if cache != nil {
+				if cachedGroups, ok := cache.Get("huawei", "SYS.OBS", accounts[0]); ok {
+					prods = append(prods, config.Product{Namespace: "SYS.OBS", AutoDiscover: true, MetricInfo: cachedGroups})
+					ctxLog := logger.NewContextLogger("Huawei", "resource_type", "Discovery", "namespace", "SYS.OBS")
+					ctxLog.Infof("发现服务命中缓存，MetricGroup 数量=%d", len(cachedGroups))
+					cached = true
 				}
 			}
-		}
+			if cached {
+				// 已使用缓存
+			} else {
+				region := "cn-north-4"
+				if len(accounts) > 0 && len(accounts[0].Regions) > 0 && accounts[0].Regions[0] != "*" {
+					region = accounts[0].Regions[0]
+				}
+				ak := accounts[0].AccessKeyID
+				sk := accounts[0].AccessKeySecret
 
-		// 合并兜底指标 - 容量类
-		capCur := make(map[string]struct{}, len(capacityMetrics))
-		for _, m := range capacityMetrics {
-			capCur[m] = struct{}{}
-		}
-		for _, m := range capacityFallback {
-			if _, ok := capCur[m]; !ok {
-				capacityMetrics = append(capacityMetrics, m)
-			}
-		}
+				// OBS 容量类指标（每日更新，需要 Period=86400）
+				capacityFallback := []string{
+					"capacity_total", "capacity_standard", "capacity_infrequent_access",
+					"capacity_archive", "capacity_deep_archive",
+					"object_num_all", "object_num_standard_total",
+				}
 
-		// 合并兜底指标 - 请求类
-		reqCur := make(map[string]struct{}, len(requestMetrics))
-		for _, m := range requestMetrics {
-			reqCur[m] = struct{}{}
-		}
-		for _, m := range requestFallback {
-			if _, ok := reqCur[m]; !ok {
-				requestMetrics = append(requestMetrics, m)
-			}
-		}
+				// OBS 请求类指标（实时更新，使用 Period=300）
+				requestFallback := []string{
+					"get_request_count", "put_request_count", "head_request_count",
+					"download_bytes", "upload_bytes",
+					"download_bytes_extranet", "upload_bytes_extranet",
+					"download_bytes_intranet", "upload_bytes_intranet",
+					"first_byte_latency", "total_request_latency",
+					"request_success_rate", "request_count_4xx",
+					"request_count_monitor_2XX", "request_count_monitor_3XX",
+					"request_count_monitor_4XX",
+				}
 
-		if len(capacityMetrics) > 0 || len(requestMetrics) > 0 {
-			// 创建包含两个 MetricGroup 的产品配置：
-			// - 容量类指标：Period=86400（每日更新）
-			// - 请求类指标：Period=300（实时更新）
-			metricGroups := []config.MetricGroup{}
-			if len(capacityMetrics) > 0 {
-				capacityPeriod := 86400
-				metricGroups = append(metricGroups, config.MetricGroup{
-					Period:     &capacityPeriod,
-					MetricList: capacityMetrics,
-				})
+				var capacityMetrics, requestMetrics []string
+				client, err := newHuaweiCESClient(region, ak, sk)
+				useDefault := false
+				if err != nil {
+					ctxLog := logger.NewContextLogger("Huawei", "resource_type", "Discovery", "namespace", "SYS.OBS")
+					ctxLog.Warnf("CES 客户端创建失败，错误=%v", err)
+					prod := buildOBSProductDefault(accounts)
+					prods = append(prods, prod)
+					if cache != nil {
+						cache.Set("huawei", "SYS.OBS", accounts[0], prod.MetricInfo)
+					}
+					ctxLog.Infof("发现服务完成，使用兜底指标，MetricGroup 数量=%d", len(prod.MetricInfo))
+					useDefault = true
+				}
+				if !useDefault {
+					ns := "SYS.OBS"
+					req := &cesmodel.ListMetricsRequest{
+						Namespace: &ns,
+					}
+					resp, err := client.ListMetrics(req)
+					if err != nil {
+						ctxLog := logger.NewContextLogger("Huawei", "resource_type", "Discovery", "namespace", "SYS.OBS")
+						ctxLog.Warnf("ListMetrics API调用错误，错误=%v", err)
+					}
+					if resp != nil && resp.Metrics != nil {
+						for _, m := range *resp.Metrics {
+							if m.MetricName == "" {
+								continue
+							}
+							// 根据指标名称分类
+							if strings.HasPrefix(m.MetricName, "capacity_") || strings.HasPrefix(m.MetricName, "object_num_") {
+								capacityMetrics = append(capacityMetrics, m.MetricName)
+							} else {
+								requestMetrics = append(requestMetrics, m.MetricName)
+							}
+						}
+					}
+				}
+
+				// 合并兜底指标 - 容量类
+				capCur := make(map[string]struct{}, len(capacityMetrics))
+				for _, m := range capacityMetrics {
+					capCur[m] = struct{}{}
+				}
+				for _, m := range capacityFallback {
+					if _, ok := capCur[m]; !ok {
+						capacityMetrics = append(capacityMetrics, m)
+					}
+				}
+
+				// 合并兜底指标 - 请求类
+				reqCur := make(map[string]struct{}, len(requestMetrics))
+				for _, m := range requestMetrics {
+					reqCur[m] = struct{}{}
+				}
+				for _, m := range requestFallback {
+					if _, ok := reqCur[m]; !ok {
+						requestMetrics = append(requestMetrics, m)
+					}
+				}
+
+				if len(capacityMetrics) > 0 || len(requestMetrics) > 0 {
+					// 创建包含两个 MetricGroup 的产品配置：
+					// - 容量类指标：Period=86400（每日更新）
+					// - 请求类指标：Period=300（实时更新）
+					metricGroups := []config.MetricGroup{}
+					if len(capacityMetrics) > 0 {
+						capacityPeriod := 86400
+						metricGroups = append(metricGroups, config.MetricGroup{
+							Period:     &capacityPeriod,
+							MetricList: capacityMetrics,
+						})
+					}
+					if len(requestMetrics) > 0 {
+						requestPeriod := 300
+						metricGroups = append(metricGroups, config.MetricGroup{
+							Period:     &requestPeriod,
+							MetricList: requestMetrics,
+						})
+					}
+					prods = append(prods, config.Product{Namespace: "SYS.OBS", AutoDiscover: true, MetricInfo: metricGroups})
+					if cache != nil {
+						cache.Set("huawei", "SYS.OBS", accounts[0], metricGroups)
+					}
+					ctxLog := logger.NewContextLogger("Huawei", "resource_type", "Discovery", "namespace", "SYS.OBS")
+					ctxLog.Infof("发现服务完成，容量类指标=%d 请求类指标=%d", len(capacityMetrics), len(requestMetrics))
+				} else {
+					ctxLog := logger.NewContextLogger("Huawei", "resource_type", "Discovery", "namespace", "SYS.OBS")
+					ctxLog.Warnf("发现服务未发现指标")
+				}
 			}
-			if len(requestMetrics) > 0 {
-				requestPeriod := 300
-				metricGroups = append(metricGroups, config.MetricGroup{
-					Period:     &requestPeriod,
-					MetricList: requestMetrics,
-				})
-			}
-			prods = append(prods, config.Product{Namespace: "SYS.OBS", AutoDiscover: true, MetricInfo: metricGroups})
-			ctxLog := logger.NewContextLogger("Huawei", "resource_type", "Discovery", "namespace", "SYS.OBS")
-			ctxLog.Infof("发现服务完成，容量类指标=%d 请求类指标=%d", len(capacityMetrics), len(requestMetrics))
-		} else {
-			ctxLog := logger.NewContextLogger("Huawei", "resource_type", "Discovery", "namespace", "SYS.OBS")
-			ctxLog.Warnf("发现服务未发现指标")
 		}
 	}
 
 	return prods
+}
+
+func buildOBSProductDefault(accounts []config.CloudAccount) config.Product {
+	capacityFallback := []string{
+		"capacity_total", "capacity_standard", "capacity_infrequent_access",
+		"capacity_archive", "capacity_deep_archive",
+		"object_num_all", "object_num_standard_total",
+	}
+
+	requestFallback := []string{
+		"get_request_count", "put_request_count", "head_request_count",
+		"download_bytes", "upload_bytes",
+		"download_bytes_extranet", "upload_bytes_extranet",
+		"download_bytes_intranet", "upload_bytes_intranet",
+		"first_byte_latency", "total_request_latency",
+		"request_success_rate", "request_count_4xx",
+		"request_count_monitor_2XX", "request_count_monitor_3XX",
+		"request_count_monitor_4XX",
+	}
+
+	metricGroups := []config.MetricGroup{}
+	capacityPeriod := 86400
+	metricGroups = append(metricGroups, config.MetricGroup{
+		Period:     &capacityPeriod,
+		MetricList: capacityFallback,
+	})
+	requestPeriod := 300
+	metricGroups = append(metricGroups, config.MetricGroup{
+		Period:     &requestPeriod,
+		MetricList: requestFallback,
+	})
+
+	return config.Product{
+		Namespace:    "SYS.OBS",
+		AutoDiscover: true,
+		MetricInfo:   metricGroups,
+	}
+}
+
+func buildELBProductDefault(fallback []string) config.Product {
+	metricGroups := []config.MetricGroup{}
+	if len(fallback) > 0 {
+		metricGroups = append(metricGroups, config.MetricGroup{
+			MetricList: fallback,
+		})
+	}
+	return config.Product{
+		Namespace:    "SYS.ELB",
+		AutoDiscover: true,
+		MetricInfo:   metricGroups,
+	}
+}
+
+func buildELBProductWithCustomConfig(accounts []config.CloudAccount) config.Product {
+	metricGroups := unionELBMetricGroups(accounts)
+	return config.Product{
+		Namespace:    "SYS.ELB",
+		AutoDiscover: false,
+		MetricInfo:   metricGroups,
+	}
+}
+
+func unionELBMetricGroups(accounts []config.CloudAccount) []config.MetricGroup {
+	var allGroups []config.MetricGroupConfig
+	for _, acc := range accounts {
+		if acc.ProductMetric == nil {
+			continue
+		}
+		groups, ok := acc.ProductMetric["elb"]
+		if !ok || len(groups) == 0 {
+			continue
+		}
+		allGroups = append(allGroups, groups...)
+	}
+
+	if len(allGroups) == 0 {
+		return nil
+	}
+
+	merged := make(map[int]map[string]struct{})
+	for _, group := range allGroups {
+		period := 0
+		if group.Period != nil {
+			period = *group.Period
+		}
+		if merged[period] == nil {
+			merged[period] = make(map[string]struct{})
+		}
+		for _, m := range group.MetricList {
+			merged[period][m] = struct{}{}
+		}
+	}
+
+	var periods []int
+	for period := range merged {
+		periods = append(periods, period)
+	}
+	sort.Ints(periods)
+
+	var result []config.MetricGroup
+	for _, period := range periods {
+		metricMap := merged[period]
+		metrics := make([]string, 0, len(metricMap))
+		for m := range metricMap {
+			metrics = append(metrics, m)
+		}
+		sort.Strings(metrics)
+		var pVal *int
+		if period > 0 {
+			p := period
+			pVal = &p
+		}
+		result = append(result, config.MetricGroup{
+			Period:     pVal,
+			MetricList: metrics,
+		})
+	}
+
+	return result
+}
+
+func buildOBSProductWithCustomConfig(accounts []config.CloudAccount) config.Product {
+	metricGroups := unionOBSMetricGroups(accounts)
+	return config.Product{
+		Namespace:    "SYS.OBS",
+		AutoDiscover: false,
+		MetricInfo:   metricGroups,
+	}
+}
+
+func unionOBSMetricGroups(accounts []config.CloudAccount) []config.MetricGroup {
+	var allGroups []config.MetricGroupConfig
+	for _, acc := range accounts {
+		if acc.ProductMetric == nil {
+			continue
+		}
+		groups, ok := acc.ProductMetric["obs"]
+		if !ok || len(groups) == 0 {
+			continue
+		}
+		allGroups = append(allGroups, groups...)
+	}
+
+	if len(allGroups) == 0 {
+		return nil
+	}
+
+	merged := make(map[int]map[string]struct{})
+	for _, group := range allGroups {
+		period := 86400
+		if group.Period != nil {
+			period = *group.Period
+		}
+		if merged[period] == nil {
+			merged[period] = make(map[string]struct{})
+		}
+		for _, m := range group.MetricList {
+			merged[period][m] = struct{}{}
+		}
+	}
+
+	var periods []int
+	for period := range merged {
+		periods = append(periods, period)
+	}
+	sort.Ints(periods)
+	if len(periods) == 0 {
+		return nil
+	}
+
+	var result []config.MetricGroup
+	for _, period := range periods {
+		metricMap := merged[period]
+		metrics := make([]string, 0, len(metricMap))
+		for m := range metricMap {
+			metrics = append(metrics, m)
+		}
+		sort.Strings(metrics)
+		pVal := period
+		result = append(result, config.MetricGroup{
+			Period:     &pVal,
+			MetricList: metrics,
+		})
+	}
+
+	return result
+}
+
+func checkCustomProductMetricForHuawei(accounts []config.CloudAccount, resource string) bool {
+	for _, acc := range accounts {
+		if acc.ProductMetric == nil {
+			continue
+		}
+		productKey := resource
+		if resource == "s3" {
+			productKey = "obs"
+		}
+		if groups, ok := acc.ProductMetric[productKey]; ok && len(groups) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func init() {

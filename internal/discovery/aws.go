@@ -60,83 +60,126 @@ func (d *AWSDiscoverer) Discover(ctx context.Context, cfg *config.Config) []conf
 	var prods []config.Product
 
 	if needS3 {
-		// S3 的 CloudWatch 指标属于 AWS/S3，存储类指标依赖 StorageType 维度。
-		// 这里选择"最稳定且可跨云对齐"的指标集合：
-		// - 存储/对象数：稳定、口径清晰（通常为日粒度）
-		// - 请求/字节/错误/延迟：依赖 S3 Request Metrics（FilterId=EntireBucket）；若未启用则可能无数据
-		prods = append(prods, config.Product{
-			Namespace:    "AWS/S3",
-			AutoDiscover: true,
-			MetricInfo: []config.MetricGroup{
-				// Storage / objects (daily)
-				{Period: intPtr(86400), MetricList: []string{"BucketSizeBytes", "NumberOfObjects"}},
-				// Requests / bytes / errors / latency (minute-level, requires Request Metrics)
-				{Period: intPtr(60), MetricList: []string{
-					"AllRequests", "GetRequests", "PutRequests", "HeadRequests", "ListRequests", "PostRequests",
-					"BytesUploaded", "BytesDownloaded",
-					"4xxErrors", "5xxErrors",
-					"FirstByteLatency", "TotalRequestLatency",
-				}},
-			},
-		})
+		// 检查是否存在自定义配置
+		var allMetricGroups [][]config.MetricGroup
+		hasCustomConfig := false
+
+		for _, acc := range accounts {
+			if acc.ProductMetric != nil && len(acc.ProductMetric["s3"]) > 0 {
+				hasCustomConfig = true
+				customProduct := buildS3ProductWithCustomConfig(acc.ProductMetric["s3"])
+				allMetricGroups = append(allMetricGroups, customProduct.MetricInfo)
+			}
+		}
+
+		if hasCustomConfig {
+			// 使用 union 策略合并多个账号的配置
+			mergedMetricGroups := unionMetricGroups(allMetricGroups)
+			prods = append(prods, config.Product{
+				Namespace:    "AWS/S3",
+				AutoDiscover: true,
+				MetricInfo:   mergedMetricGroups,
+			})
+		} else {
+			// 使用默认配置
+			prods = append(prods, buildS3ProductDefault())
+		}
 	}
 
 	if needALB {
-		prods = append(prods, config.Product{
-			Namespace:    "AWS/ApplicationELB",
-			AutoDiscover: true,
-			MetricInfo: []config.MetricGroup{
-				{Period: intPtr(60), MetricList: []string{
-					"ActiveConnectionCount", "NewConnectionCount", "RejectedConnectionCount",
-					"ProcessedBytes", "RequestCount",
-					"TargetResponseTime", "HTTPCode_Target_2XX_Count", "HTTPCode_Target_3XX_Count",
-					"HTTPCode_Target_4XX_Count", "HTTPCode_Target_5XX_Count",
-					// "UnHealthyHostCount", "HealthyHostCount", // Requires TargetGroup dimension, not supported at LoadBalancer level for ALB
-				}},
-			},
-		})
+		var allMetricGroups [][]config.MetricGroup
+		hasCustomConfig := false
+
+		for _, acc := range accounts {
+			if acc.ProductMetric != nil && len(acc.ProductMetric["alb"]) > 0 {
+				hasCustomConfig = true
+				customProduct := buildAWSALBProductWithCustomConfig(acc.ProductMetric["alb"])
+				allMetricGroups = append(allMetricGroups, customProduct.MetricInfo)
+			}
+		}
+
+		if hasCustomConfig {
+			mergedMetricGroups := unionMetricGroups(allMetricGroups)
+			prods = append(prods, config.Product{
+				Namespace:    "AWS/ApplicationELB",
+				AutoDiscover: true,
+				MetricInfo:   mergedMetricGroups,
+			})
+		} else {
+			prods = append(prods, buildAWSALBProductDefault())
+		}
 	}
 
 	if needCLB {
-		prods = append(prods, config.Product{
-			Namespace:    "AWS/ELB",
-			AutoDiscover: true,
-			MetricInfo: []config.MetricGroup{
-				{Period: intPtr(60), MetricList: []string{
-					"RequestCount", "Latency",
-					"HTTPCode_Backend_2XX", "HTTPCode_Backend_3XX", "HTTPCode_Backend_4XX", "HTTPCode_Backend_5XX",
-					"SurgeQueueLength", "SpilloverCount",
-					"HealthyHostCount", "UnHealthyHostCount",
-				}},
-			},
-		})
+		var allMetricGroups [][]config.MetricGroup
+		hasCustomConfig := false
+
+		for _, acc := range accounts {
+			if acc.ProductMetric != nil && len(acc.ProductMetric["clb"]) > 0 {
+				hasCustomConfig = true
+				customProduct := buildAWSCLBProductWithCustomConfig(acc.ProductMetric["clb"])
+				allMetricGroups = append(allMetricGroups, customProduct.MetricInfo)
+			}
+		}
+
+		if hasCustomConfig {
+			mergedMetricGroups := unionMetricGroups(allMetricGroups)
+			prods = append(prods, config.Product{
+				Namespace:    "AWS/ELB",
+				AutoDiscover: true,
+				MetricInfo:   mergedMetricGroups,
+			})
+		} else {
+			prods = append(prods, buildAWSCLBProductDefault())
+		}
 	}
 
 	if needNLB {
-		prods = append(prods, config.Product{
-			Namespace:    "AWS/NetworkELB",
-			AutoDiscover: true,
-			MetricInfo: []config.MetricGroup{
-				{Period: intPtr(60), MetricList: []string{
-					"ActiveFlowCount", "NewFlowCount", "ProcessedBytes",
-					"TCP_Client_Reset_Count", "TCP_ELB_Reset_Count", "TCP_Target_Reset_Count",
-					"HealthyHostCount", "UnHealthyHostCount",
-				}},
-			},
-		})
+		var allMetricGroups [][]config.MetricGroup
+		hasCustomConfig := false
+
+		for _, acc := range accounts {
+			if acc.ProductMetric != nil && len(acc.ProductMetric["nlb"]) > 0 {
+				hasCustomConfig = true
+				customProduct := buildAWSNLBProductWithCustomConfig(acc.ProductMetric["nlb"])
+				allMetricGroups = append(allMetricGroups, customProduct.MetricInfo)
+			}
+		}
+
+		if hasCustomConfig {
+			mergedMetricGroups := unionMetricGroups(allMetricGroups)
+			prods = append(prods, config.Product{
+				Namespace:    "AWS/NetworkELB",
+				AutoDiscover: true,
+				MetricInfo:   mergedMetricGroups,
+			})
+		} else {
+			prods = append(prods, buildAWSNLBProductDefault())
+		}
 	}
 
 	if needGWLB {
-		prods = append(prods, config.Product{
-			Namespace:    "AWS/GatewayELB",
-			AutoDiscover: true,
-			MetricInfo: []config.MetricGroup{
-				{Period: intPtr(60), MetricList: []string{
-					"ActiveFlowCount", "NewFlowCount", "ProcessedBytes",
-					"HealthyHostCount", "UnHealthyHostCount",
-				}},
-			},
-		})
+		var allMetricGroups [][]config.MetricGroup
+		hasCustomConfig := false
+
+		for _, acc := range accounts {
+			if acc.ProductMetric != nil && len(acc.ProductMetric["gwlb"]) > 0 {
+				hasCustomConfig = true
+				customProduct := buildAWSGWLBProductWithCustomConfig(acc.ProductMetric["gwlb"])
+				allMetricGroups = append(allMetricGroups, customProduct.MetricInfo)
+			}
+		}
+
+		if hasCustomConfig {
+			mergedMetricGroups := unionMetricGroups(allMetricGroups)
+			prods = append(prods, config.Product{
+				Namespace:    "AWS/GatewayELB",
+				AutoDiscover: true,
+				MetricInfo:   mergedMetricGroups,
+			})
+		} else {
+			prods = append(prods, buildAWSGWLBProductDefault())
+		}
 	}
 
 	if len(prods) == 0 {
@@ -155,3 +198,182 @@ func (d *AWSDiscoverer) Discover(ctx context.Context, cfg *config.Config) []conf
 }
 
 func intPtr(v int) *int { return &v }
+
+// buildS3ProductDefault 返回默认的 S3 产品配置
+func buildS3ProductDefault() config.Product {
+	return config.Product{
+		Namespace:    "AWS/S3",
+		AutoDiscover: true,
+		MetricInfo: []config.MetricGroup{
+			// Storage / objects (daily)
+			{Period: intPtr(86400), MetricList: []string{"BucketSizeBytes", "NumberOfObjects"}},
+			// Requests / bytes / errors / latency (minute-level, requires Request Metrics)
+			{Period: intPtr(60), MetricList: []string{
+				"AllRequests", "GetRequests", "PutRequests", "HeadRequests", "ListRequests", "PostRequests",
+				"BytesUploaded", "BytesDownloaded",
+				"4xxErrors", "5xxErrors",
+				"FirstByteLatency", "TotalRequestLatency",
+			}},
+		},
+	}
+}
+
+// buildS3ProductWithCustomConfig 从 ProductMetric 构建 S3 产品配置
+func buildS3ProductWithCustomConfig(metricGroups []config.MetricGroupConfig) config.Product {
+	var metricInfo []config.MetricGroup
+	for _, mg := range metricGroups {
+		metricInfo = append(metricInfo, config.MetricGroup{
+			Period:     mg.Period,
+			MetricList: mg.MetricList,
+		})
+	}
+	return config.Product{
+		Namespace:    "AWS/S3",
+		AutoDiscover: true,
+		MetricInfo:   metricInfo,
+	}
+}
+
+func buildAWSALBProductDefault() config.Product {
+	return config.Product{
+		Namespace:    "AWS/ApplicationELB",
+		AutoDiscover: true,
+		MetricInfo: []config.MetricGroup{
+			{Period: intPtr(60), MetricList: []string{
+				"ActiveConnectionCount", "NewConnectionCount", "RejectedConnectionCount",
+				"ProcessedBytes", "RequestCount",
+				"TargetResponseTime", "HTTPCode_Target_2XX_Count", "HTTPCode_Target_3XX_Count",
+				"HTTPCode_Target_4XX_Count", "HTTPCode_Target_5XX_Count",
+			}},
+		},
+	}
+}
+
+func buildAWSALBProductWithCustomConfig(metricGroups []config.MetricGroupConfig) config.Product {
+	var metricInfo []config.MetricGroup
+	for _, mg := range metricGroups {
+		metricInfo = append(metricInfo, config.MetricGroup{
+			Period:     mg.Period,
+			MetricList: mg.MetricList,
+		})
+	}
+	return config.Product{
+		Namespace:    "AWS/ApplicationELB",
+		AutoDiscover: true,
+		MetricInfo:   metricInfo,
+	}
+}
+
+func buildAWSCLBProductDefault() config.Product {
+	return config.Product{
+		Namespace:    "AWS/ELB",
+		AutoDiscover: true,
+		MetricInfo: []config.MetricGroup{
+			{Period: intPtr(60), MetricList: []string{
+				"RequestCount", "Latency",
+				"HTTPCode_Backend_2XX", "HTTPCode_Backend_3XX", "HTTPCode_Backend_4XX", "HTTPCode_Backend_5XX",
+				"SurgeQueueLength", "SpilloverCount",
+				"HealthyHostCount", "UnHealthyHostCount",
+			}},
+		},
+	}
+}
+
+func buildAWSCLBProductWithCustomConfig(metricGroups []config.MetricGroupConfig) config.Product {
+	var metricInfo []config.MetricGroup
+	for _, mg := range metricGroups {
+		metricInfo = append(metricInfo, config.MetricGroup{
+			Period:     mg.Period,
+			MetricList: mg.MetricList,
+		})
+	}
+	return config.Product{
+		Namespace:    "AWS/ELB",
+		AutoDiscover: true,
+		MetricInfo:   metricInfo,
+	}
+}
+
+func buildAWSNLBProductDefault() config.Product {
+	return config.Product{
+		Namespace:    "AWS/NetworkELB",
+		AutoDiscover: true,
+		MetricInfo: []config.MetricGroup{
+			{Period: intPtr(60), MetricList: []string{
+				"ActiveFlowCount", "NewFlowCount", "ProcessedBytes",
+				"TCP_Client_Reset_Count", "TCP_ELB_Reset_Count", "TCP_Target_Reset_Count",
+				"HealthyHostCount", "UnHealthyHostCount",
+			}},
+		},
+	}
+}
+
+func buildAWSNLBProductWithCustomConfig(metricGroups []config.MetricGroupConfig) config.Product {
+	var metricInfo []config.MetricGroup
+	for _, mg := range metricGroups {
+		metricInfo = append(metricInfo, config.MetricGroup{
+			Period:     mg.Period,
+			MetricList: mg.MetricList,
+		})
+	}
+	return config.Product{
+		Namespace:    "AWS/NetworkELB",
+		AutoDiscover: true,
+		MetricInfo:   metricInfo,
+	}
+}
+
+func buildAWSGWLBProductDefault() config.Product {
+	return config.Product{
+		Namespace:    "AWS/GatewayELB",
+		AutoDiscover: true,
+		MetricInfo: []config.MetricGroup{
+			{Period: intPtr(60), MetricList: []string{
+				"ActiveFlowCount", "NewFlowCount", "ProcessedBytes",
+				"HealthyHostCount", "UnHealthyHostCount",
+			}},
+		},
+	}
+}
+
+func buildAWSGWLBProductWithCustomConfig(metricGroups []config.MetricGroupConfig) config.Product {
+	var metricInfo []config.MetricGroup
+	for _, mg := range metricGroups {
+		metricInfo = append(metricInfo, config.MetricGroup{
+			Period:     mg.Period,
+			MetricList: mg.MetricList,
+		})
+	}
+	return config.Product{
+		Namespace:    "AWS/GatewayELB",
+		AutoDiscover: true,
+		MetricInfo:   metricInfo,
+	}
+}
+
+// unionMetricGroups 合并多个账号的指标配置（union 策略）
+func unionMetricGroups(allProducts [][]config.MetricGroup) []config.MetricGroup {
+	seen := make(map[string]bool)
+	var result []config.MetricGroup
+
+	for _, products := range allProducts {
+		for _, mg := range products {
+			// 检查是否已存在相同 Period 和 MetricList 的组合
+			key := ""
+			for _, m := range mg.MetricList {
+				key += m + ","
+			}
+			periodKey := ""
+			if mg.Period != nil {
+				periodKey = string(rune(*mg.Period))
+			}
+			fullKey := key + periodKey
+
+			if !seen[fullKey] {
+				seen[fullKey] = true
+				result = append(result, mg)
+			}
+		}
+	}
+	return result
+}

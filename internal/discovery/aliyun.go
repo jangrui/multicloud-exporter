@@ -67,10 +67,64 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 		sk = cfg.Credential.AccessSecret
 	}
 	prods := make([]config.Product, 0)
+	cache := getDiscoveryMetaCache(cfg)
 
 	// Fetch meta for each namespace
 	for ns := range nsSet {
 		ctxLogNs := logger.NewContextLogger("Aliyun", "resource_type", "Discovery", "namespace", ns)
+
+		// 特殊处理 OSS 命名空间：检查是否有自定义配置
+		if ns == "acs_oss_dashboard" {
+			if customMetricGroups, hasCustom := checkCustomProductMetric(accounts, "oss"); hasCustom {
+				ctxLogNs.Infof("使用自定义 OSS 指标配置，忽略元数据 API")
+				prods = append(prods, buildOSSProductWithCustomConfig(customMetricGroups))
+				continue
+			}
+		}
+
+		// 特殊处理 SLB 命名空间：检查是否有自定义配置
+		if ns == "acs_slb_dashboard" {
+			if customMetricGroups, hasCustom := checkCustomProductMetric(accounts, "clb"); hasCustom {
+				ctxLogNs.Infof("使用自定义 SLB 指标配置，忽略元数据 API")
+				prods = append(prods, buildCLBProductWithCustomConfig(customMetricGroups))
+				continue
+			}
+		}
+
+		// 特殊处理 ALB 命名空间：检查是否有自定义配置
+		if ns == "acs_alb" {
+			if customMetricGroups, hasCustom := checkCustomProductMetric(accounts, "alb"); hasCustom {
+				ctxLogNs.Infof("使用自定义 ALB 指标配置，忽略元数据 API")
+				prods = append(prods, buildALBProductWithCustomConfig(customMetricGroups))
+				continue
+			}
+		}
+
+		// 特殊处理 NLB 命名空间：检查是否有自定义配置
+		if ns == "acs_nlb" {
+			if customMetricGroups, hasCustom := checkCustomProductMetric(accounts, "nlb"); hasCustom {
+				ctxLogNs.Infof("使用自定义 NLB 指标配置，忽略元数据 API")
+				prods = append(prods, buildNLBProductWithCustomConfig(customMetricGroups))
+				continue
+			}
+		}
+
+		// 特殊处理 BWP 命名空间：检查是否有自定义配置
+		if ns == "acs_bandwidth_package" {
+			if customMetricGroups, hasCustom := checkCustomProductMetric(accounts, "bwp"); hasCustom {
+				ctxLogNs.Infof("使用自定义 BWP 指标配置，忽略元数据 API")
+				prods = append(prods, buildBWPProductWithCustomConfig(customMetricGroups))
+				continue
+			}
+		}
+
+		if cache != nil && len(accounts) > 0 {
+			if cachedGroups, ok := cache.Get("aliyun", ns, accounts[0]); ok {
+				prods = append(prods, config.Product{Namespace: ns, AutoDiscover: true, MetricInfo: cachedGroups})
+				ctxLogNs.Infof("发现服务命中缓存，MetricGroup 数量=%d", len(cachedGroups))
+				continue
+			}
+		}
 
 		region := "cn-hangzhou"
 		if len(accounts) > 0 && len(accounts[0].Regions) > 0 && accounts[0].Regions[0] != "*" {
@@ -347,7 +401,23 @@ func (d *AliyunDiscoverer) Discover(ctx context.Context, cfg *config.Config) []c
 			ctxLogNs.Warnf("发现服务未发现指标")
 			continue
 		}
-		prods = append(prods, config.Product{Namespace: ns, AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: metrics}}})
+		var prod config.Product
+		switch ns {
+		case "acs_slb_dashboard":
+			prod = buildCLBProductDefault(metrics)
+		case "acs_alb":
+			prod = buildALBProductDefault(metrics)
+		case "acs_nlb":
+			prod = buildNLBProductDefault(metrics)
+		case "acs_bandwidth_package":
+			prod = buildBWPProductDefault(metrics)
+		default:
+			prod = config.Product{Namespace: ns, AutoDiscover: true, MetricInfo: []config.MetricGroup{{MetricList: metrics}}}
+		}
+		prods = append(prods, prod)
+		if cache != nil && len(accounts) > 0 {
+			cache.Set("aliyun", ns, accounts[0], prod.MetricInfo)
+		}
 		ctxLogNs.Infof("发现服务完成，指标数量=%d", len(metrics))
 	}
 	return prods
@@ -393,4 +463,146 @@ func FetchAliyunMetricMeta(region, ak, sk, namespace string) ([]MetricMeta, erro
 		out = append(out, mm)
 	}
 	return out, nil
+}
+
+// buildOSSProductWithCustomConfig 从 ProductMetric 构建 OSS 产品配置
+func buildOSSProductWithCustomConfig(metricGroups []config.MetricGroupConfig) config.Product {
+	var metricInfo []config.MetricGroup
+	for _, mg := range metricGroups {
+		metricInfo = append(metricInfo, config.MetricGroup{
+			Period:     mg.Period,
+			MetricList: mg.MetricList,
+		})
+	}
+	return config.Product{
+		Namespace:    "acs_oss_dashboard",
+		AutoDiscover: false, // 不使用元数据 API
+		MetricInfo:   metricInfo,
+	}
+}
+
+func buildCLBProductDefault(fallbackList []string) config.Product {
+	metricGroups := []config.MetricGroup{}
+	if len(fallbackList) > 0 {
+		metricGroups = append(metricGroups, config.MetricGroup{
+			MetricList: fallbackList,
+		})
+	}
+	return config.Product{
+		Namespace:    "acs_slb_dashboard",
+		AutoDiscover: true, // 使用元数据 API
+		MetricInfo:   metricGroups,
+	}
+}
+
+func buildCLBProductWithCustomConfig(metricGroups []config.MetricGroupConfig) config.Product {
+	var metricInfo []config.MetricGroup
+	for _, mg := range metricGroups {
+		metricInfo = append(metricInfo, config.MetricGroup{
+			Period:     mg.Period,
+			MetricList: mg.MetricList,
+		})
+	}
+	return config.Product{
+		Namespace:    "acs_slb_dashboard",
+		AutoDiscover: false, // 不使用元数据 API
+		MetricInfo:   metricInfo,
+	}
+}
+
+func buildALBProductDefault(fallbackList []string) config.Product {
+	metricGroups := []config.MetricGroup{}
+	if len(fallbackList) > 0 {
+		metricGroups = append(metricGroups, config.MetricGroup{
+			MetricList: fallbackList,
+		})
+	}
+	return config.Product{
+		Namespace:    "acs_alb",
+		AutoDiscover: true, // 使用元数据 API
+		MetricInfo:   metricGroups,
+	}
+}
+
+func buildALBProductWithCustomConfig(metricGroups []config.MetricGroupConfig) config.Product {
+	var metricInfo []config.MetricGroup
+	for _, mg := range metricGroups {
+		metricInfo = append(metricInfo, config.MetricGroup{
+			Period:     mg.Period,
+			MetricList: mg.MetricList,
+		})
+	}
+	return config.Product{
+		Namespace:    "acs_alb",
+		AutoDiscover: false, // 不使用元数据 API
+		MetricInfo:   metricInfo,
+	}
+}
+
+func buildNLBProductDefault(fallbackList []string) config.Product {
+	metricGroups := []config.MetricGroup{}
+	if len(fallbackList) > 0 {
+		metricGroups = append(metricGroups, config.MetricGroup{
+			MetricList: fallbackList,
+		})
+	}
+	return config.Product{
+		Namespace:    "acs_nlb",
+		AutoDiscover: true, // 使用元数据 API
+		MetricInfo:   metricGroups,
+	}
+}
+
+func buildNLBProductWithCustomConfig(metricGroups []config.MetricGroupConfig) config.Product {
+	var metricInfo []config.MetricGroup
+	for _, mg := range metricGroups {
+		metricInfo = append(metricInfo, config.MetricGroup{
+			Period:     mg.Period,
+			MetricList: mg.MetricList,
+		})
+	}
+	return config.Product{
+		Namespace:    "acs_nlb",
+		AutoDiscover: false, // 不使用元数据 API
+		MetricInfo:   metricInfo,
+	}
+}
+
+func buildBWPProductDefault(fallbackList []string) config.Product {
+	metricGroups := []config.MetricGroup{}
+	if len(fallbackList) > 0 {
+		metricGroups = append(metricGroups, config.MetricGroup{
+			MetricList: fallbackList,
+		})
+	}
+	return config.Product{
+		Namespace:    "acs_bandwidth_package",
+		AutoDiscover: true, // 使用元数据 API
+		MetricInfo:   metricGroups,
+	}
+}
+
+func buildBWPProductWithCustomConfig(metricGroups []config.MetricGroupConfig) config.Product {
+	var metricInfo []config.MetricGroup
+	for _, mg := range metricGroups {
+		metricInfo = append(metricInfo, config.MetricGroup{
+			Period:     mg.Period,
+			MetricList: mg.MetricList,
+		})
+	}
+	return config.Product{
+		Namespace:    "acs_bandwidth_package",
+		AutoDiscover: false, // 不使用元数据 API
+		MetricInfo:   metricInfo,
+	}
+}
+
+// checkCustomProductMetric 检查多个账号是否有自定义的 ProductMetric 配置
+func checkCustomProductMetric(accounts []config.CloudAccount, productName string) ([]config.MetricGroupConfig, bool) {
+	for _, acc := range accounts {
+		if acc.ProductMetric != nil && len(acc.ProductMetric[productName]) > 0 {
+			return acc.ProductMetric[productName], true
+		}
+	}
+	return nil, false
 }

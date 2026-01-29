@@ -1,991 +1,137 @@
-# 多云资源监控 Exporter
+# Multicloud Exporter
 
-支持阿里云、华为云、腾讯云、AWS 的资源监控，按云平台、账号、区域区分。
+面向多云（阿里云、腾讯云、华为云、AWS）的 Prometheus Exporter，按账号/区域/产品/资源维度采集与隔离。
 
-## 核心特性
+## 关键特性
 
-- **多云支持**：统一监控阿里云、腾讯云、华为云、AWS 的云资源。
-- **四维架构 (v0.5.0+)**：采用全新的 Account → Product → Region → Resource 四维架构，实现真正的资源级故障隔离。
-  - **无锁高并发**：基于 LockFreeManager 实现，性能提升 280x+。
-  - **故障隔离**：单个资源的采集失败不会影响同区域其他资源，单个区域故障不会影响同账号其他区域。
-- **智能区域发现**：自动探测并记录活跃区域，跳过无资源区域，大幅减少 API 调用和费用（支持所有厂商）。
-- **产品级状态隔离**：为每个云产品创建独立的区域状态管理器，避免不同产品间的状态干扰，进一步提升采集效率（v0.4.8+）。
-- **自动化分片**：支持 Kubernetes 动态分片和静态分片，轻松扩展以支持大规模资源监控。
-- **指标一致性**：统一各云厂商的指标命名和标签，便于跨云统一看板展示。
-- **高可用设计**：内置集群稳定性检测、限流重试和指数退避机制。
+- 四维架构：Account → Product → Region → Resource，资源级隔离与并发控制
+- 统一指标命名：跨云产品语义一致，便于统一看板
+- 智能区域发现：自动跳过长期无资源区域，减少 API 调用
+- 产品级指标配置：`product_metric` 支持自定义指标与 Period
+- 产品级采集频率：`product_metric.scrape_interval` 支持按产品节流
+- 集群分片：支持 headless/file 静态或动态分片
+- 管理接口可选 BasicAuth：`/api/discovery/*`、`/collect`、`/status`
 
 ## 快速开始
 
-### 前置条件
-
-- Go 1.23+ （仅开发时需要）
-- 云服务账号凭证（AccessKey ID 和 Secret）
-
-### 5分钟快速安装
-
-#### 从二进制文件安装
+### 1. 获取二进制或构建
 
 ```bash
-# 下载最新版本
+# 二进制（示例）
 curl -LO https://github.com/jangrui/multicloud-exporter/releases/latest/download/multicloud-exporter-linux-amd64
 chmod +x multicloud-exporter-linux-amd64
 
-# 创建配置目录
-mkdir -p ~/multicloud-exporter/configs
-cd ~/multicloud-exporter
-```
-
-#### 从源码构建
-
-```bash
-# 克隆仓库
+# 或源码构建
 git clone https://github.com/jangrui/multicloud-exporter.git
 cd multicloud-exporter
-
-# 构建二进制文件
 go build -o multicloud-exporter ./cmd/multicloud-exporter
 ```
 
-### 基础配置
+### 2. 基础配置
 
-#### 1. 创建服务器配置
-
-创建 `configs/server.yaml`：
+`configs/server.yaml`（最小示例）：
 
 ```yaml
 server:
   port: 9101
-  scrape_interval: "60s"
-  discovery_ttl: "1h"
-  page_size: 1000
-
-  # 日志配置
-  level: info
-  format: console
-  output: stdout
-
-  # 日志格式
-
-为了提升可观测性和问题诊断能力，所有云产品采集日志遵循统一的格式规范：
-
-**日志格式**：
-```
-<云平台> <产品> <操作> - API: <API名称> - <状态/详情>
+  scrape_interval: 60s
+  discovery_ttl: 1h
+  region_concurrency: 4
+  product_concurrency: 1
+  metric_concurrency: 2
+  region_discovery:
+    enabled: true
+    discovery_interval: 1h
+    empty_threshold: 30
 ```
 
-**日志示例**：
-```
-阿里云 CBWP 枚举共享带宽包 - API: DescribeCommonBandwidthPackages - 开始枚举
-阿里云 CBWP 获取 CodeName 标签 - API: ListTagResources - 批次 1 完全失败，这些 ID 的 code_name 将为空: [...]
-阿里云 SLB 枚举实例 - API: DescribeLoadBalancers - 分页完成 page=1
-阿里云 SLB 枚举实例 - API: DescribeLoadBalancerAttribute - 获取监听器详情失败 id=lb-xxx
-华为云 OBS 枚举存储桶 - API: ListBuckets - 缓存命中 - 数量=5
-腾讯云 CLB 枚举 VIP - API: DescribeLoadBalancers - 限流，将重试
-```
+`configs/accounts.yaml`（示例）：
 
-**改进说明**：
-- 统一使用 `resource_type` 标签替代 `rtype`，更符合语义
-- 所有日志消息明确标识云平台、产品名称和 API 名称
-- 便于通过日志快速定位问题和分析 API 调用情况
-
----
-```
-
-#### 2. 配置云账号
-
-创建 `configs/accounts.yaml`：
-
-**阿里云示例：**
 ```yaml
 accounts:
   aliyun:
-    - account_id: "1234567890123456"
+    - account_id: "aliyun-prod"
       access_key_id: "${ALIYUN_ACCESS_KEY_ID}"
       access_key_secret: "${ALIYUN_ACCESS_KEY_SECRET}"
-      regions:
-        - cn-hangzhou
-        - cn-beijing
-      resources:
-        - acs_oss_dashboard
-        - acs_slb_dashboard
-```
+      regions: ["*"]
+      resources: ["bwp", "clb", "s3", "alb", "nlb", "gwlb"]
 
-**腾讯云示例：**
-```yaml
-accounts:
   tencent:
-    - account_id: "1234567890"
+    - account_id: "tencent-prod"
       access_key_id: "${TENCENT_SECRET_ID}"
       access_key_secret: "${TENCENT_SECRET_KEY}"
-      regions:
-        - ap-guangzhou
-        - ap-shanghai
-      resources:
-        - QCE/COS
-        - QCE/LB
+      regions: ["*"]
+      resources: ["bwp", "clb", "s3", "gwlb"]
+
+  aws:
+    - account_id: "aws-prod"
+      access_key_id: "${AWS_ACCESS_KEY_ID}"
+      access_key_secret: "${AWS_SECRET_ACCESS_KEY}"
+      regions: ["us-east-1"]
+      resources: ["s3", "alb"]
 ```
 
-**AWS 示例：**
+### 3. 产品级指标与采集频率（可选）
+
 ```yaml
 accounts:
   aws:
-    - account_id: "123456789012"
+    - account_id: "aws-prod"
       access_key_id: "${AWS_ACCESS_KEY_ID}"
       access_key_secret: "${AWS_SECRET_ACCESS_KEY}"
-      regions:
-        - us-east-1
-        - us-west-2
-      resources:
-        - AWS/S3
-        - AWS/ELB
+      regions: []
+      resources: ["s3", "alb"]
+      product_metric:
+        s3:
+          - period: 86400
+            scrape_interval: 1h
+            metric_list: ["BucketSizeBytes", "NumberOfObjects"]
+          - period: 60
+            metric_list: ["AllRequests", "GetRequests", "PutRequests"]
+        alb:
+          - period: 60
+            scrape_interval: 5m
+            metric_list: ["RequestCount", "ActiveConnectionCount"]
 ```
 
-#### 3. 设置环境变量
+说明：
+- `period` 影响云侧指标聚合周期
+- `scrape_interval` 为产品级采集频率（仅本地节流，不做跨 Pod 共享）
 
-```bash
-# 阿里云
-export ALIYUN_ACCESS_KEY_ID="your-access-key-id"
-export ALIYUN_ACCESS_KEY_SECRET="your-access-key-secret"
-
-# 腾讯云
-export TENCENT_SECRET_ID="your-secret-id"
-export TENCENT_SECRET_KEY="your-secret-key"
-
-# AWS
-export AWS_ACCESS_KEY_ID="your-access-key-id"
-export AWS_SECRET_ACCESS_KEY="your-secret-access-key"
-```
-
-或者使用 `.env` 文件：
-```bash
-cat > .env << EOF
-ALIYUN_ACCESS_KEY_ID=your-access-key-id
-ALIYUN_ACCESS_KEY_SECRET=your-access-key-secret
-EOF
-```
-
-### 启动 Exporter
+### 4. 启动与验证
 
 ```bash
 ./multicloud-exporter
-```
 
-默认会从以下位置查找配置：
-- `./configs/server.yaml`
-- `~/.config/multicloud-exporter/server.yaml`
-- `/etc/multicloud-exporter/server.yaml`
+# 健康检查
+curl http://localhost:9101/healthz
 
-指定配置路径：
-```bash
-export CONFIG_PATH=/path/to/your/configs
-./multicloud-exporter
-```
-
-### 验证运行
-
-#### 1. 检查健康状态
-
-```bash
-curl http://localhost:9101/-/healthy
-```
-
-应该返回：`OK`
-
-#### 2. 查看指标
-
-```bash
+# 指标
 curl http://localhost:9101/metrics | grep multicloud
 ```
 
-你应该能看到类似这样的输出：
-```
-# HELP multicloud_resource_metric 多云资源通用指标
-# TYPE multicloud_resource_metric gauge
-multicloud_resource_metric{account_id="1234567890",cloud_provider="aliyun",metric_name="storage_usage_bytes",region="cn-hangzhou",resource_id="my-bucket",resource_type="acs_oss_dashboard"} 1234567890
-```
+## 配置要点
 
-#### 3. 查看发现的资源
+- `server.scrape_interval` 建议 >= 云侧 `Period`，避免数据点丢失
+- `server.discovery_ttl` 控制资源枚举缓存 TTL（纯内存缓存）
+- `product_metric` 仅影响对应产品的指标与采集频率
 
-```bash
-curl http://localhost:9101/api/discovery/resources
-```
+## 集群与分片（简版）
 
-返回示例：
-```json
-{
-  "aliyun": {
-    "cn-hangzhou": {
-      "acs_oss_dashboard": ["bucket-1", "bucket-2"]
-    }
-  }
-}
-```
+- 动态分片：`CLUSTER_DISCOVERY=headless` + `CLUSTER_SVC=<headless-svc>`
+- 静态分片：`CLUSTER_DISCOVERY=file` + `CLUSTER_FILE=<members-file>`
+- 集群稳定性与首次采集错峰在 Helm 中配置（见 `chart/README.md`）
 
-### 配置 Prometheus
+## 管理接口认证（可选）
 
-在 Prometheus 的 `prometheus.yml` 中添加 scrape 配置：
+- 启用：`ADMIN_AUTH_ENABLED=true`
+- 单账号：`ADMIN_USERNAME` / `ADMIN_PASSWORD`
+- 多账号：`ADMIN_AUTH`（JSON 或 `user:pass` 列表）
 
-```yaml
-scrape_configs:
-  - job_name: 'multicloud-exporter'
-    static_configs:
-      - targets: ['localhost:9101']
-    scrape_interval: 60s
-```
+## 文档索引
 
-重启 Prometheus 后，可以在 Prometheus UI 中查询指标：
-
-```promql
-# 查询所有 OSS 存储使用量
-multicloud_resource_metric{resource_type="acs_oss_dashboard",metric_name="storage_usage_bytes"}
-
-# 查询所有负载均衡的连接数
-multicloud_resource_metric{metric_name="active_connections"}
-```
-
-### 常见问题
-
-**Q: 连接云 API 失败，日志中出现 "authentication failed"**
-
-A: 检查 AccessKey ID 和 Secret 是否正确，确认账号权限包含所需的只读权限。
-
-**Q: 没有发现任何资源**
-
-A: 检查 `accounts.yaml` 中的 `regions` 配置，确认该区域确实有资源。
-
-**Q: 指标数据为空或缺失**
-
-A: 检查云平台官方文档中的指标名称和维度配置，确认映射文件中的配置正确。
-
-**Q: API 限流**
-
-A: 增加 `server.scrape_interval` 降低采集频率，或启用缓存功能调整 `server.discovery_ttl`。
-
----
-
-## 功能特性
-
-- 支持多云平台：阿里云、华为云、腾讯云、AWS
-- 支持多账号配置
-- 支持多区域监控
-- 按云平台、账号、区域标签区分
-- 兼容 Prometheus 格式
-- 动态指标命名：按云产品命名空间+指标名生成，例如阿里云共享带宽 `acs_bandwidth_package_in_bandwidth_utilization`
-- 资源发现缓存：枚举到的资源ID支持缓存与TTL，显著降低 API 次数
-- 标签缓存优化：资源标签支持缓存，复用于同一资源的多个指标，大幅减少 VPC API 调用（阿里云 ↓90%）
-- 自身监控：内置 API 请求耗时、限流统计与采集周期耗时指标
-- 管理接口认证：`/api/discovery/*` 可选启用 BasicAuth
-- 传输安全：阿里云 CMS 客户端与腾讯云 SDK 默认使用 HTTPS
-- 智能区域发现：自动识别有资源的区域，优先采集活跃区域，跳过空区域，显著降低 API 调用和采集延迟
-- **产品级状态隔离**（v0.4.8+）：为每个云产品创建独立的区域状态管理器，避免不同产品间的状态干扰。每个产品独立管理自己的区域状态（active/empty），集群同步时携带产品标识，确保状态隔离的准确性。例如：SLB 某个区域为空不会影响 CBWP 同一区域的状态判断。
-
-## 支持的资源类型
-
-### 阿里云
-- ✅ 共享带宽包（CBWP）
-- ✅ 负载均衡
-  - ✅ 应用负载均衡（ALB）
-  - ✅ 传统负载均衡（CLB）
-  - ✅ 网络负载均衡（NLB）
-  - ✅ 网关负载均衡（GWLB）
-- ✅ 对象存储 (OSS)
-
-### 腾讯云
-- ✅ 负载均衡
-  - ✅ 负载均衡（CLB）
-  - ✅ 网关负载均衡（GWLB）
-- ✅ 共享带宽包（BWP）
-- ✅ 对象存储 (COS)
-
-### 华为云
-- ✅ 弹性负载均衡（ELB）
-- ✅ 对象存储（OBS）
-
-### AWS
-- ✅ 负载均衡
-  - ✅ 应用负载均衡（ALB）
-  - ✅ 经典负载均衡（CLB）
-  - ✅ 网络负载均衡（NLB）
-  - ✅ 网关负载均衡（GWLB）
-- ✅ 对象存储（S3）
-
-## 配置文件
-
-采用拆分配置，位于 `configs/` 目录；也可通过环境变量指定任意路径。
-
-### server.yaml
-
-```yaml
-server:
-  port: 9101
-  page_size: 1000
-  discovery_ttl: "1h"
-  scrape_interval: "60s"
-  
-  # 日志配置
-  log:
-    level: info      # debug, info, warn, error
-    format: json     # json, console
-    output: stdout   # stdout, file, both
-    file:
-      path: logs/exporter.log
-      max_size: 100  # MB
-      max_backups: 3
-      max_age: 28    # days
-      compress: true
-```
-
-### 采集周期与 Period 自动适配
-
-- Exporter 在未显式配置 `Product.Period` 或 `MetricGroup.Period` 时，会调用云厂商元数据接口（如腾讯云 `DescribeBaseMetrics`）自动获取该指标支持的 `Periods` 列表，并选择最小值作为请求参数。
-- 建议将 `server.scrape_interval` 与云侧 `Period` 保持一致或略大于等于该值，避免中间数据点丢失。
-- 若需要覆盖默认行为，可在产品或指标组层级显式设置 `Period`。
-
-### 区域枚举（regions="*")
-
-- 当 `accounts.yaml` 中某账号的 `regions` 为空或为 `["*"]` 时，系统将自动调用云厂商区域元数据接口进行枚举：
-  - 阿里云：`DescribeRegions`（ECS），遍历返回的全部 `RegionId`
-  - 腾讯云：`DescribeRegions`（CVM），遍历返回的全部 `Region`
-- 容错与回退：若枚举失败，可通过环境变量 `DEFAULT_REGIONS` 指定逗号分隔的区域作为回退，例如：`DEFAULT_REGIONS=cn-hangzhou,ap-guangzhou`
-
-### 智能区域发现（Region Discovery）
-
-智能区域发现功能可以自动识别哪些区域有资源，优先采集有资源的区域，跳过长期无资源的区域，显著提升采集性能。
-
-```yaml
-server:
-  region_discovery:
-    enabled: true              # 是否启用智能区域发现（默认 true）
-    discovery_interval: "24h"   # 重新发现周期，定期将所有区域设为 unknown，重新探测（默认 24h）
-    empty_threshold: 3           # 空区域跳过阈值，连续 N 次为空后跳过该区域（默认 3）
-    data_dir: "/app/data"        # 数据目录路径（默认 /app/data）
-    persist_file: "region_status.json"  # 持久化文件名，相对于 data_dir（默认 region_status.json）
-```
-
-**工作原理**：
-- **首次运行**：所有区域状态为 `unknown`，采集时检查所有区域
-- **后续运行**：
-  - 有资源的区域标记为 `active`，优先采集
-  - 无资源的区域标记为 `empty`，连续 N 次为空后跳过（默认 3 次）
-  - 定期重新发现（默认 24 小时），将所有区域重置为 `unknown`，重新探测资源变化
-- **状态持久化**：区域状态保存到 JSON 文件，重启后可快速恢复，避免重复探测
-
-**优势**：
-- **性能提升**：跳过大量无资源的区域，减少 API 调用和采集延迟
-- **成本降低**：减少云厂商 API 配额消耗
-- **自适应**：定期重新发现，自动适应新增资源或区域
-- **可观测性**：提供区域状态统计和跳过次数指标
-
-**状态持久化选项**：
-
-区域状态支持两种持久化方式（Kubernetes 部署时可选）：
-
-| 方式 | 说明 | 生命周期 | 适用场景 | 配置方式 |
-|------|------|----------|----------|----------|
-| **emptyDir**（默认） | 临时存储，Pod 生命周期内保留 | Pod 删除后数据丢失 | 开发测试、短期运行 |
-| **PVC** | 持久化存储，跨 Pod 重启保留 | Pod 删除后数据仍保留 | 生产环境、长期运行 |
-
-#### 使用 emptyDir（默认）
-
-```yaml
-# values.yaml
-server:
-  regionDiscovery:
-    enabled: true
-
-regionData:
-  persistence:
-    enabled: false  # 默认 false，使用 emptyDir
-```
-
-**特点**：
-- 无需额外配置
-- Pod 重启后状态保留
-- Pod 删除后状态丢失
-- 适合开发和测试环境
-
-#### 使用 PVC（持久化存储）
-
-```yaml
-# values.yaml
-server:
-  regionDiscovery:
-    enabled: true
-
-regionData:
-  persistence:
-    enabled: true           # 启用 PVC
-    storageClass: standard   # StorageClass 名称（可选）
-    size: 1Gi               # PVC 大小（默认 1Gi）
-    accessMode: ReadWriteOnce # 访问模式（默认 ReadWriteOnce）
-    # existingClaim: my-existing-pvc  # 使用已存在的 PVC（可选）
-```
-
-**特点**：
-- 需要配置 StorageClass
-- Pod 删除和重新调度后状态保留
-- 适合生产环境
-- 支持使用已存在的 PVC
-
-**安装示例**：
-
-```bash
-# 使用 emptyDir（默认）
-helm install multicloud-exporter ./chart
-
-# 使用 PVC 持久化
-helm install multicloud-exporter ./chart \
-  --set regionData.persistence.enabled=true \
-  --set regionData.persistence.storageClass=standard \
-  --set regionData.persistence.size=2Gi
-
-# 使用已存在的 PVC
-helm install multicloud-exporter ./chart \
-  --set regionData.persistence.enabled=true \
-  --set regionData.persistence.existingClaim=my-region-data-pvc
-```
-
-**验证持久化**：
-
-```bash
-# 1. 检查 PVC 是否创建（仅启用 PVC 时）
-kubectl get pvc | grep region-data
-
-# 2. 检查区域状态文件
-kubectl exec deployment/multicloud-exporter -- cat /app/data/region_status.json
-
-# 3. 测试跨 Pod 保留：删除 Pod 后检查新 Pod 是否加载旧状态
-kubectl delete pod -l app.kubernetes.io/name=multicloud-exporter
-kubectl exec deployment/multicloud-exporter -- cat /app/data/region_status.json
-```
-
-## 部署模式
-
-### 1. 单机模式 (Single Instance)
-
-默认模式。适用于资源规模较小（API 请求未达限流瓶颈）的场景。
-- **配置**：无需额外配置。
-- **行为**：单个 Exporter 实例采集 `accounts.yaml` 中定义的所有资源。
-
-### 2. 宿主机集群模式 (Static Sharding)
-
-适用于非 Kubernetes 环境（如 Docker Compose、物理机集群）或网络受限无法使用 DNS 发现的场景。通过环境变量手动指定分片信息。
-
-- **原理**：采用两级分片机制：
-  1. **区域级分片**：基于 `fnv32a(AccountID|Region) % Total` 哈希算法，将采集任务按区域分配给不同实例。
-  2. **产品级分片**：基于 `fnv32a(AccountID|Region|Namespace) % Total` 哈希算法，将同一区域下的不同产品分配给不同实例。
-- **配置**：
-  - `EXPORT_SHARD_TOTAL`: 总实例数（如 `3`）
-  - `EXPORT_SHARD_INDEX`: 当前实例索引（从 `0` 开始，如 `0`, `1`, `2`）
-- **示例** (3 节点集群)：
-  - 节点 A: `EXPORT_SHARD_TOTAL=3 EXPORT_SHARD_INDEX=0`
-  - 节点 B: `EXPORT_SHARD_TOTAL=3 EXPORT_SHARD_INDEX=1`
-  - 节点 C: `EXPORT_SHARD_TOTAL=3 EXPORT_SHARD_INDEX=2`
-
-### 3. Kubernetes 集群模式 (Dynamic Sharding)
-
-推荐模式。利用 Kubernetes Headless Service 实现自动发现与动态分片。
-
-- **原理**：Pod 启动时解析 Headless Service 域名获取所有对等节点 IP，按 IP 排序确定自身索引。支持 StatefulSet 或 Deployment。
-- **配置**：
-  - 环境变量 `CLUSTER_DISCOVERY=headless`
-  - 环境变量 `CLUSTER_SVC=<headless-service-name>`
-- **扩缩容**：直接调整 `replicas` 数量，集群会自动重新平衡分片（注意：扩缩容期间可能会有短暂的重复采集或漏采）。
-
-## Kubernetes 多副本优化配置
-
-在 Kubernetes 多副本部署场景下，为了避免滚动更新时的重复采集、优化首次采集错峰、提升区域发现性能，exporter 提供了以下优化配置：
-
-### 集群稳定性检测
-
-在滚动更新时，等待集群拓扑稳定后再开始采集，避免重复采集。
-
-```yaml
-# values.yaml
-cluster:
-  stabilityCheck:
-    enabled: true          # 是否启用稳定性检测（默认 true）
-    maxWait: 30s           # 最长等待时间（默认 30s）
-    checkInterval: 2s      # 检查间隔（默认 2s）
-    requiredStable: 3      # 需要连续稳定的次数（默认 3）
-```
-
-**工作原理**：
-- Pod 启动时通过 DNS 查询 Headless Service，获取集群中所有 Pod 的 IP 列表
-- 连续 N 次（默认 3 次）查询结果一致，认为集群稳定
-- 稳定后才开始首次采集，避免滚动更新期间的重复采集
-
-**环境变量**：
-- `CLUSTER_STABILITY_CHECK_ENABLED`: 是否启用（默认 `true`）
-- `CLUSTER_STABILITY_MAX_WAIT`: 最长等待时间（默认 `30s`）
-- `CLUSTER_STABILITY_CHECK_INTERVAL`: 检查间隔（默认 `2s`）
-- `CLUSTER_STABILITY_REQUIRED_STABLE`: 连续稳定次数（默认 `3`）
-
-### 首次采集策略（智能错峰）
-
-控制多个 Pod 启动时的首次采集时机，避免同时向云厂商 API 发起大量请求导致限流。
-
-```yaml
-# values.yaml
-firstRun:
-  strategy: auto         # 首次采集策略：auto | immediate | staggered（默认 auto）
-  maxDelay: 180          # 首次采集最大延迟秒数（默认 180）
-```
-
-**策略说明**：
-- `auto`（推荐）：自动判断
-  - 单 Pod：立即采集，无需等待
-  - 2-10 个 Pod：线性延迟 + 随机抖动（5s + 索引×3s）
-  - >10 个 Pod：指数退避延迟，避免 API 压力
-- `immediate`：强制所有 Pod 立即采集（适合小规模或云 API 限流宽松的场景）
-- `staggered`：强制线性延迟，均匀分布（适合对云 API 限流极度敏感的场景）
-
-**环境变量**：
-- `FIRST_RUN_STRATEGY`: 首次采集策略（默认 `auto`）
-- `FIRST_RUN_MAX_DELAY`: 首次采集最大延迟秒数（默认 `180`）
-
-**示例**：
-
-```bash
-# 单 Pod 本地测试（立即采集）
-helm install multicloud-exporter ./chart --set replicaCount=1
-
-# 大规模生产环境（20 个 Pod，指数退避）
-helm install multicloud-exporter ./chart \
-  --set replicaCount=20 \
-  --set firstRun.strategy=auto \
-  --set firstRun.maxDelay=180
-```
-
-### 华为云限流优化
-
-针对华为云的严格限流策略，通过缓存减少 API 调用次数。
-
-```yaml
-# values.yaml
-huaweiCache:
-  enabled: true          # 是否启用华为云缓存（默认 true）
-  resourceTTL: 10m       # 资源缓存 TTL（默认 10 分钟）
-  tagTTL: 30m            # 标签缓存 TTL（默认 30 分钟）
-```
-
-**优化效果**：
-- 资源列表缓存：减少 ListResources API 调用
-- 标签缓存：减少 GetResourceTags API 调用
-- 自动重试：检测到限流错误时，使用指数退避重试（初始 200ms，最大 5s）
-
-**环境变量**：
-- `HUAWEI_CACHE_ENABLED`: 是否启用（默认 `true`）
-- `HUAWEI_CACHE_RESOURCE_TTL`: 资源缓存 TTL（默认 `10m`）
-- `HUAWEI_CACHE_TAG_TTL`: 标签缓存 TTL（默认 `30m`）
-
-### 完整部署示例
-
-```bash
-# 3 副本部署，启用所有优化
-helm install multicloud-exporter ./chart \
-  --set replicaCount=3 \
-  --set cluster.discovery=headless \
-  --set cluster.stabilityCheck.enabled=true \
-  --set firstRun.strategy=auto \
-  --set firstRun.maxDelay=180 \
-  --set regionDiscovery.enabled=true \
-  --set regionDiscovery.discoveryInterval=1h \
-  --set huaweiCache.enabled=true \
-  --set regionData.persistence.enabled=true \
-  --set regionData.persistence.storageClass=standard
-```
-
-### 监控指标
-
-优化功能提供了以下 Prometheus 指标用于监控：
-
-```promql
-# 集群配置刷新次数
-multicloud_cluster_config_refresh_total
-
-# 集群配置刷新耗时
-multicloud_cluster_config_refresh_duration_seconds
-
-# 区域状态分布
-multicloud_region_status{account_id, region, status}
-
-# 区域跳过次数
-multicloud_region_skipped_total{account_id, region}
-
-# 缓存命中率
-multicloud_cache_hit_ratio{cache_type}
-
-# 首次采集延迟
-multicloud_first_run_delay_seconds{pod_index}
-```
-
-### LB/BWP 指标统一与映射
-
-- 统一映射文件：
-  - `configs/mappings/clb.metrics.yaml`：负载均衡
-  - `configs/mappings/bwp.metrics.yaml`：共享带宽包
-  - `configs/mappings/s3.metrics.yaml`：对象存储 (OSS/COS/S3)（只保留跨云语义最稳的统一指标集合）
-  - 带宽：`clb_traffic_rx_bps` ← Aliyun `InstanceTrafficRX`；Tencent `VIntraffic`（`Mbps`→`bit/s`，`scale: 1000000`）
-  - 丢失带宽：`clb_drop_traffic_rx_bps` ← Aliyun `DropTrafficRX`；`clb_drop_traffic_tx_bps` ← Aliyun `DropTrafficTX`
-  - 包速率/丢包：`clb_packet_rx/tx`、`clb_drop_packet_rx/tx`（Aliyun/Tencent 对齐）
-  - 利用率：`clb_traffic_rx_utilization_pct/tx_utilization_pct` ← Tencent `IntrafficVipRatio/OuttrafficVipRatio`
-- 监听维度标签：
-  - 阿里云 SLB：支持动态维度标签 `port/protocol`，并注入标签服务的 `code_name`；维度选择参考命名空间元数据中的 `dimensions`
-  - 腾讯云 CLB：按 `vip` 维度采集；`code_name` 留空
-- 快速验证（本地）：
-  - `curl -s http://localhost:9101/metrics | grep -E '^clb_traffic_(rx|tx)_bps' | head -n 20`
-  - `curl -s http://localhost:9101/metrics | grep -E '^clb_drop_traffic_(rx|tx)_bps' | head -n 20`
-  - `curl -s http://localhost:9101/metrics | grep -E '^clb_traffic_(rx|tx)_utilization_pct$' | head -n 20`
-
-
-### accounts.yaml
-
-```yaml
-accounts:
-  aliyun:
-    - provider: aliyun
-      account_id: "aliyun-prod"
-      access_key_id: "${ALIYUN_AK}"
-      access_key_secret: "${ALIYUN_SK}"
-      regions: ["*"]
-      resources:
-        - bwp
-        - clb
-        - s3
-        - alb
-        - nlb
-        - gwlb
-
-  tencent:
-    - provider: tencent
-      account_id: "tencent-prod"
-      access_key_id: "${TENCENT_SECRET_ID}"
-      access_key_secret: "${TENCENT_SECRET_KEY}"
-      regions: ["*"]
-      resources:
-        - clb
-        - bwp
-        - s3
-```
-
-> regions 配置：
-> - `regions: []` 或 `regions: ["*"]` 采集所有区域（AWS/Aliyun/Tencent 均支持自动发现）
-> - 指定如 `regions: ["cn-hangzhou", "ap-guangzhou"]` 仅采集列出的区域
-
-> resources 配置：
-> - `resources: []` 或 `resources: ["*"]` 采集所有资源类型
-> - 指定如 `resources: ["clb", "bwp"]` 仅采集列出的资源类型
-
-### 产品标识映射表（v0.4.8+）
-
-产品级状态隔离使用小写的产品标识符进行状态管理：
-
-| 云厂商 | 产品 ID | Namespace | 产品名称 |
-|--------|---------|-----------|---------|
-| 阿里云 | slb | acs_slb_dashboard | 传统负载均衡 |
-| 阿里云 | cbwp | ACS_CBP | 共享带宽包 |
-| 阿里云 | oss | acs_oss_dashboard | 对象存储 |
-| 阿里云 | alb | acs_alb_dashboard | 应用负载均衡 |
-| 阿里云 | nlb | acs_nlb_dashboard | 网络负载均衡 |
-| 阿里云 | gwlb | acs_gwlb_dashboard | 网关负载均衡 |
-| 腾讯云 | clb | QCE/LB_PUBLIC | 云负载均衡 |
-| 腾讯云 | bwp | QCE/CDN_BWP | 共享带宽包 |
-| 腾讯云 | cos | QCE/COS_DATA | 云对象存储 |
-| 腾讯云 | gwlb | QCE/GWLB | 网关负载均衡 |
-| 华为云 | elb | SYS.ELB | 弹性负载均衡 |
-| 华为云 | obs | SYS.OBS | 对象存储服务 |
-| AWS | lb | AWS/ELB | 弹性负载均衡 |
-| AWS | s3 | AWS/S3 | 简单存储服务 |
-
-**使用示例**：
-```yaml
-# accounts.yaml
-accounts:
-  aliyun:
-    - provider: aliyun
-      account_id: "aliyun-prod"
-      resources:
-        - slb  # 使用产品 ID
-        - cbwp
-        - oss
-```
-
-**监控指标查询示例**：
-```promql
-# 查询阿里云 SLB 的活跃区域数
-multicloud_region_status_total{cloud_provider="aliyun", product="slb", status="active"}
-
-# 查询所有产品的内存占用
-multicloud_region_manager_memory_bytes
-```
-
-## 使用方法
-
-### 本地运行
-
-```bash
-cd multicloud-exporter
-curl -LO https://github.com/jangrui/multicloud-exporter/releases/latest/download/multicloud-exporter
-chmod +x multicloud-exporter
-export SERVER_PATH=./configs/server.yaml
-# 不设置 PRODUCTS_PATH 时启用自动发现
-export ACCOUNTS_PATH=./configs/accounts.yaml
-./multicloud-exporter
-```
-
-### Docker运行
-
-```bash
-docker run -d \
-  -p 9101:9101 \
-  -v $(pwd)/configs:/app/configs \
-  -e ACCOUNTS_PATH=/app/configs/accounts.yaml 
-  -e SERVER_PATH=/app/configs/server.yaml 
-  multicloud-exporter
-```
-
-### 监控指标
-- [监控指标使用指南](docs/metrics-guide.md)：说明所有基础指标的用途和标签，提供派生指标计算方法和 PromQL 查询示例
-- [错误处理和重试策略](docs/error-handling.md)：说明统一的错误分类体系、重试策略配置和限流处理机制
-- [故障排查指南](docs/troubleshooting.md)：提供日志排查方法和步骤，提供常见问题的排查和解决方案
-
-## 指标格式
-
-### 业务指标
-
-```
-multicloud_resource_metric{
-  cloud_provider="aliyun",
-  account_id="aliyun-prod",
-  region="cn-hangzhou",
-  resource_type="ecs",
-  resource_id="i-xxxxx",
-  metric_name="cpu_cores"
-} 4
-```
-
-### 自身监控指标
-
-```
-# API 请求耗时（直方图）
-multicloud_request_duration_seconds_bucket{cloud_provider="aliyun", api="DescribeInstances", le="0.1"} 10
-multicloud_request_duration_seconds_sum{...} 5.2
-multicloud_request_duration_seconds_count{...} 100
-
-# API 限流统计
-multicloud_rate_limit_total{cloud_provider="tencent", api="GetMonitorData"} 5
-
-# 采集周期耗时
-multicloud_collection_duration_seconds_bucket{le="10"} 1
-```
-
-动态命名空间指标（已统一命名为 bwp_*，跨云一致）：
-
-```
-bwp_in_utilization_pct{
-  cloud_provider="aliyun",
-  account_id="xxx",
-  region="cn-hangzhou",
-  resource_type="bwp",
-  resource_id="cbwp-xxx"
-} 0.23
-```
-
-更多共享带宽指标命名与映射说明，参见 `docs/bwp-metrics.md`。
-
-## Prometheus配置
-
-```yaml
-scrape_configs:
-  - job_name: 'multicloud'
-    static_configs:
-      - targets: ['localhost:9101']
-```
-
-## 环境变量
-
-- `EXPORTER_PORT`: 监听端口；优先级高于配置文件。未设置则读取 `server.port`，再回退为 `9101`。
-- `SCRAPE_INTERVAL`: 采集间隔（默认60s），支持时间格式（如 30s, 1m）。
-- `SERVER_PATH`: 指向 `server.yaml`
-
-### 首次采集策略（智能错峰）
-
-为了解决多Pod部署场景下的首次采集并发问题，exporter 支持智能首次采集错峰策略：
-
-- `FIRST_RUN_STRATEGY`: 首次采集策略（默认 `auto`）
-  - `auto`（推荐）：自动判断
-    - 单/双Pod：立即采集，无需等待
-    - 3-10个Pod：线性延迟 + 随机抖动（5s + 索引×3s）
-    - >10个Pod：指数退避延迟，避免API压力
-  - `immediate`：强制所有Pod立即采集（适合小规模或云API限流宽松的场景）
-  - `staggered`：强制线性延迟，均匀分布（适合对云API限流极度敏感的场景）
-
-- `FIRST_RUN_MAX_DELAY`: 首次采集最大延迟秒数（默认 `180`）
-  - 仅在 `strategy=staggered` 或大规模（>10个Pod）场景生效
-  - 示例：20个Pod，maxDelay=180s，Pod-0立即采集，Pod-19延迟约170秒
-
-**示例**：
-
-```bash
-# 单Pod本地测试（立即采集）
-SCRAPE_INTERVAL=60s ./multicloud-exporter
-
-# 大规模生产环境（20个Pod，指数退避）
-export FIRST_RUN_STRATEGY=auto
-export FIRST_RUN_MAX_DELAY=180
-```
-
-**适用场景**：
-
-- ✅ 小规模（1-2个Pod）：立即采集，用户体验最佳
-- ✅ 中等规模（3-10个Pod）：自动错峰，避免API压力
-- ✅ 大规模（>10个Pod）：指数退避，平滑启动
-
-
-- `ACCOUNTS_PATH`: 指向 `accounts.yaml`
-- `DEFAULT_REGIONS`: 当云侧区域枚举失败时的回退区域列表（逗号分隔），例如：`DEFAULT_REGIONS=cn-hangzhou,ap-guangzhou`
-
-## 管理接口认证
-
-可为 `/api/discovery/*` 启用 BasicAuth 认证，推荐使用环境变量与 Kubernetes Secret 管理凭据，避免在 `values.yaml` 或 ConfigMap 中出现明文。
-
-方式一（推荐，Kubernetes 环境）：
-
-1) 创建 Secret，仅包含用户名与密码键：
-
-```bash
-kubectl -n monitoring create secret generic multicloud-exporter-admin \
-  --from-literal=ADMIN_USERNAME=admin \
-  --from-literal=ADMIN_PASSWORD='<secure-password>'
-```
-
-2) 在 Helm 值中启用认证并引用该 Secret：
-
-```yaml
-env:
-  ADMIN_AUTH_ENABLED: "true"
-
-security:
-  adminSecretName: "multicloud-exporter-admin"
-```
-
-方式二（本地或临时场景）：
-
-```bash
-export ADMIN_AUTH_ENABLED=true
-export ADMIN_USERNAME=admin
-export ADMIN_PASSWORD='<secure-password>'
-```
-
-可选：支持通过 `ADMIN_AUTH` 注入多账号，JSON 或逗号分隔均可：
-
-```bash
-export ADMIN_AUTH='[{"username":"admin","password":"<secure>"}]'
-# 或
-export ADMIN_AUTH='admin:<secure>,ops:<secure2>'
-```
-
-访问示例：
-
-```bash
-curl -u admin:<secure-password> http://<host>:9101/api/discovery/config
-```
-
-建议在生产环境通过 Ingress/ServiceMesh 终止 TLS，确保认证信息经由 HTTPS 传输。
-
-## 安全与合规
-
-- 账号凭证请使用环境变量注入，不要在仓库中保存明文密钥：
-- 阿里云：`ALIYUN_AK`、`ALIYUN_SK`
-- 腾讯云：`TENCENT_SECRET_ID`、`TENCENT_SECRET_KEY`
-- 建议本地使用 `accounts.example.yaml` 模板并在 `.gitignore` 中忽略个人 `accounts.local.yaml`。
-- 生产环境通过 CI/Secrets 管理凭证并在部署时注入。
-
-## 版本规范
-
-- 发布与安装统一采用带前缀的语义化版本标签：`vX.Y.Z`
-- Helm Chart 的 `version` 与 `appVersion` 保持 `v*.*.*`，CI 触发条件匹配 `v*.*.*` 标签
-
-## 采集与缓存
-
-- 采集流程：程序按配置加载产品与指标 → 枚举资源ID（按命名空间映射） → 批量拉取最新监控数据 → 暴露为Prometheus指标。
-- 缓存策略：
-  - **资源ID缓存**：枚举的资源ID会被缓存，TTL可配置（`discovery_ttl`）。在TTL内的采集轮次直接使用缓存，避免重复枚举导致的API费用与限流。
-  - **标签缓存**：资源标签（如 `code_name`）会在首次采集时获取并缓存，同一资源的多个指标复用缓存结果，大幅减少 VPC API 调用（阿里云 ↓90%）。
-- 智能分页：为阿里云 CMS API 的 NextToken 分页机制添加三层保护（循环限制、重复token检测、空数据检测），避免因 API bug 导致的无限循环，确保采集稳定性。
-- 自动发现：仅监听 `accounts.yaml` 的资源集合变化（`resources`），有变化时触发发现刷新；不再支持周期刷新参数。
-- 日志提示：增加采集阶段日志，包括账号/区域开始结束、产品加载、资源缓存命中/枚举数量、每批次拉取点数等，便于排查与观测。
-
-## 性能优化
-
-### 智能区域发现性能优化
-
-对于多区域账号（如阿里云、腾讯云等），启用智能区域发现可以显著提升性能：
-
-- **API 调用减少**：跳过无资源区域，减少 50%-90% 的区域枚举 API 调用
-- **采集延迟降低**：优先采集有资源的区域，缩短采集周期
-- **云配额节省**：减少云厂商 API 配额消耗，降低成本
-
-**适用场景**：
-- 账号下区域数量较多（>5 个区域）
-- 部分区域长期无资源或资源稀少
-- 采集速度要求较高
-
-**典型收益**（阿里云 20 个区域，仅 3 个区域有资源）：
-- API 调用减少约 85%
-- 采集周期从 60 秒降低到约 15 秒
-
-### 标签缓存与分页优化
-
-对于指标采集密集的场景（如多个 rx/tx 指标），启用标签缓存和智能分页可以进一步提升性能：
-
-**标签缓存优化**：
-- **VPC API 调用减少**：资源标签从每个指标调用一次优化为每个资源调用一次（阿里云 ↓90%）
-- **适用场景**：单个资源有多个指标需要采集（如 BWP 的 5 个 rx + 5 个 tx 指标）
-- **典型收益**（阿里云 CBWP，10 个指标）：
-  - VPC API 调用从 10 次/region 降至 1 次/region（↓90%）
-  - 标签获取耗时几乎归零
-
-**智能分页优化**：
-- **采集稳定性提升**：为阿里云 CMS API 的 NextToken 分页添加三层保护机制，避免因 API bug 导致的无限循环
-- **分页循环减少**：从异常情况下的 60-100 次循环降至正常 3 次循环（↓97%）
-- **采集可靠性**：彻底解决 tx 指标因分页阻塞导致的缺失问题（100% 修复）
-- **典型收益**（阿里云 eu-central-1 区域）：
-  - 单区域采集时间从 50 秒+（超时）降至 1 秒（↓98%）
-  - 总采集周期从 30 秒+ 降至 14 秒（↓53%）
-
-## 采集频率与数据周期
-
-配置 `scrape_interval` (采集频率) 与云厂商 API 的 `Period` (数据聚合周期) 的关系至关重要。
-
-### 1. 场景推演
-
-假设 `Period=60s` (云厂商每60s生成一个点)，`scrape_interval=300s` (Exporter每300s采集一次)：
-
-* **T=0s**：云产生数据点 A（覆盖 0~60s）。
-* **T=60s**：云产生数据点 B（覆盖 60~120s）。
-* ...
-* **T=240s**：云产生数据点 E（覆盖 240~300s）。
-* **T=300s**：**Exporter 采集**，API 返回**最新**的一个点（即数据点 E）。
-* **结果**：数据点 A, B, C, D 永远丢失。
-
-### 2. 存在的风险
-
-* **漏报故障**：如果故障发生在未采集的时间窗口（如 T=100s），监控将无法捕捉。
-* **曲线失真**：Prometheus 绘制曲线时，会把相隔 5 分钟的两个点连成直线，忽略了中间的波动。
-
-### 3. 配置策略对比
-
-| 关系 | 现象 | 优缺点 | 适用场景 |
-| :--- | :--- | :--- | :--- |
-| **Scrape > Period**<br>(300s > 60s) | **数据丢失**<br>(漏采中间的点) | ✅ **省钱**（API 调用少）<br>❌ **有盲区**（可能漏过尖峰） | **非关键指标**<br>（如磁盘空间、每日费用） |
-| **Scrape < Period**<br>(15s < 60s) | **数据冗余**<br>(重复采同一个点) | ✅ **全覆盖**（不丢数据）<br>❌ **浪费**（配额与存储） | **不推荐** |
-| **Scrape ≈ Period**<br>(60s ≈ 60s) | **完美匹配** | ✅ **无盲区且不浪费** | **核心业务指标**<br>（推荐配置） |
-
-### 4. 测试要求
-
-- 本地（与 CI 保持一致）：`make lint && go test -race -cover ./...`
-- 基准测试：`go test -bench . -benchmem -run ^$ ./...`
-- 压力测试：`go test -race -run . -parallel 16 ./...`
-- CI 强制全局覆盖率 ≥ 80%，目标 ≥ 90%
+- 架构与分片：`docs/architecture.md`
+- 发现与缓存：`docs/discovery.md`
+- 指标与映射：`docs/metrics-guide.md`
+- 故障排查：`docs/troubleshooting.md`
+- Helm 部署：`chart/README.md`

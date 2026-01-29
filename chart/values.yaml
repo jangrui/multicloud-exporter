@@ -21,7 +21,7 @@ serviceMonitor:
   enabled: false
   labels: {}
   scheme: http
-  interval: "60s"
+  interval: "5m"
   scrapeTimeout: "30s"
   metricRelabelings: []
   relabelings:
@@ -116,7 +116,7 @@ server: {}
 # 
 # 默认值参考：
 # - 监听端口: 9101
-# - 采集间隔: 60s
+# - 采集间隔: 5m
 # - 发现缓存 TTL: 30m
 # - 并发度: Region=4, Product=1, Metric=2
 # - 四维并发: Mode=auto, Max=20
@@ -126,7 +126,7 @@ env: {}
 #  LOG_LEVEL: "info"
 #  
 #  # 采集配置示例
-#  SCRAPE_INTERVAL: "60s"
+#  SCRAPE_INTERVAL: "5m"
 #  DISCOVERY_TTL: "30m"               # 资源发现缓存生命周期；默认 30m
 #  REGION_CONCURRENCY: "4"            # 区域级并发；默认 4
 #  PRODUCT_CONCURRENCY: "1"           # 产品级并发；默认 1
@@ -147,6 +147,15 @@ accounts:
     #   - name: aliyun-acc-0
     #     regions: ["*"]
     #     resources: ["bwp", "clb", "s3", "alb", "nlb", "gwlb"]
+    #     product_metric:
+    #       s3:
+    #         - period: 3600
+    #           scrape_interval: 1h
+    #           metric_list: ["UserStorage", "ObjectNumber"]
+    #       bwp:
+    #         - period: 600
+    #           scrape_interval: 10m
+    #           metric_list: ["InBandwidth", "OutBandwidth"]
     tencent: []
     #   - name: tencent-acc-0
     #     regions: ["*"]

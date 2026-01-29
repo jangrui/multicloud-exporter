@@ -282,3 +282,206 @@ func TestFetchTencentMetricMeta(t *testing.T) {
 	// Default mapping for QCE/CVM is "InstanceId"
 	assert.Contains(t, metas[0].Dimensions, "InstanceId")
 }
+
+func TestTencentDiscovery_COS_CustomConfig(t *testing.T) {
+	// Backup and restore newTencentMonitorClient
+	originalNewTencentMonitorClient := newTencentMonitorClient
+	defer func() { newTencentMonitorClient = originalNewTencentMonitorClient }()
+
+	// Mock client that should not be called when custom config is used
+	callCount := 0
+	newTencentMonitorClient = func(region, ak, sk string) (MonitorClient, error) {
+		return &mockMonitorClient{
+			DescribeBaseMetricsFunc: func(request *monitor.DescribeBaseMetricsRequest) (*monitor.DescribeBaseMetricsResponse, error) {
+				callCount++
+				return nil, errors.New("should not be called")
+			},
+		}, nil
+	}
+
+	period := 120
+	d := &TencentDiscoverer{}
+	ctx := context.Background()
+	cfg := &config.Config{
+		AccountsByProvider: map[string][]config.CloudAccount{
+			"tencent": {
+				{
+					Provider:        "tencent",
+					AccessKeyID:     "ak",
+					AccessKeySecret: "sk",
+					Regions:         []string{"ap-guangzhou"},
+					Resources:       []string{"s3"},
+					ProductMetric: map[string][]config.MetricGroupConfig{
+						"cos": {
+							{
+								MetricList: []string{"CustomMetric1", "CustomMetric2"},
+								Period:     &period,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	prods := d.Discover(ctx, cfg)
+	assert.Len(t, prods, 1)
+	assert.Equal(t, "QCE/COS", prods[0].Namespace)
+	assert.False(t, prods[0].AutoDiscover) // 不应该调用元数据 API
+
+	// 验证自定义指标
+	assert.Len(t, prods[0].MetricInfo, 1)
+	assert.Equal(t, period, *prods[0].MetricInfo[0].Period)
+	assert.Contains(t, prods[0].MetricInfo[0].MetricList, "CustomMetric1")
+	assert.Contains(t, prods[0].MetricInfo[0].MetricList, "CustomMetric2")
+
+	// 验证元数据 API 没有被调用
+	assert.Equal(t, 0, callCount)
+}
+
+func TestTencentDiscovery_CLB_CustomConfig(t *testing.T) {
+	originalNewTencentMonitorClient := newTencentMonitorClient
+	defer func() { newTencentMonitorClient = originalNewTencentMonitorClient }()
+
+	callCount := 0
+	newTencentMonitorClient = func(region, ak, sk string) (MonitorClient, error) {
+		return &mockMonitorClient{
+			DescribeBaseMetricsFunc: func(request *monitor.DescribeBaseMetricsRequest) (*monitor.DescribeBaseMetricsResponse, error) {
+				callCount++
+				return nil, errors.New("should not be called")
+			},
+		}, nil
+	}
+
+	period := 60
+	d := &TencentDiscoverer{}
+	ctx := context.Background()
+	cfg := &config.Config{
+		AccountsByProvider: map[string][]config.CloudAccount{
+			"tencent": {
+				{
+					Provider:        "tencent",
+					AccessKeyID:     "ak",
+					AccessKeySecret: "sk",
+					Regions:         []string{"ap-guangzhou"},
+					Resources:       []string{"clb"},
+					ProductMetric: map[string][]config.MetricGroupConfig{
+						"clb": {
+							{
+								MetricList: []string{"CustomCLBMetric"},
+								Period:     &period,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	prods := d.Discover(ctx, cfg)
+	assert.Len(t, prods, 1)
+	assert.Equal(t, "QCE/LB", prods[0].Namespace)
+	assert.False(t, prods[0].AutoDiscover)
+	assert.Len(t, prods[0].MetricInfo, 1)
+	assert.Equal(t, period, *prods[0].MetricInfo[0].Period)
+	assert.Contains(t, prods[0].MetricInfo[0].MetricList, "CustomCLBMetric")
+	assert.Equal(t, 0, callCount)
+}
+
+func TestTencentDiscovery_GWLB_CustomConfig(t *testing.T) {
+	originalNewTencentMonitorClient := newTencentMonitorClient
+	defer func() { newTencentMonitorClient = originalNewTencentMonitorClient }()
+
+	callCount := 0
+	newTencentMonitorClient = func(region, ak, sk string) (MonitorClient, error) {
+		return &mockMonitorClient{
+			DescribeBaseMetricsFunc: func(request *monitor.DescribeBaseMetricsRequest) (*monitor.DescribeBaseMetricsResponse, error) {
+				callCount++
+				return nil, errors.New("should not be called")
+			},
+		}, nil
+	}
+
+	period := 120
+	d := &TencentDiscoverer{}
+	ctx := context.Background()
+	cfg := &config.Config{
+		AccountsByProvider: map[string][]config.CloudAccount{
+			"tencent": {
+				{
+					Provider:        "tencent",
+					AccessKeyID:     "ak",
+					AccessKeySecret: "sk",
+					Regions:         []string{"ap-guangzhou"},
+					Resources:       []string{"gwlb"},
+					ProductMetric: map[string][]config.MetricGroupConfig{
+						"gwlb": {
+							{
+								MetricList: []string{"CustomGWLBMetric"},
+								Period:     &period,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	prods := d.Discover(ctx, cfg)
+	assert.Len(t, prods, 1)
+	assert.Equal(t, "qce/gwlb", prods[0].Namespace)
+	assert.False(t, prods[0].AutoDiscover)
+	assert.Len(t, prods[0].MetricInfo, 1)
+	assert.Equal(t, period, *prods[0].MetricInfo[0].Period)
+	assert.Contains(t, prods[0].MetricInfo[0].MetricList, "CustomGWLBMetric")
+	assert.Equal(t, 0, callCount)
+}
+
+func TestTencentDiscovery_BWP_CustomConfig(t *testing.T) {
+	originalNewTencentMonitorClient := newTencentMonitorClient
+	defer func() { newTencentMonitorClient = originalNewTencentMonitorClient }()
+
+	callCount := 0
+	newTencentMonitorClient = func(region, ak, sk string) (MonitorClient, error) {
+		return &mockMonitorClient{
+			DescribeBaseMetricsFunc: func(request *monitor.DescribeBaseMetricsRequest) (*monitor.DescribeBaseMetricsResponse, error) {
+				callCount++
+				return nil, errors.New("should not be called")
+			},
+		}, nil
+	}
+
+	period := 300
+	d := &TencentDiscoverer{}
+	ctx := context.Background()
+	cfg := &config.Config{
+		AccountsByProvider: map[string][]config.CloudAccount{
+			"tencent": {
+				{
+					Provider:        "tencent",
+					AccessKeyID:     "ak",
+					AccessKeySecret: "sk",
+					Regions:         []string{"ap-guangzhou"},
+					Resources:       []string{"bwp"},
+					ProductMetric: map[string][]config.MetricGroupConfig{
+						"bwp": {
+							{
+								MetricList: []string{"CustomBWPMetric"},
+								Period:     &period,
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	prods := d.Discover(ctx, cfg)
+	assert.Len(t, prods, 1)
+	assert.Equal(t, "QCE/BWP", prods[0].Namespace)
+	assert.False(t, prods[0].AutoDiscover)
+	assert.Len(t, prods[0].MetricInfo, 1)
+	assert.Equal(t, period, *prods[0].MetricInfo[0].Period)
+	assert.Contains(t, prods[0].MetricInfo[0].MetricList, "CustomBWPMetric")
+	assert.Equal(t, 0, callCount)
+}

@@ -11,6 +11,26 @@ accounts:
         - nlb
         - gwlb
         - s3
+      product_metric:
+        oss:
+          - period: 86400
+            scrape_interval: 1h
+            metric_list: ["UserStorage", "ObjectNumber"]
+          - period: 60
+            metric_list: ["GetObject", "PutObject", "TotalRequest"]
+        clb:
+          - period: 60
+            metric_list: ["ActiveConnection", "NewConnection", "DropTrafficRX"]
+        alb:
+          - period: 60
+            metric_list: ["ActiveConnection", "NewConnection", "ProcessedBytes"]
+        nlb:
+          - period: 60
+            metric_list: ["ActiveFlow", "NewFlow", "ProcessedBytes"]
+        bwp:
+          - period: 60
+            scrape_interval: 10m
+            metric_list: ["InBandwidth", "OutBandwidth", "InBandwidthUtilization"]
     - account_id: ""
       access_key_id: ""
       access_key_secret: ""
@@ -33,6 +53,42 @@ accounts:
         - gwlb
         - s3
         # - lb
+      product_metric:
+        cos:
+          - period: 86400
+            scrape_interval: 1h
+            metric_list: ["StdStorage", "ObjectNumber"]
+          - period: 300
+            metric_list: ["TotalRequests", "GetRequests", "PutRequests"]
+        clb:
+          - period: 60
+            metric_list: ["VIntraffic", "VOuttraffic", "NewConn"]
+        gwlb:
+          - period: 60
+            metric_list: ["InTraffic", "OutTraffic", "ConcurConn"]
+        bwp:
+          - period: 60
+            metric_list: ["InTraffic", "OutTraffic", "InPkg", "OutPkg"]
+
+  huawei:
+    - account_id: ""
+      access_key_id: ""
+      access_key_secret: ""
+      regions: ["*"] # 采集所有区域
+      resources:
+        - elb
+        - obs
+      product_metric:
+        elb:
+          - period: 60
+            scrape_interval: 10m
+            metric_list: ["m1_cps", "m2_act_conn", "m4_ncps"]
+        obs:
+          - period: 86400
+            scrape_interval: 1h
+            metric_list: ["capacity_total", "object_num_all"]
+          - period: 300
+            metric_list: ["get_request_count", "put_request_count", "request_success_rate"]
 
   aws:
     - account_id: ""
@@ -42,3 +98,26 @@ accounts:
       regions: []
       resources:
         - s3
+        - alb
+        - clb
+        - nlb
+        - gwlb
+      product_metric:
+        s3:
+          - period: 86400
+            scrape_interval: 1h
+            metric_list: ["BucketSizeBytes", "NumberOfObjects"]
+          - period: 60
+            metric_list: ["AllRequests", "GetRequests", "PutRequests"]
+        alb:
+          - period: 60
+            metric_list: ["RequestCount", "ActiveConnectionCount"]
+        clb:
+          - period: 60
+            metric_list: ["RequestCount", "Latency"]
+        nlb:
+          - period: 60
+            metric_list: ["ActiveFlowCount", "ProcessedBytes"]
+        gwlb:
+          - period: 60
+            metric_list: ["ActiveFlowCount", "ProcessedBytes"]
