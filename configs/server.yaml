@@ -35,6 +35,8 @@ server:
   # 注意：实际并发度 = region_concurrency × product_concurrency × metric_concurrency
   # 为避免触发云 API 限流，总并发度建议不超过 20
   product_concurrency: ${PRODUCT_CONCURRENCY:-1}
+  # 阿里云实例级采集每批次维度数量（默认 50，支持 1-200）
+  aliyun_instance_batch_size: ${ALIYUN_INSTANCE_BATCH_SIZE:-50}
    # 标签缓存 TTL：缓存资源标签的有效期（分钟，默认 30）
   tag_cache_ttl: ${TAG_CACHE_TTL:-30}
   # 智能区域发现配置（纯内存设计，无持久化）

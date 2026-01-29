@@ -203,6 +203,46 @@ func TestGetMetricConcurrency(t *testing.T) {
 	}
 }
 
+func TestGetAliyunInstanceBatchSize(t *testing.T) {
+	tests := []struct {
+		name string
+		cfg  *config.Config
+		want int
+	}{
+		{"nil配置返回默认值", nil, config.AliyunInstanceBatchSizeDefault},
+		{"空配置返回默认值", &config.Config{}, config.AliyunInstanceBatchSizeDefault},
+		{"配置有效 batch size", &config.Config{
+			Server: &config.ServerConf{
+				AliyunInstanceBatchSize: 200,
+			},
+		}, 200},
+		{"配置为0回退默认值", &config.Config{
+			Server: &config.ServerConf{
+				AliyunInstanceBatchSize: 0,
+			},
+		}, config.AliyunInstanceBatchSizeDefault},
+		{"配置过小回退默认值", &config.Config{
+			Server: &config.ServerConf{
+				AliyunInstanceBatchSize: -1,
+			},
+		}, config.AliyunInstanceBatchSizeDefault},
+		{"配置过大回退默认值", &config.Config{
+			Server: &config.ServerConf{
+				AliyunInstanceBatchSize: 201,
+			},
+		}, config.AliyunInstanceBatchSizeDefault},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := getAliyunInstanceBatchSize(tt.cfg)
+			if got != tt.want {
+				t.Errorf("getAliyunInstanceBatchSize() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestGetProductConcurrency(t *testing.T) {
 	tests := []struct {
 		name string

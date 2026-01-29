@@ -954,6 +954,21 @@ func getMetricConcurrency(cfg *config.Config) int {
 	return 2
 }
 
+func getAliyunInstanceBatchSize(cfg *config.Config) int {
+	if cfg == nil {
+		return config.AliyunInstanceBatchSizeDefault
+	}
+	server := cfg.GetServer()
+	if server == nil {
+		return config.AliyunInstanceBatchSizeDefault
+	}
+	batchSize := server.AliyunInstanceBatchSize
+	if batchSize < config.AliyunInstanceBatchSizeMin || batchSize > config.AliyunInstanceBatchSizeMax {
+		return config.AliyunInstanceBatchSizeDefault
+	}
+	return batchSize
+}
+
 // getProductConcurrency 获取产品并发数配置，默认值为 1（降低以避免限流）
 func getProductConcurrency(cfg *config.Config) int {
 	if cfg == nil {
@@ -2022,8 +2037,15 @@ func (a *Collector) fetchAndRecordMetrics(
 	stats []string,
 	ctxLog *logger.ContextLogger,
 ) {
-	for start := 0; start < len(allDims); start += 50 {
-		end := start + 50
+	batchSize := getAliyunInstanceBatchSize(a.cfg)
+	if batchSize <= 0 {
+		batchSize = config.AliyunInstanceBatchSizeDefault
+	}
+	if len(allDims) > 0 {
+		ctxLog.Debugf("实例批次大小=%d total_dims=%d", batchSize, len(allDims))
+	}
+	for start := 0; start < len(allDims); start += batchSize {
+		end := start + batchSize
 		if end > len(allDims) {
 			end = len(allDims)
 		}

@@ -128,6 +128,7 @@ Exporter 暴露了 `/metrics` 端点，其中包含自身运行状态指标：
 
  - 环境变量
    - `values.env`：按需覆盖运行环境变量（如 `SCRAPE_INTERVAL`）
+   - `ALIYUN_INSTANCE_BATCH_SIZE`：阿里云实例级采集每批次维度数量（默认 50，范围 1-200）
  
  - 安全配置
    - `security.adminSecretName`：管理认证 Secret 名称；若设置，将以 `envFrom.secretRef` 注入 Secret 中的键（如 `ADMIN_USERNAME`、`ADMIN_PASSWORD`）

@@ -115,6 +115,27 @@ curl http://localhost:9101/metrics | grep multicloud
 - `server.scrape_interval` 建议 >= 云侧 `Period`，避免数据点丢失
 - `server.discovery_ttl` 控制资源枚举缓存 TTL（纯内存缓存）
 - `product_metric` 仅影响对应产品的指标与采集频率
+- `server.aliyun_instance_batch_size` 控制阿里云实例级批次大小（默认 50，范围 1-200）
+
+## 阿里云实例批次扩容
+
+阿里云配额提升后，可通过 `server.aliyun_instance_batch_size` 提高实例级采集吞吐。
+
+说明：该参数仅影响阿里云实例级单次请求的批量维度数量，不改变 `metric_concurrency`/`product_concurrency`/`region_concurrency` 的并发策略；提升批次大小会减少请求次数，但仍受限流与 Period 影响。
+
+默认（50）：
+
+```yaml
+server:
+  aliyun_instance_batch_size: 50
+```
+
+扩容（200）：
+
+```yaml
+server:
+  aliyun_instance_batch_size: 200
+```
 
 ## 集群与分片（简版）
 

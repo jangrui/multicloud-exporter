@@ -70,6 +70,12 @@ func ParseDuration(s string) (time.Duration, error) {
 	return parseDuration(s)
 }
 
+const (
+	AliyunInstanceBatchSizeDefault = 50
+	AliyunInstanceBatchSizeMin     = 1
+	AliyunInstanceBatchSizeMax     = 200
+)
+
 // Config 汇总所有云账号配置
 type Config struct {
 	Mu sync.RWMutex `yaml:"-"`
@@ -278,6 +284,16 @@ func (c *Config) Validate() error {
 				fd.MaxConcurrency = 20
 			}
 		}
+
+		// 验证阿里云实例级批次大小
+		if server.AliyunInstanceBatchSize != 0 {
+			if server.AliyunInstanceBatchSize < AliyunInstanceBatchSizeMin || server.AliyunInstanceBatchSize > AliyunInstanceBatchSizeMax {
+				warnings = append(warnings, fmt.Sprintf(
+					"aliyun_instance_batch_size (%d) is out of range (%d-%d), will use default %d",
+					server.AliyunInstanceBatchSize, AliyunInstanceBatchSizeMin, AliyunInstanceBatchSizeMax, AliyunInstanceBatchSizeDefault))
+				server.AliyunInstanceBatchSize = AliyunInstanceBatchSizeDefault
+			}
+		}
 	}
 
 	// 验证账号配置
@@ -484,6 +500,8 @@ type ServerConf struct {
 	MetricConcurrency int `yaml:"metric_concurrency"`
 	// 产品级并发：同一地域下并行处理的命名空间（云产品）数量，建议 1-4。
 	ProductConcurrency int `yaml:"product_concurrency"`
+	// AliyunInstanceBatchSize 控制阿里云实例级采集每批次维度数量，默认 50。
+	AliyunInstanceBatchSize int `yaml:"aliyun_instance_batch_size"`
 
 	// RegionDiscovery 定义智能区域发现配置
 	RegionDiscovery *RegionDiscoveryConf `yaml:"region_discovery"`

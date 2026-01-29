@@ -131,6 +131,7 @@ env: {}
 #  REGION_CONCURRENCY: "4"            # 区域级并发；默认 4
 #  PRODUCT_CONCURRENCY: "1"           # 产品级并发；默认 1
 #  METRIC_CONCURRENCY: "2"            # 指标级并发；默认 2
+#  ALIYUN_INSTANCE_BATCH_SIZE: "50"    # 阿里云实例级采集批次大小；默认 50
 #
 #  # 四维架构配置（v0.5.0+）
 #  FOUR_DIMENSION_CONCURRENCY_MODE: "auto"      # 并发模式：auto|conservative|standard|aggressive
